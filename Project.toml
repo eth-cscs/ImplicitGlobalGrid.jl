@@ -1,0 +1,16 @@
+name = "ImplicitGlobalGrid"
+uuid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
+authors = ["Samuel Omlin", "Swiss National Supercomputing Centre"]
+version = "0.9.0"
+
+[compat]
+julia = "1"
+MPI = "≥ 0.10"
+CUDAdrv = "3"
+
+[deps]
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
+CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+CuArrays = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
+
