@@ -8,13 +8,18 @@ using Base.Threads
 
 
 """
-Update the halo of the given field(s).
+    update_halo!(A)
+    update_halo!(A...)
 
-Typical use cases:
-```
-update_halo!(A)        # Update the halo of the field A.
-update_halo!(A, B, C)  # Update the halos of the fields A, B and C.
-```
+Update the halo of the given GPU/CPU-array(s).
+
+# Typical use cases:
+    update_halo!(A)        # Update the halo of the array A.
+    update_halo!(A, B, C)  # Update the halos of the arrays A, B and C.
+
+!!! note "Performance note"
+    Group subsequent calls to `update_halo!` in a single call for better performance (enables additional pipelining).
+    Consider activating CUDA-aware MPI (see [`ImplicitGlobalGrid`](@ref)).
 """
 function update_halo!(A::GGArray...)
     check_initialized();
@@ -381,7 +386,7 @@ end
     end
 end
 
-# Return the ranges from A to be sent. It will always return ranges for the x,y and z dimensions even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
+# Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
 function sendranges(n::Integer, dim::Integer, A::GGArray)
     if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
     if     (n==2) ixyz_dim = size(A, dim) - (ol(dim, A) - 1);
@@ -392,7 +397,7 @@ function sendranges(n::Integer, dim::Integer, A::GGArray)
     return sendranges
 end
 
-# Return the ranges from A to be received. It will always return ranges for the x,y and z dimensions even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
+# Return the ranges from A to be received. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
 function recvranges(n::Integer, dim::Integer, A::GGArray)
     if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
     if     (n==2) ixyz_dim = size(A, dim);

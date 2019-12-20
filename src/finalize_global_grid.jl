@@ -4,13 +4,16 @@ import MPI
 
 
 """
+    finalize_global_grid()
+    finalize_global_grid(;finalize_MPI=true)
+
 Finalize the global grid (and also MPI by default).
 
-Use cases:
-```
-finalize_global_grid()                    # Finalize the global and also MPI.
-finalize_global_grid(finalize_MPI=false)  # Finalize the global grid without finalizing MPI.
-```
+# Arguments
+!!! note "Advanced keyword arguments"
+    - `finalize_MPI::Bool=true`: whether to finalize MPI (`true`) or not (`false`).
+
+See also: [`init_global_grid`](@ref)
 """
 function finalize_global_grid(;finalize_MPI::Bool=true)
     check_initialized();

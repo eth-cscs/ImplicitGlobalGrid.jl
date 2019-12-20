@@ -3,29 +3,28 @@ export gather!
 import MPI
 
 
+@doc """
+    gather!(A, A_global)
+    gather!(A, A_global; root=0)
+
+Gather a CPU-array `A` from each member of the Cartesian grid of MPI processes into a one large CPU-array `A_global` on the root process (default: `0`).
+
+!!! note "Memory usage note"
+    `gather!` allocates at first call an internal buffer of the size of `A_global` and keeps it alive until `finalize_global_grid` is called. A (re-)allocation occurs only if `gather!` is called with a larger `A_global` than in any previous call since the call to `init_global_grid`. This is an optimisation to minimize (re-)allocation, which is very important as `gather!` is typically called in the main loop of a simulation and its performance is critical for the overall application performance.
+"""
+gather!
+
 let
     global gather!, free_gather_buffer
     A_all_buf = zeros(0);
 
-    "Free the buffer used by gather!()."
+    "Free the buffer used by gather!."
     function free_gather_buffer()
         A_all_buf = nothing;
         GC.gc();
         A_all_buf = zeros(0);
     end
 
-    """
-    Gather an array from each member of carthesian grid of MPI processes into a one large array on the root process (default: 0).
-
-    Use cases:
-    ```
-    gather!(A, A_global)  # Gather array A from each process into array A_global on the root process (default: 0).
-    gather!(A, A_global; root=2)  # Gather array A from each process into array A_global on process 2.
-    ```
-
-    Performance note:
-    gather!() allocates at first call an internal buffer of size A_global and keeps it alive until finalize_global_grid() is called. A (re-)allocation occurs only if gather!() is called with a larger A_global than in any previous call since the call to init_global_grid(). This is an optimisation to minimize (re-)allocation, what is very important as gather!() is typically called in the main loop of a simulation and its performance is critical for the overall application performance.
-    """
     function gather!(A::Array{T}, A_global::Array{T}; root::Integer=0) where T <: GGNumber
         check_initialized();
         cart_gather!(A, A_global, me(), global_grid().dims, comm(); root=root);
