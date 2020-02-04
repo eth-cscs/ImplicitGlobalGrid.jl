@@ -97,7 +97,7 @@ end
 diffusion3D()
 ```
 
-The corresponding file can be found [here](docs/examples/diffusion3D_multigpu_CuArrays_novis.jl). A basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu_novis.jl)(no usage of multi-threading).
+The corresponding file can be found [here](docs/examples/diffusion3D_multigpu_CuArrays_novis.jl). A basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu_novis.jl) (no usage of multi-threading).
 
 ## Straightforward in-situ visualization/monitoring
 ImplicitGlobalGrid provides a function to gather an array from each process into a one large array on a single process, assembled according to the global grid:
@@ -158,7 +158,7 @@ Here is the resulting movie when running the application on 8 GPUs, solving 3-D 
 ![Implicit global grid](docs/movies/diffusion3D_8gpus.gif)
 
 The simulation producing this movie - *including the in-situ visualization* - took 29 minutes on 8 NVIDIA® Tesla® P100 GPUs on Piz Daint (an optimized solution with [CUDAnative.jl] can be more than 10 times faster).
-The complete example can be found [here](docs/examples/diffusion3D_multigpu_CuArrays.jl). A corresponding basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu.jl)(no usage of multi-threading) and a movie of a simulation with 254x254x254 grid points which it produced within 34 minutes using 8 Intel® Xeon® E5-2690 v3 is found [here](docs/movies/diffusion3D_8cpus.gif) (with 8 processes, no multi-threading).
+The complete example can be found [here](docs/examples/diffusion3D_multigpu_CuArrays.jl). A corresponding basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu.jl) (no usage of multi-threading) and a movie of a simulation with 254x254x254 grid points which it produced within 34 minutes using 8 Intel® Xeon® E5-2690 v3 is found [here](docs/movies/diffusion3D_8cpus.gif) (with 8 processes, no multi-threading).
 
 ## Seamless interoperability with MPI.jl
 ImplicitGlobalGrid is seamlessly interoperable with [MPI.jl]. The Cartesian MPI communicator it uses is created by default when calling `init_global_grid` and can then be obtained as follows (variable `comm_cart`):
