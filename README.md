@@ -99,7 +99,7 @@ diffusion3D()
 
 The corresponding file can be found [here](docs/examples/diffusion3D_multigpu_CuArrays_novis.jl). A basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu_novis.jl) (no usage of multi-threading).
 
-## Straightforward in-situ visualization/monitoring
+## Straightforward in-situ visualization / monitoring
 ImplicitGlobalGrid provides a function to gather an array from each process into a one large array on a single process, assembled according to the global grid:
 - `gather!`
 
@@ -237,7 +237,7 @@ julia>
 ```
 
 ## Dependencies
-ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA packages ([CuArrays.jl], [CUDAnative.jl] and [CUDAdrv.jl] \[[4][Julia CUDA paper]\]).
+ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA packages ([CuArrays.jl], [CUDAnative.jl] and [CUDAdrv.jl] \[[4][Julia CUDA paper 1], [5][Julia CUDA paper 2]\]).
 
 ## Installation
 ImplicitGlobalGrid may be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html) from the REPL:
@@ -254,7 +254,9 @@ julia>]
 
 \[3\] [Räss, L., Omlin, S., & Podladchikov, Y. Y. (2019). Resolving Spontaneous Nonlinear Multi-Physics Flow Localisation in 3-D: Tackling Hardware Limit. GPU Technology Conference 2019, San Jose, Silicon Valley, CA, USA.][GTC19]
 
-\[4\] [Besard, T., Foket, C., & De Sutter, B. (2018). Effective Extensible Programming: Unleashing Julia on GPUs. IEEE Transactions on Parallel and Distributed Systems, 30(4), 827-841. doi: 10.1109/TPDS.2018.2872064][Julia CUDA paper]
+\[4\] [Besard, T., Foket, C., & De Sutter, B. (2018). Effective Extensible Programming: Unleashing Julia on GPUs. IEEE Transactions on Parallel and Distributed Systems, 30(4), 827-841. doi: 10.1109/TPDS.2018.2872064][Julia CUDA paper 1]
+
+\[5\] [Besard, T., Churavy, V., Edelman, A., & De Sutter B. (2019). Rapid software prototyping for heterogeneous and distributed platforms. Advances in Engineering Software, 132, 29-46. doi: 10.1016/j.advengsoft.2019.02.002][Julia CUDA paper 2]
 
 [JuliaCon19]: https://pretalx.com/juliacon2019/talk/LGHLC3/
 [PASC19]: https://pasc19.pasc-conference.org/program/schedule/presentation/?id=msa218&sess=sess144
@@ -265,6 +267,7 @@ julia>]
 [CUDAdrv.jl]: https://github.com/JuliaGPU/CUDAdrv.jl
 [Julia Plots package]: https://github.com/JuliaPlots/Plots.jl
 [Julia Plots documentation]: http://docs.juliaplots.org/latest/backends/
-[Julia CUDA paper]: https://doi.org/10.1109/TPDS.2018.2872064
+[Julia CUDA paper 1]: https://doi.org/10.1109/TPDS.2018.2872064
+[Julia CUDA paper 2]: https://doi.org/10.1016/j.advengsoft.2019.02.002
 [Julia REPL]: https://docs.julialang.org/en/v1/stdlib/REPL/
 [IJulia]: https://github.com/JuliaLang/IJulia.jl
