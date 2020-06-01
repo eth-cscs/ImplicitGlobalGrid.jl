@@ -50,10 +50,10 @@ let
             reqs = fill(MPI.REQUEST_NULL, nprocs);
             for p in [0:root-1; root+1:nprocs-1]
                 cs = Cint[-1,-1,-1];
-                MPI.Cart_coords!(comm_cart, p, ndims, cs);
+                MPI.Cart_coords!(comm_cart, p, cs);
                 reqs[p+1] = MPI.Irecv!(view(A_all,:,cs[1]+1,cs[2]+1,cs[3]+1), p, tag, comm_cart); # Irev! requires a contigous (SubArray) buffer...
             end
-            cs = MPI.Cart_coords(comm_cart, ndims);
+            cs = MPI.Cart_coords(comm_cart);
             A_all[:,cs[1]+1,cs[2]+1,cs[3]+1] .= A[:];
             if (nprocs>1) MPI.Waitall!(reqs); end
             nx, ny, nz = size(view(A,:,:,:));

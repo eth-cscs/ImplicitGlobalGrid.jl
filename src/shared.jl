@@ -98,65 +98,10 @@ else
 end
 
 
-##--------------------------------------------------------------------
-## TEMPORARY GPU IMPLEMENTATIONS (being be added to the CUDA packages)
+##---------------
+## CUDA functions
 
 @static if ENABLE_CUDA
-    #  Temporary implementations of functions to enable stream priorities.
-    streamPriorityRange() = (r1_ref = Ref{Cint}(); r2_ref = Ref{Cint}(); CUDAdrv.@apicall(:cuCtxGetStreamPriorityRange, (Ptr{Cint}, Ptr{Cint}), r1_ref, r2_ref); (r1_ref[], r2_ref[]))
-
-    function CUDAdrv.CuStream(priority::Integer, flags::CUDAdrv.CUstream_flags=CUDAdrv.STREAM_DEFAULT)
-        handle_ref = Ref{CUDAdrv.CuStream_t}()
-        CUDAdrv.@apicall(:cuStreamCreateWithPriority , (Ptr{CUDAdrv.CuStream_t}, Cuint, Cint),
-                                                       handle_ref, flags, priority)
-        ctx = CuCurrentContext()
-        obj = CuStream(handle_ref[], ctx)
-        finalizer(CUDAdrv.unsafe_destroy!, obj)
-        return obj
-    end
-
-    # Temporary implementation of structs and functions to enable 3-D async memcopy
-    @enum(CUmemorytype, MEMORYTYPE_HOST = Cint(1),
-                        MEMORYTYPE_DEVICE = Cint(2),
-                        MEMORYTYPE_ARRAY = Cint(3),
-                        MEMORYTYPE_UNIFIED = Cint(4))
-
-    const CuArray_t = Ptr{Cvoid}
-    const CuStream_t = Ptr{Cvoid}
-
-    struct CuMemcpy3D_st
-        srcXInBytes::Csize_t         # Source X in bytes
-        srcY::Csize_t                # Source Y
-        srcZ::Csize_t                # Source Z
-        srcLOD::Csize_t              # Source LOD
-        srcMemoryType::CUmemorytype  # Source memory type (host, device, array)
-            srcHost::Ptr{Cvoid}      # Source host pointer
-            srcDevice::CuPtr{Cvoid}  # Source device pointer
-            srcArray::CuArray_t      # Source array reference
-            reserved0::Ptr{Cvoid}    # Must be NULL
-            srcPitch::Csize_t        # Source pitch (ignored when src is array)
-            srcHeight::Csize_t       # Source height (ignored when src is array; may be 0 if Depth==1)
-
-        dstXInBytes::Csize_t         # Destination X in bytes
-        dstY::Csize_t                # Destination Y
-        dstZ::Csize_t                # Destination Z
-        dstLOD::Csize_t              # Destination LOD
-        dstMemoryType::CUmemorytype  # Destination memory type (host, device, array)
-            dstHost::Ptr{Cvoid}      # Destination host pointer
-            dstDevice::CuPtr{Cvoid}  # Destination device pointer
-            dstArray::CuArray_t      # Destination array reference
-            reserved1::Ptr{Cvoid}    # Must be NULL
-            dstPitch::Csize_t        # Destination pitch (ignored when dst is array)
-            dstHeight::Csize_t       # Destination height (ignored when dst is array; may be 0 if Depth==1)
-
-        WidthInBytes::Csize_t        # Width of 3D memory copy in bytes
-        Height::Csize_t              # Height of 3D memory copy
-        Depth::Csize_t               # Depth of 3D memory copy
-    end
-    @assert sizeof(CuMemcpy3D_st) == 200
-
-    Base.pointer(A::CuArray) = A.buf.ptr
-
     function register(buf::Array{T}) where T <: GGNumber
         rbuf = Mem.register(Mem.Host, pointer(buf), sizeof(buf), Mem.HOSTREGISTER_DEVICEMAP);
         rbuf_d = convert(CuPtr{T}, rbuf);
