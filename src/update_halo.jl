@@ -146,11 +146,11 @@ let
             if (length(sendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     reallocate_bufs(T, i, n, max_halo_elems);
-                    @enable_if_cuda if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end
+                    @enable_if_cuda if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
                 end
                 GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
             end
-            if (length(cusendbufs_raw[i][1]) < max_halo_elems)
+            if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     @enable_if_cuda if (is_cuarray(A) &&  any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
                 end
@@ -187,8 +187,8 @@ let
         end
 
         function init_cubufs(T::DataType, fields::GGArray...)
-            while (length(cusendbufs_raw) < length(fields)) push!(cusendbufs_raw, [cuzeros(T,0), cuzeros(T,0)]); end
-            while (length(curecvbufs_raw) < length(fields)) push!(curecvbufs_raw, [cuzeros(T,0), cuzeros(T,0)]); end
+            while (length(cusendbufs_raw) < length(fields)) push!(cusendbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
+            while (length(curecvbufs_raw) < length(fields)) push!(curecvbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
             while (length(cusendbufs_raw_h) < length(fields)) push!(cusendbufs_raw_h, [[], []]); end
             while (length(curecvbufs_raw_h) < length(fields)) push!(curecvbufs_raw_h, [[], []]); end
         end
@@ -337,7 +337,7 @@ end
 
         function allocate_custreams_iwrite(fields::GGArray...)
     	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(streamPriorityRange()[2], CUDAdrv.STREAM_NON_BLOCKING) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+                custreams = [custreams [CuStream(; flags=CUDAdrv.STREAM_NON_BLOCKING, priority=CUDAdrv.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
             end
         end
 
@@ -365,7 +365,7 @@ end
 
         function allocate_custreams_iread(fields::GGArray...)
     	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(streamPriorityRange()[2], CUDAdrv.STREAM_NON_BLOCKING) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+                custreams = [custreams [CuStream(; flags=CUDAdrv.STREAM_NON_BLOCKING, priority=CUDAdrv.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
             end
         end
 
@@ -409,79 +409,29 @@ end
 
 # Write to the send buffer on the host from the array on the host (h2h). Note: it works for 1D-3D, as sendranges contains always 3 ranges independently of the number of dimensions of A (see function sendranges).
 function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
-    if nthreads() > 1
-        if dim == 1
-            @threads for iz in sendranges[3]
-                @threads for iy in sendranges[2]
-                    for ix in sendranges[1]
-                        sendbuf[iy,iz] = A[ix,iy,iz];
-                    end
-                end
-            end
-        elseif dim == 2
-            @threads for iz in sendranges[3]
-                for iy in sendranges[2]
-                    @threads for ix in sendranges[1]
-                        sendbuf[ix,iz] = A[ix,iy,iz];
-                    end
-                end
-            end
-        elseif dim == 3
-            for iz in sendranges[3]
-                @threads for iy in sendranges[2]
-                    @threads for ix in sendranges[1]
-                        sendbuf[ix,iy] = A[ix,iy,iz];
-                    end
-                end
-            end
-        end
-    else
-        ix = sendranges[1];
-        iy = sendranges[2];
-        iz = sendranges[3];
-        if     (dim == 1) sendbuf[iy,iz] .= reshape(A[ix,iy,iz], length.(sendranges[2:3])...);
-        elseif (dim == 2) sendbuf[ix,iz] .= reshape(A[ix,iy,iz], length.(sendranges[[1,3]])...);
-        elseif (dim == 3) sendbuf[ix,iy] .= reshape(A[ix,iy,iz], length.(sendranges[1:2])...);
-        end
+    ix = (length(sendranges[1])==1) ? sendranges[1][1] : sendranges[1];
+    iy = (length(sendranges[2])==1) ? sendranges[2][1] : sendranges[2];
+    iz = (length(sendranges[3])==1) ? sendranges[3][1] : sendranges[3];
+    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(sendbuf,:), view(view(A,ix, :, :),:));
+    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf,:), view(view(A,ix, :,iz),:));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf,:), view(view(A, :,iy, :),:));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf,:), view(view(A, :,iy,iz),:));
+    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(view(sendbuf,:), view(view(A, :, :,iz),:));
+    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(view(sendbuf,:), view(view(A,sendranges...),:)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
     end
 end
 
-# Read from the receive buffer on the host and store on the array on the host (h2h). This function could be written simpler using vectorized notation. It is written as is to achieve a maximal similarity to the function read_d2h!. Note: it works for 1D-3D, as recvranges contains always 3 ranges independently of the number of dimensions of A (see function recvranges).
+# Read from the receive buffer on the host and store on the array on the host (h2h). Note: it works for 1D-3D, as recvranges contains always 3 ranges independently of the number of dimensions of A (see function recvranges).
 function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
-    if nthreads() > 1
-        if dim == 1
-            @threads for iz in recvranges[3]
-                @threads for iy in recvranges[2]
-                    for ix in recvranges[1]
-                        A[ix,iy,iz] = recvbuf[iy,iz];
-                    end
-                end
-            end
-        elseif dim == 2
-            @threads for iz in recvranges[3]
-                for iy in recvranges[2]
-                    @threads for ix in recvranges[1]
-                        A[ix,iy,iz] = recvbuf[ix,iz];
-                    end
-                end
-            end
-        elseif dim == 3
-            for iz in recvranges[3]
-                @threads for iy in recvranges[2]
-                    @threads for ix in recvranges[1]
-                        A[ix,iy,iz] = recvbuf[ix,iy];
-                    end
-                end
-            end
-        end
-    else
-        ix = recvranges[1];
-        iy = recvranges[2];
-        iz = recvranges[3];
-        if     (dim == 1) A[ix,iy,iz] .= reshape(recvbuf[iy,iz], length.(recvranges)...);
-        elseif (dim == 2) A[ix,iy,iz] .= reshape(recvbuf[ix,iz], length.(recvranges)...);
-        elseif (dim == 3) A[ix,iy,iz] .= reshape(recvbuf[ix,iy], length.(recvranges)...);
-        end
+    ix = (length(recvranges[1])==1) ? recvranges[1][1] : recvranges[1];
+    iy = (length(recvranges[2])==1) ? recvranges[2][1] : recvranges[2];
+    iz = (length(recvranges[3])==1) ? recvranges[3][1] : recvranges[3];
+    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(view(A,ix, :, :), :), view(recvbuf,:));
+    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(view(A,ix, :,iz), :), view(recvbuf,:));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(view(A, :,iy, :), :), view(recvbuf,:));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(view(A, :,iy,iz), :), view(recvbuf,:));
+    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(view(view(A, :, :,iz), :), view(recvbuf,:));
+    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(view(view(A,recvranges...),:), view(recvbuf,:)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -514,48 +464,26 @@ end
 
     # Write to the send buffer on the host from the array on the device (d2h).
     function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-        params = Ref(CuMemcpy3D_st(
-            # Source
-            sizeof(T)*(sendranges[1][1]-1), sendranges[2][1]-1, sendranges[3][1]-1,        # srcXInBytes, srcY, srcZ
-            0,                                                                             # srcLOD
-            MEMORYTYPE_DEVICE,                                                             # srcMemoryType
-            C_NULL, pointer(A),                                                            # srcHost, srcDevice
-            C_NULL, C_NULL,                                                                # srcArray, reserved0
-            size(A,1)*sizeof(T), size(A,2),                                                # srcPitch, srcHeight
-            # Destination
-            0, 0, 0,                                                                       # dstXInBytes, dstY, dstZ
-            0,                                                                             # dstLOD
-            MEMORYTYPE_HOST,                                                               # dstMemoryType
-            pointer(sendbuf), CU_NULL,                                                     # dstHost, dstDevice
-            C_NULL, C_NULL,                                                                # dstArray, reserved1
-            sizeof(T)*length(sendranges[1]), length(sendranges[2]),                        # dstPitch, dstHeight
-            # Extent of copy
-            sizeof(T)*length(sendranges[1]), length(sendranges[2]), length(sendranges[3])  # WidthInBytes, Height, Depth
-        ));
-        CUDAdrv.@apicall(:cuMemcpy3DAsync, (Ptr{CuMemcpy3D_st}, CuStream_t), params, custream.handle);
+        Mem.unsafe_copy3d!(
+            pointer(sendbuf), Mem.Host, pointer(A), Mem.Device,
+            length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
+            srcPos=(sizeof(T)*(sendranges[1][1]-1)+1, sendranges[2][1], sendranges[3][1]),  # NOTE: this is a workaround for a bug in CUDAdrv 6.3. Later this line will become: srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
+            srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
+            dstPitch=sizeof(T)*length(sendranges[1]), dstHeight=length(sendranges[2]),
+            async=true, stream=custream
+        )
     end
 
-    # Read from the receive buffer on the host and store on the array on the device (h2d).  #TODO: SEE how to make work for 1D-3D and make comment here.
+    # Read from the receive buffer on the host and store on the array on the device (h2d).
     function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-        params = Ref(CuMemcpy3D_st(
-            # Source
-            0, 0, 0,                                                                       # srcXInBytes, srcY, srcZ
-            0,                                                                             # srcLOD
-            MEMORYTYPE_HOST,                                                               # srcMemoryType
-            pointer(recvbuf), CU_NULL,                                                     # srcHost, srcDevice
-            C_NULL, C_NULL,                                                                # srcArray, reserved0
-            sizeof(T)*length(recvranges[1]), length(recvranges[2]),                        # srcPitch, srcHeight
-            # Destination
-            sizeof(T)*(recvranges[1][1]-1), recvranges[2][1]-1, recvranges[3][1]-1,        # dstXInBytes, dstY, dstZ
-            0,                                                                             # dstLOD
-            MEMORYTYPE_DEVICE,                                                             # dstMemoryType
-            C_NULL, pointer(A),                                                            # dstHost, dstDevice
-            C_NULL, C_NULL,                                                                # dstArray, reserved1
-            size(A,1)*sizeof(T), size(A,2),                                                # dstPitch, dstHeight
-            # Extent of copy
-            sizeof(T)*length(recvranges[1]), length(recvranges[2]), length(recvranges[3])  # WidthInBytes, Height, Depth
-        ));
-        CUDAdrv.@apicall(:cuMemcpy3DAsync, (Ptr{CuMemcpy3D_st}, CuStream_t), params, custream.handle);
+        Mem.unsafe_copy3d!(
+            pointer(A), Mem.Device, pointer(recvbuf), Mem.Host,
+            length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
+            dstPos=(sizeof(T)*(recvranges[1][1]-1)+1, recvranges[2][1], recvranges[3][1]),  # NOTE: this is a workaround for a bug in CUDAdrv 6.3. Later this line will become: dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
+            srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
+            dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
+            async=true, stream=custream
+        )
     end
 end
 
