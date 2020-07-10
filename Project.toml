@@ -1,7 +1,7 @@
 name = "ImplicitGlobalGrid"
 uuid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 authors = ["Samuel Omlin", "Swiss National Supercomputing Centre"]
-version = "0.9.3"
+version = "0.10.0"
 
 [compat]
 julia = "1"
