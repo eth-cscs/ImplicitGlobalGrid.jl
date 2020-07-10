@@ -1,7 +1,7 @@
 # NOTE: This file contains many parts that are copied from the file runtests.jl from the Package MPI.jl.
 push!(LOAD_PATH, "../src") # FIXME: to be removed everywhere?
 
-using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
+using ImplicitGlobalGrid
 
 excludedfiles = [ "test_excluded.jl"];
 

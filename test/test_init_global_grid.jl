@@ -2,7 +2,7 @@ push!(LOAD_PATH, "../src")
 using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
-macro require(condition) esc(:(GG.@require($condition))) end
+import ImplicitGlobalGrid: @require
 
 
 ## Test setup (NOTE: Testset "2. initialization including MPI" completes the test setup as it initializes MPI and must therefore mandatorily be at the 2nd position)

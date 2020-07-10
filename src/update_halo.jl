@@ -2,7 +2,7 @@ export update_halo!
 
 import MPI
 @static if ENABLE_CUDA
-    using CUDAdrv, CUDAnative, CuArrays
+    using CUDA
 end
 using Base.Threads
 
@@ -111,7 +111,7 @@ let
             if (bufs !== nothing)
                 for i = 1:length(bufs)
                     for n = 1:length(bufs[i])
-                        if is_cuarray(bufs[i][n]) CuArrays.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                        if is_cuarray(bufs[i][n]) CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
                     end
                 end
             end
@@ -120,7 +120,7 @@ let
             if (bufs !== nothing)
                 for i = 1:length(bufs)
                     for n = 1:length(bufs[i])
-                        if (isa(bufs[i][n],CUDAdrv.Mem.HostBuffer)) CUDAdrv.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                        if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
                     end
                 end
             end
@@ -204,8 +204,8 @@ let
         end
 
         function reregister_cubufs(T::DataType, i::Integer, n::Integer)
-            if (isa(cusendbufs_raw_h[i][n],CUDAdrv.Mem.HostBuffer)) CUDAdrv.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-            if (isa(curecvbufs_raw_h[i][n],CUDAdrv.Mem.HostBuffer)) CUDAdrv.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+            if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+            if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
             cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
             curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
         end
@@ -337,7 +337,7 @@ end
 
         function allocate_custreams_iwrite(fields::GGArray...)
     	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(; flags=CUDAdrv.STREAM_NON_BLOCKING, priority=CUDAdrv.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+                custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
             end
         end
 
@@ -365,7 +365,7 @@ end
 
         function allocate_custreams_iread(fields::GGArray...)
     	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(; flags=CUDAdrv.STREAM_NON_BLOCKING, priority=CUDAdrv.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+                custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
             end
         end
 
@@ -467,7 +467,7 @@ end
         Mem.unsafe_copy3d!(
             pointer(sendbuf), Mem.Host, pointer(A), Mem.Device,
             length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
-            srcPos=(sizeof(T)*(sendranges[1][1]-1)+1, sendranges[2][1], sendranges[3][1]),  # NOTE: this is a workaround for a bug in CUDAdrv 6.3. Later this line will become: srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
+            srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
             srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
             dstPitch=sizeof(T)*length(sendranges[1]), dstHeight=length(sendranges[2]),
             async=true, stream=custream
@@ -479,7 +479,7 @@ end
         Mem.unsafe_copy3d!(
             pointer(A), Mem.Device, pointer(recvbuf), Mem.Host,
             length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
-            dstPos=(sizeof(T)*(recvranges[1][1]-1)+1, recvranges[2][1], recvranges[3][1]),  # NOTE: this is a workaround for a bug in CUDAdrv 6.3. Later this line will become: dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
+            dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
             srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
             dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
             async=true, stream=custream
