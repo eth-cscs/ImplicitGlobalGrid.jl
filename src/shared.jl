@@ -1,5 +1,5 @@
-# Enable CUDA if the required packages are installed (enables to use the package for CPU-only without requiring the CUDA packages).
-const CUDA_IS_INSTALLED = (Base.find_package("CUDAdrv")!==nothing && Base.find_package("CUDAnative")!==nothing && Base.find_package("CuArrays")!==nothing)
+# Enable CUDA if the required packages are installed and functional (enables to use the package for CPU-only without requiring the CUDA packages functional - or even not at all if the installation procedure allows it). NOTE: it cannot be precompiled for GPU on a node without GPU.
+const CUDA_IS_INSTALLED = (Base.find_package("CUDA")!==nothing && import CUDA==nothing && CUDA.functional())
 const ENABLE_CUDA = CUDA_IS_INSTALLED # Can of course be set to false even if CUDA_IS_INSTALLED.
 macro enable_if_cuda(block) # Macro intended to put one-liners depending on ENABLE_CUDA (Note an alternative would be to create always a function for CPU and GPU and rely on multiple dispatch).
     esc(
@@ -13,7 +13,8 @@ end
 
 import MPI
 @static if ENABLE_CUDA
-    using CUDAdrv, CUDAnative, CuArrays
+    using CUDA
+    __init__() = @assert CUDA.functional(true)
 end
 
 
@@ -33,7 +34,7 @@ const GGNumber = Real
 
 @static if ENABLE_CUDA
     const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}
-    const cuzeros = CuArrays.zeros
+    const cuzeros = CUDA.zeros
 else
     const GGArray{T,N} = Union{Array{T,N}}
 end
@@ -77,6 +78,7 @@ end
 ## SYNTAX SUGAR
 
 macro require(condition) esc(:( if !($condition) error("Pre-test requirement not met: $condition") end )) end  # Verify a condition required for a unit test (in the unit test results, this should not be treated as a unit test).
+longnameof(f)                          = "$(parentmodule(f)).$(nameof(f))"
 isnothing(x::Any)                      = x === nothing ? true : false # To ensure compatibility for Julia >=v1
 none(x::AbstractArray{Bool})           = all(x.==false)
 me()                                   = global_grid().me

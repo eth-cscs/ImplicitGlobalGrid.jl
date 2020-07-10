@@ -1,4 +1,4 @@
-using ImplicitGlobalGrid, CuArrays
+using ImplicitGlobalGrid, CUDA
 
 @views d_xa(A) = A[2:end  , :     , :     ] .- A[1:end-1, :     , :     ];
 @views d_xi(A) = A[2:end  ,2:end-1,2:end-1] .- A[1:end-1,2:end-1,2:end-1];
@@ -23,12 +23,12 @@ using ImplicitGlobalGrid, CuArrays
     dz         = lz/(nz_g()-1);                             # ...        in dimension z
 
     # Array initializations
-    T     = CuArrays.zeros(Float64, nx,   ny,   nz  );
-    Cp    = CuArrays.zeros(Float64, nx,   ny,   nz  );
-    dTedt = CuArrays.zeros(Float64, nx-2, ny-2, nz-2);
-    qx    = CuArrays.zeros(Float64, nx-1, ny-2, nz-2);
-    qy    = CuArrays.zeros(Float64, nx-2, ny-1, nz-2);
-    qz    = CuArrays.zeros(Float64, nx-2, ny-2, nz-1);
+    T     = CUDA.zeros(Float64, nx,   ny,   nz  );
+    Cp    = CUDA.zeros(Float64, nx,   ny,   nz  );
+    dTedt = CUDA.zeros(Float64, nx-2, ny-2, nz-2);
+    qx    = CUDA.zeros(Float64, nx-1, ny-2, nz-2);
+    qy    = CUDA.zeros(Float64, nx-2, ny-1, nz-2);
+    qz    = CUDA.zeros(Float64, nx-2, ny-2, nz-1);
 
     # Initial conditions (heat capacity and temperature with two Gaussian anomalies each)
     Cp .= cp_min .+ CuArray([5*exp(-((x_g(ix,dx,Cp)-lx/1.5))^2-((y_g(iy,dy,Cp)-ly/2))^2-((z_g(iz,dz,Cp)-lz/1.5))^2) +
@@ -51,4 +51,3 @@ using ImplicitGlobalGrid, CuArrays
 end
 
 diffusion3D()
-

@@ -1,17 +1,18 @@
 # NOTE: All tests of this file can be run with any number of processes.
-# Most of the functionality can however be verified with one single process
+# Nearly all of the functionality can however be verified with one single process
 # (thanks to the usage of periodic boundaries in most of the full halo update tests).
 
 push!(LOAD_PATH, "../src")
 using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
-macro require(condition) esc(:(GG.@require($condition))) end
+import ImplicitGlobalGrid: @require, longnameof
 
 test_gpu = GG.ENABLE_CUDA
 if test_gpu
-	using CuArrays, CUDAnative, CUDAdrv
-	global cuzeros = CuArrays.zeros
+	using CUDA
+	@assert CUDA.functional(true)
+	global cuzeros = CUDA.zeros
 	global allocators = [zeros, cuzeros]
 	global ArrayConstructors = [Array, CuArray]
 else
@@ -34,7 +35,7 @@ dy = 1.0
 dz = 1.0
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
-	@testset "1. argument check (allocator: $zeros)" for zeros in allocators
+	@testset "1. argument check (allocator: $(longnameof(zeros)))" for zeros in allocators
 		init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
 		P   = zeros(nx,  ny,  nz  );
 		Sxz = zeros(nx-2,ny-1,nz-2);
@@ -48,7 +49,7 @@ dz = 1.0
 		finalize_global_grid(finalize_MPI=false);
 	end;
 
-	@testset "2. buffer allocation (allocator: $zeros)" for zeros in allocators
+	@testset "2. buffer allocation (allocator: $(longnameof(zeros)))" for zeros in allocators
 		init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
 		P = zeros(nx,  ny,  nz  );
 		A = zeros(nx-1,ny+2,nz+1);
@@ -123,7 +124,7 @@ dz = 1.0
 
 	@testset "3. data transfer components" begin
 		@testset "iwrite_sendbufs! / iread_recvbufs!" begin
-			@testset "sendranges / recvranges (allocator: $zeros)" for zeros in allocators
+			@testset "sendranges / recvranges (allocator: $(longnameof(zeros)))" for zeros in allocators
 				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false);
 				P   = zeros(nx,  ny,  nz  );
 				A   = zeros(nx-1,ny+2,nz+1);
@@ -196,18 +197,18 @@ dz = 1.0
 					nthreads = (1, 1, 1);
 	                halosize = [r[end] - r[1] + 1 for r in ranges];
 					nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-	                @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+	                @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
 					custream = CuDefaultStream();
-					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-					CUDAdrv.Mem.unregister(buf_h);
+					CUDA.Mem.unregister(buf_h);
 					# (dim=2)
 					dim = 2;
 					P2  = cuzeros(eltype(P),size(P));
@@ -217,18 +218,18 @@ dz = 1.0
 					nthreads = (1, 1, 1);
 					halosize = [r[end] - r[1] + 1 for r in ranges];
 					nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-					@cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+					@cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
 					custream = CuDefaultStream();
-					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-					CUDAdrv.Mem.unregister(buf_h);
+					CUDA.Mem.unregister(buf_h);
 					# (dim=3)
 					dim = 3
 					P2  = cuzeros(eltype(P),size(P));
@@ -238,22 +239,22 @@ dz = 1.0
 					nthreads = (1, 1, 1);
 					halosize = [r[end] - r[1] + 1 for r in ranges];
 					nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-					@cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+					@cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDAdrv.synchronize();
+					@cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
 					custream = CuDefaultStream();
-					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDAdrv.synchronize();
+					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-					CUDAdrv.Mem.unregister(buf_h);
+					CUDA.Mem.unregister(buf_h);
 					finalize_global_grid(finalize_MPI=false);
 				end;
 			end
-			@testset "iwrite_sendbufs! (allocator: $zeros)" for zeros in allocators
+			@testset "iwrite_sendbufs! (allocator: $(longnameof(zeros)))" for zeros in allocators
 				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false);
 				P = zeros(nx,  ny,  nz  );
 				A = zeros(nx-1,ny+2,nz+1);
@@ -347,7 +348,7 @@ dz = 1.0
 				end
 				finalize_global_grid(finalize_MPI=false);
 			end;
-			@testset "iread_recvbufs! (allocator: $zeros)" for zeros in allocators
+			@testset "iread_recvbufs! (allocator: $(longnameof(zeros)))" for zeros in allocators
 				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false);
 				P = zeros(nx,  ny,  nz  );
 				A = zeros(nx-1,ny+2,nz+1);
@@ -462,7 +463,7 @@ dz = 1.0
 				finalize_global_grid(finalize_MPI=false);
 			end;
 			if (nprocs==1)
-				@testset "sendrecv_halo_local (allocator: $zeros)" for zeros in allocators
+				@testset "sendrecv_halo_local (allocator: $(longnameof(zeros)))" for zeros in allocators
 					init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false);
 					P = zeros(nx,  ny,  nz  );
 					A = zeros(nx-1,ny+2,nz+1);
@@ -547,7 +548,7 @@ dz = 1.0
 			end
 		end;
 		if (nprocs>1)
-			@testset "irecv_halo! / isend_halo (allocator: $zeros)" for zeros in allocators
+			@testset "irecv_halo! / isend_halo (allocator: $(longnameof(zeros)))" for zeros in allocators
 				me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz, dimy=1, dimz=1, periodx=1, quiet=true, init_MPI=false);
 				P   = zeros(nx,ny,nz);
 				A   = zeros(nx,ny,nz);
@@ -590,7 +591,7 @@ dz = 1.0
 	end;
 
 	# (Backup field filled with encoded coordinates and set boundary to zeros; then update halo and compare with backuped field; it should be the same again, except for the boundaries that are not halos)
-	@testset "4. halo update (allocator: $Array)" for Array in ArrayConstructors
+	@testset "4. halo update (allocator: $(longnameof(Array)))" for Array in ArrayConstructors
 		@testset "basic grid (default: periodic)" begin
 			@testset "1D" begin
 		     	init_global_grid(nx, 1, 1, periodx=1, quiet=true, init_MPI=false);

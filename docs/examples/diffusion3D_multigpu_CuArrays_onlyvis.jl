@@ -1,4 +1,4 @@
-using ImplicitGlobalGrid, CuArrays, Plots
+using ImplicitGlobalGrid, CUDA, Plots
 #(...)
 
 @views function diffusion3D()
@@ -44,4 +44,3 @@ using ImplicitGlobalGrid, CuArrays, Plots
 end
 
 diffusion3D()
-

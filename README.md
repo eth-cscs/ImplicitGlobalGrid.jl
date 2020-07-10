@@ -40,9 +40,9 @@ Moreover, the following three functions allow to query the size of the global gr
 The following Multi-GPU 3-D heat diffusion solver illustrates how these functions enable the creation of massively parallel applications.
 
 ## 50-lines Multi-GPU example
-This simple Multi-GPU 3-D heat diffusion solver uses ImplicitGlobalGrid. It relies fully on [CuArrays.jl] to perform the stencil-computations with maximal simplicity ([CUDAnative.jl] enables writing explicit GPU kernels and therefore better performance).
+This simple Multi-GPU 3-D heat diffusion solver uses ImplicitGlobalGrid. It relies fully on the broadcasting capabilities of [CUDA.jl]'s `CuArray` type to perform the stencil-computations with maximal simplicity ([CUDA.jl] enables also writing explicit GPU kernels which can lead to significantly better performance for these computations).
 ```julia
-using ImplicitGlobalGrid, CuArrays
+using ImplicitGlobalGrid, CUDA
 
 @views d_xa(A) = A[2:end  , :     , :     ] .- A[1:end-1, :     , :     ];
 @views d_xi(A) = A[2:end  ,2:end-1,2:end-1] .- A[1:end-1,2:end-1,2:end-1];
@@ -67,12 +67,12 @@ using ImplicitGlobalGrid, CuArrays
     dz         = lz/(nz_g()-1);                             # ...        in dimension z
 
     # Array initializations
-    T     = CuArrays.zeros(Float64, nx,   ny,   nz  );
-    Cp    = CuArrays.zeros(Float64, nx,   ny,   nz  );
-    dTedt = CuArrays.zeros(Float64, nx-2, ny-2, nz-2);
-    qx    = CuArrays.zeros(Float64, nx-1, ny-2, nz-2);
-    qy    = CuArrays.zeros(Float64, nx-2, ny-1, nz-2);
-    qz    = CuArrays.zeros(Float64, nx-2, ny-2, nz-1);
+    T     = CUDA.zeros(Float64, nx,   ny,   nz  );
+    Cp    = CUDA.zeros(Float64, nx,   ny,   nz  );
+    dTedt = CUDA.zeros(Float64, nx-2, ny-2, nz-2);
+    qx    = CUDA.zeros(Float64, nx-1, ny-2, nz-2);
+    qy    = CUDA.zeros(Float64, nx-2, ny-1, nz-2);
+    qz    = CUDA.zeros(Float64, nx-2, ny-2, nz-1);
 
     # Initial conditions (heat capacity and temperature with two Gaussian anomalies each)
     Cp .= cp_min .+ CuArray([5*exp(-((x_g(ix,dx,Cp)-lx/1.5))^2-((y_g(iy,dy,Cp)-ly/2))^2-((z_g(iz,dz,Cp)-lz/1.5))^2) +
@@ -105,7 +105,7 @@ ImplicitGlobalGrid provides a function to gather an array from each process into
 
 This enables straightforward in-situ visualization or monitoring of Multi-GPU/CPU applications using e.g. the [Julia Plots package] as shown in the following (the GR backend is used as it is particularly fast according to the [Julia Plots documentation]). It is enough to add a couple of lines to the previous example (omitted unmodified lines are represented with `#(...)`):
 ```julia
-using ImplicitGlobalGrid, CuArrays, Plots
+using ImplicitGlobalGrid, CUDA, Plots
 #(...)
 
 @views function diffusion3D()
@@ -157,7 +157,7 @@ Here is the resulting movie when running the application on 8 GPUs, solving 3-D 
 
 ![Implicit global grid](docs/movies/diffusion3D_8gpus.gif)
 
-The simulation producing this movie - *including the in-situ visualization* - took 29 minutes on 8 NVIDIA® Tesla® P100 GPUs on Piz Daint (an optimized solution with [CUDAnative.jl] can be more than 10 times faster).
+The simulation producing this movie - *including the in-situ visualization* - took 29 minutes on 8 NVIDIA® Tesla® P100 GPUs on Piz Daint (an optimized solution using [CUDA.jl]'s native kernel programming capabilities can be more than 10 times faster).
 The complete example can be found [here](docs/examples/diffusion3D_multigpu_CuArrays.jl). A corresponding basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu.jl) (no usage of multi-threading) and a movie of a simulation with 254x254x254 grid points which it produced within 34 minutes using 8 Intel® Xeon® E5-2690 v3 is found [here](docs/movies/diffusion3D_8cpus.gif) (with 8 processes, no multi-threading).
 
 ## Seamless interoperability with MPI.jl
@@ -237,7 +237,7 @@ julia>
 ```
 
 ## Dependencies
-ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA packages ([CuArrays.jl], [CUDAnative.jl] and [CUDAdrv.jl] \[[4][Julia CUDA paper 1], [5][Julia CUDA paper 2]\]).
+ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA package ([CUDA.jl] \[[4][Julia CUDA paper 1], [5][Julia CUDA paper 2]\]).
 
 ## Installation
 ImplicitGlobalGrid may be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html) from the REPL:
@@ -262,9 +262,7 @@ julia>]
 [PASC19]: https://pasc19.pasc-conference.org/program/schedule/presentation/?id=msa218&sess=sess144
 [GTC19]: https://on-demand.gputechconf.com/gtc/2019/video/_/S9368/
 [MPI.jl]: https://github.com/JuliaParallel/MPI.jl
-[CuArrays.jl]: https://github.com/JuliaGPU/CuArrays.jl
-[CUDAnative.jl]: https://github.com/JuliaGPU/CUDAnative.jl
-[CUDAdrv.jl]: https://github.com/JuliaGPU/CUDAdrv.jl
+[CUDA.jl]: https://github.com/JuliaGPU/CUDA.jl
 [Julia Plots package]: https://github.com/JuliaPlots/Plots.jl
 [Julia Plots documentation]: http://docs.juliaplots.org/latest/backends/
 [Julia CUDA paper 1]: https://doi.org/10.1109/TPDS.2018.2872064
