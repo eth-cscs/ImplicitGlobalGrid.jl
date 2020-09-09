@@ -56,10 +56,10 @@ using ImplicitGlobalGrid, CUDA
     # Physics
     lam        = 1.0;                                       # Thermal conductivity
     cp_min     = 1.0;                                       # Minimal heat capacity
-    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of domain in dimensions x, y an z.
+    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of domain in dimensions x, y and z.
 
     # Numerics
-    nx, ny, nz = 256, 256, 256;                             # Number of gridpoints dimensions x, y an z.
+    nx, ny, nz = 256, 256, 256;                             # Number of gridpoints dimensions x, y and z.
     nt         = 100000;                                    # Number of time steps
     init_global_grid(nx, ny, nz);                           # Initialize the implicit global grid
     dx         = lx/(nx_g()-1);                             # Space step in dimension x
@@ -206,6 +206,8 @@ search: ImplicitGlobalGrid
     •    update_halo!
 
     •    gather!
+
+    •    select_gpu
 
     •    nx_g
 
