@@ -233,7 +233,7 @@ search: ImplicitGlobalGrid
   │  ImplicitGlobalGrid by setting the following environment variable (at latest
   │  before the first call to init_global_grid:
   │
-  │  shell> export GG_CUDAAWARE_MPI=1
+  │  shell> export IGG_CUDAAWARE_MPI=1
 
 julia>
 ```

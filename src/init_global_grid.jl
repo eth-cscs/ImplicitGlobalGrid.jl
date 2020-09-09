@@ -44,11 +44,11 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     periods       = [periodx, periody, periodz];
     overlaps      = [overlapx, overlapy, overlapz];
     cudaaware_MPI = [false, false, false]
-    if haskey(ENV, "GG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["GG_CUDAAWARE_MPI"]) > 0); end
+    if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
     if none(cudaaware_MPI)
-        if haskey(ENV, "GG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["GG_CUDAAWARE_MPI_DIMX"]) > 0); end
-        if haskey(ENV, "GG_CUDAAWARE_MPI_DIMY") cudaaware_MPI[2] = (parse(Int64, ENV["GG_CUDAAWARE_MPI_DIMY"]) > 0); end
-        if haskey(ENV, "GG_CUDAAWARE_MPI_DIMZ") cudaaware_MPI[3] = (parse(Int64, ENV["GG_CUDAAWARE_MPI_DIMZ"]) > 0); end
+        if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMX"]) > 0); end
+        if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMY") cudaaware_MPI[2] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMY"]) > 0); end
+        if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMZ") cudaaware_MPI[3] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMZ"]) > 0); end
     end
     if (nx==1) error("Invalid arguments: nx can never be 1.") end
     if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
