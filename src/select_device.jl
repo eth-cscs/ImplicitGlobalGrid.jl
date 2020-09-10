@@ -11,6 +11,7 @@ end
 Select the device (GPU) corresponding to the node-local MPI rank and return its ID. This function only needs to be called when using nodes with more than one device.
 """
 function select_device()
+    check_initialized();
     @static if ENABLE_CUDA
         @assert CUDA.functional(true)
         comm_l = MPI.Comm_split_type(comm(), MPI.MPI_COMM_TYPE_SHARED, me())
