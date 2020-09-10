@@ -207,7 +207,7 @@ search: ImplicitGlobalGrid
 
     •    gather!
 
-    •    select_gpu
+    •    select_device
 
     •    nx_g
 
