@@ -5,7 +5,7 @@ version = "0.10.0"
 
 [compat]
 julia = "1"
-MPI = "≥ 0.12"
+MPI = "0.12 - 0.15"
 CUDA = "1"
 
 [deps]
