@@ -11,6 +11,7 @@ https://github.com/eth-cscs/ImplicitGlobalGrid.jl
 - [`finalize_global_grid`](@ref)
 - [`update_halo!`](@ref)
 - [`gather!`](@ref)
+- [`select_device`](@ref)
 - [`nx_g`](@ref)
 - [`ny_g`](@ref)
 - [`nz_g`](@ref)
@@ -25,7 +26,7 @@ To see a description of a function type `?<functionname>`.
 !!! note "Performance note"
     If the system supports CUDA-aware MPI, it may be activated for ImplicitGlobalGrid by setting the following environment variable (at latest before the first call to `init_global_grid`:
     ```shell
-    shell> export GG_CUDAAWARE_MPI=1
+    shell> export IGG_CUDAAWARE_MPI=1
     ```
 """
 module ImplicitGlobalGrid
@@ -37,6 +38,7 @@ include("shared.jl")
 include("finalize_global_grid.jl")
 include("gather.jl")
 include("init_global_grid.jl")
+include("select_device.jl")
 include("tools.jl")
 include("update_halo.jl")
 

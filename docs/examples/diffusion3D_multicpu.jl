@@ -12,10 +12,10 @@ using ImplicitGlobalGrid, Plots
     # Physics
     lam        = 1.0;                                       # Thermal conductivity
     cp_min     = 1.0;                                       # Minimal heat capacity
-    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of domain in dimensions x, y an z.
+    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of computational domain in dimension x, y and z
 
     # Numerics
-    nx, ny, nz = 128, 128, 128;                             # Number of gridpoints dimensions x, y an z.
+    nx, ny, nz = 128, 128, 128;                             # Number of gridpoints in dimensions x, y and z
     nt         = 20000;                                     # Number of time steps
     me, dims   = init_global_grid(nx, ny, nz);              # Initialize the implicit global grid
     dx         = lx/(nx_g()-1);                             # Space step in dimension x
