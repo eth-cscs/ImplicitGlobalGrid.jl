@@ -1,5 +1,5 @@
 # Enable CUDA if the package is installed and functional (enables to use the package for CPU-only without requiring the CUDA package functional - or the CUDA package would even not need to be installed if the installation procedure allowed it). NOTE: it cannot be precompiled for GPU on a node without GPU.
-const CUDA_IS_INSTALLED = (Base.find_package("CUDA")!==nothing && import CUDA==nothing && CUDA.functional())
+const CUDA_IS_INSTALLED = (import CUDA==nothing && CUDA.functional())
 const ENABLE_CUDA = CUDA_IS_INSTALLED # This could of course be set to false even if CUDA_IS_INSTALLED.
 macro enable_if_cuda(block) # Macro intended to put one-liners depending on ENABLE_CUDA (Note an alternative would be to create always a function for CPU and GPU and rely on multiple dispatch).
     esc(
