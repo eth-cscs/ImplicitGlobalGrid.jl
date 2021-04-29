@@ -1,12 +1,12 @@
 # NOTE: This file contains many parts that are copied from the file runtests.jl from the Package MPI.jl.
 push!(LOAD_PATH, "../src") # FIXME: to be removed everywhere?
 
-using ImplicitGlobalGrid
+import ImplicitGlobalGrid # Precompile it.
 
 excludedfiles = [ "test_excluded.jl"];
 
 function runtests()
-    exename   = Base.julia_exename()
+    exename   = joinpath(Sys.BINDIR, Base.julia_exename())
     testdir   = pwd()
     istest(f) = endswith(f, ".jl") && startswith(f, "test_")
     testfiles = sort(filter(istest, readdir(testdir)))

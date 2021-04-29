@@ -1,4 +1,4 @@
-# ImplicitGlobalGrid.jl
+<h1> <img src="docs/logo/logo_ImplicitGlobalGrid.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
 
 ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University (Dr. Ludovic Räss) and the Swiss Geocomputing Centre (Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs \[[1][JuliaCon19], [2][PASC19], [3][JuliaCon20a]\]:
 
@@ -231,7 +231,7 @@ search: ImplicitGlobalGrid
   │
   │  If the system supports CUDA-aware MPI, it may be activated for
   │  ImplicitGlobalGrid by setting the following environment variable (at latest
-  │  before the first call to init_global_grid:
+  │  before the first call to init_global_grid):
   │
   │  shell> export IGG_CUDAAWARE_MPI=1
 

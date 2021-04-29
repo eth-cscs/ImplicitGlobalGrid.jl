@@ -230,23 +230,19 @@ let
     @static if ENABLE_CUDA
         function cusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
             return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
-            #return view(sendbufs_raw[i][n],1:prod(halosize));
         end
 
         function curecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
             return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
-            #return view(recvbufs_raw[i][n],1:prod(halosize));
         end
 
         #TODO: see if I should remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
         function cusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
             return reshape(cusendbuf_flat(n,dim,i,A), halosize(dim,A));
-            #return view(sendbufs_raw[i][n],1:prod(halosize));
         end
 
         function curecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
             return reshape(curecvbuf_flat(n,dim,i,A), halosize(dim,A));
-            #return view(recvbufs_raw[i][n],1:prod(halosize));
         end
     end
 
