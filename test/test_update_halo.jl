@@ -41,11 +41,16 @@ dz = 1.0
 		Sxz = zeros(nx-2,ny-1,nz-2);
 		A   = zeros(nx-1,ny+2,nz+1);
 	    A2  = A;
+		Z   = zeros(ComplexF64, nx-1,ny+2,nz+1);
+		Z2  = Z;
 	    @test_throws ErrorException update_halo!(P, Sxz, A)       # Error: Sxz has no halo.
 	    @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)  # Error: Sxz and Sxz have no halo.
 	    @test_throws ErrorException update_halo!(P, A, A)         # Error: A is given twice.
 	    @test_throws ErrorException update_halo!(P, A, A2)        # Error: A2 is duplicate of A (an alias; it points to the same memory).
 	    @test_throws ErrorException update_halo!(P, A, A, A2)     # Error: the second A and A2 are duplicates of the first A.
+		@test_throws ErrorException update_halo!(Z, Z2)           # Error: Z2 is duplicate of Z (an alias; it points to the same memory).
+		@test_throws ErrorException update_halo!(Z, P)            # Error: P is of different type than Z.
+		@test_throws ErrorException update_halo!(Z, P, A)         # Error: P and A are of different type than Z.
 		finalize_global_grid(finalize_MPI=false);
 	end;
 
@@ -53,8 +58,10 @@ dz = 1.0
 		init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
 		P = zeros(nx,  ny,  nz  );
 		A = zeros(nx-1,ny+2,nz+1);
-		B = zeros(Float32, nx+1, ny+2,nz+3);
-		C = zeros(Float32, nx+1, ny+1,nz+1);
+		B = zeros(Float32,    nx+1, ny+2, nz+3);
+		C = zeros(Float32,    nx+1, ny+1, nz+1);
+		Z = zeros(ComplexF16, nx,   ny,   nz  );
+		Y = zeros(ComplexF16, nx-1, ny+2, nz+1);
 	    @testset "free buffers" begin
 	        @require GG.get_sendbufs_raw() === nothing
 	        @require GG.get_recvbufs_raw() === nothing
@@ -76,6 +83,17 @@ dz = 1.0
 	            end
 	        end
 	    end;
+		@testset "allocate single (Complex)" begin
+	        GG.free_update_halo_buffers();
+	        GG.allocate_bufs(Z);
+	        for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+	            @test length(bufs_raw)       == 1                                    # 1 array
+	            @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+	            for n = 1:nneighbors_per_dim
+	                @test length(bufs_raw[1][n]) >= prod(sort([size(Z)...])[2:end])  # required length: max halo elements in any of the dimensions
+	            end
+	        end
+	    end;
 	    @testset "keep 1st, allocate 2nd" begin
 	        GG.free_update_halo_buffers();
 	        GG.allocate_bufs(P);
@@ -87,6 +105,20 @@ dz = 1.0
 	            for n = 1:nneighbors_per_dim
 	                @test length(bufs_raw[1][n]) >= prod(sort([size(A)...])[2:end])  # required length: max halo elements in any of the dimensions
 	                @test length(bufs_raw[2][n]) >= prod(sort([size(P)...])[2:end])  # ...
+	            end
+	        end
+	    end;
+		@testset "keep 1st, allocate 2nd (Complex)" begin
+	        GG.free_update_halo_buffers();
+	        GG.allocate_bufs(Z);
+	        GG.allocate_bufs(Y, Z);
+	        for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+	            @test length(bufs_raw)       == 2                                    # 2 arrays
+	            @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+	            @test length(bufs_raw[2])    == nneighbors_per_dim                   # 2 neighbors per dimension
+	            for n = 1:nneighbors_per_dim
+	                @test length(bufs_raw[1][n]) >= prod(sort([size(Y)...])[2:end])  # required length: max halo elements in any of the dimensions
+	                @test length(bufs_raw[2][n]) >= prod(sort([size(Z)...])[2:end])  # ...
 	            end
 	        end
 	    end;
@@ -105,6 +137,21 @@ dz = 1.0
 	            @test all([eltype(bufs_raw[i][n]) == Float32 for i=1:length(bufs_raw), n=1:nneighbors_per_dim])
 	        end
 	    end;
+		@testset "reinterpret (no allocation) (Complex)" begin
+	        GG.free_update_halo_buffers();
+	        GG.allocate_bufs(A, P);
+	        GG.allocate_bufs(Y, Z);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
+	        for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+	            @test length(bufs_raw)       == 2                                    # Still 2 arrays: B, C (even though they are different then before: was A and P)
+	            @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+	            @test length(bufs_raw[2])    == nneighbors_per_dim                   # 2 neighbors per dimension
+	            for n = 1:nneighbors_per_dim
+	                @test length(bufs_raw[1][n]) >= prod(sort([size(Y)...])[2:end])  # required length: max halo elements in any of the dimensions
+	                @test length(bufs_raw[2][n]) >= prod(sort([size(Z)...])[2:end])  # ...
+	            end
+	            @test all([eltype(bufs_raw[i][n]) == ComplexF16 for i=1:length(bufs_raw), n=1:nneighbors_per_dim])
+	        end
+	    end;
 	    @testset "(cu)sendbuf / (cu)recvbuf" begin
 			sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
 			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.cusendbuf, GG.curecvbuf); end
@@ -117,6 +164,20 @@ dz = 1.0
 	        for dim = 1:ndims(P), n = 1:nneighbors_per_dim
 	            @test all(size(sendbuf(n,dim,2,P)) .== size(P)[1:ndims(P).!=dim])
 	            @test all(size(recvbuf(n,dim,2,P)) .== size(P)[1:ndims(P).!=dim])
+	        end
+	    end;
+		@testset "(cu)sendbuf / (cu)recvbuf (Complex)" begin
+			sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
+			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.cusendbuf, GG.curecvbuf); end
+	        GG.free_update_halo_buffers();
+	        GG.allocate_bufs(Y, Z);
+	        for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
+	            @test all(size(sendbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
+	            @test all(size(recvbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
+	        end
+	        for dim = 1:ndims(Z), n = 1:nneighbors_per_dim
+	            @test all(size(sendbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
+	            @test all(size(recvbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
 	        end
 	    end;
 		finalize_global_grid(finalize_MPI=false);
@@ -203,7 +264,7 @@ dz = 1.0
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
-					custream = CuDefaultStream();
+					custream = stream();
 					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
 					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
@@ -224,7 +285,7 @@ dz = 1.0
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
-					custream = CuDefaultStream();
+					custream = stream();
 					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
 					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
@@ -245,7 +306,7 @@ dz = 1.0
 					@test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
 					buf .= 0.0;
 					P2  .= 0.0;
-					custream = CuDefaultStream();
+					custream = stream();
 					GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
 					@test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
 					GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
@@ -782,6 +843,21 @@ dz = 1.0
 				@test all(A[:,[1, end],:] .== 0.0)
 				finalize_global_grid(finalize_MPI=false);
 			end;
+			@testset "3D (Complex)" begin
+				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
+				Vz     = zeros(ComplexF16,nx,ny,nz+1);
+				Vz    .= [(1+im)*(z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz)) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+				Vz_ref = copy(Vz);
+				Vz[[1, end],       :,       :] .= 0.0;
+				Vz[       :,[1, end],       :] .= 0.0;
+				Vz[       :,       :,[1, end]] .= 0.0;
+				Vz     = Array(Vz);
+				Vz_ref = Array(Vz_ref);
+				@require !all(Vz .== Vz_ref)
+				update_halo!(Vz);
+				@test all(Vz .== Vz_ref)
+				finalize_global_grid(finalize_MPI=false);
+			end;
 			@testset "3D (changing datatype)" begin
 				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
 				Vz     = zeros(nx,ny,nz+1);
@@ -789,6 +865,44 @@ dz = 1.0
 				Vz_ref = copy(Vz);
 				Vx     = zeros(Float32,nx+1,ny,nz);
 				Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+				Vx_ref = copy(Vx);
+				Vz[[1, end],       :,       :] .= 0.0;
+				Vz[       :,[1, end],       :] .= 0.0;
+				Vz[       :,       :,[1, end]] .= 0.0;
+				Vz     = Array(Vz);
+				Vz_ref = Array(Vz_ref);
+				@require !all(Vz .== Vz_ref)
+				update_halo!(Vz);
+				@test all(Vz .== Vz_ref)
+				Vx[[1, end],       :,       :] .= 0.0;
+				Vx[       :,[1, end],       :] .= 0.0;
+				Vx[       :,       :,[1, end]] .= 0.0;
+				Vx     = Array(Vx);
+				Vx_ref = Array(Vx_ref);
+				@require !all(Vx .== Vx_ref)
+				update_halo!(Vx);
+				@test all(Vx .== Vx_ref)
+				#TODO: added for GPU - quick fix:
+				Vz     = zeros(nx,ny,nz+1);
+				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+				Vz_ref = copy(Vz);
+				Vz[[1, end],       :,       :] .= 0.0;
+				Vz[       :,[1, end],       :] .= 0.0;
+				Vz[       :,       :,[1, end]] .= 0.0;
+				Vz     = Array(Vz);
+				Vz_ref = Array(Vz_ref);
+				@require !all(Vz .== Vz_ref)
+				update_halo!(Vz);
+				@test all(Vz .== Vz_ref)
+				finalize_global_grid(finalize_MPI=false);
+			end;
+			@testset "3D (changing datatype) (Complex)" begin
+				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
+				Vz     = zeros(nx,ny,nz+1);
+				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+				Vz_ref = copy(Vz);
+				Vx     = zeros(ComplexF64,nx+1,ny,nz);
+				Vx    .= [(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
 				Vx_ref = copy(Vx);
 				Vz[[1, end],       :,       :] .= 0.0;
 				Vz[       :,[1, end],       :] .= 0.0;
