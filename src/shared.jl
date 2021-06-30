@@ -34,7 +34,7 @@ const GG_ALLOC_GRANULARITY = 32  # Internal buffers are allocated with a granula
 ## TYPES
 
 const GGInt    = Cint
-const GGNumber = Real
+const GGNumber = Number
 
 @static if ENABLE_CUDA
     const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}

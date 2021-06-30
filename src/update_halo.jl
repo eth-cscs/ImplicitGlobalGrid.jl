@@ -571,4 +571,12 @@ function check_fields(fields::GGArray...)
     elseif length(duplicates) > 0
         error("The field at position $(duplicates[1][2]) is a duplicate of the one at the position $(duplicates[1][1]); remove the duplicate from the call.")
     end
+
+    # Raise an error if not all fields are of the same datatype (restriction comes from buffer handling).
+    different_types = [i for i=2:length(fields) if typeof(fields[i])!=typeof(fields[1])];
+    if length(different_types) > 1
+        error("The fields at positions $(join(different_types,", "," and ")) are of different type than the first field; make sure that in a same call all fields are of the same type.")
+    elseif length(different_types) == 1
+        error("The field at position $(different_types[1]) is of different type than the first field; make sure that in a same call all fields are of the same type.")
+    end
 end
