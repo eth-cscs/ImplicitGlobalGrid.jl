@@ -46,14 +46,17 @@ let
                 free_gather_buffer();                                     # Free the memory of the old buffer immediately as it can typically go up to the order of the total available memory.
                 A_all_buf = zeros(T, Int(ceil(nprocs*length(A)/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);  # Ensure that the amount of allocated memory is a multiple of GG_ALLOC_GRANULARITY*sizeof(T). So, we can always correctly reinterpret A_all_buf even if next time sizeof(T) is greater.
             end
-            A_all = reshape(view(A_all_buf,1:nprocs*length(A)), (length(A), dims[1], dims[2], dims[3])); # Create a 4D-view on the amount of memory needed from A_all_buf.
+            A_all_flat = view(A_all_buf,1:nprocs*length(A));              # Create a 1D-view on the amount of memory needed from A_all_buf.
             reqs = fill(MPI.REQUEST_NULL, nprocs);
             for p in [0:root-1; root+1:nprocs-1]
                 cs = Cint[-1,-1,-1];
                 MPI.Cart_coords!(comm_cart, p, cs);
-                reqs[p+1] = MPI.Irecv!(view(A_all,:,cs[1]+1,cs[2]+1,cs[3]+1), p, tag, comm_cart); # Irev! requires a contigous (SubArray) buffer...
+                offset = cs[1]*length(A) + cs[2]*dims[1]*length(A) + cs[3]*dims[1]*dims[2]*length(A)
+                A_c = view(A_all_flat, 1+offset:length(A)+offset);
+                reqs[p+1] = MPI.Irecv!(A_c, p, tag, comm_cart);           # Irev! requires a contigous (SubArray) buffer (that is not both reshaped and reinterpreted)...
             end
             cs = MPI.Cart_coords(comm_cart);
+            A_all = reshape(A_all_flat, (length(A), dims[1], dims[2], dims[3])); # Create a 4D-view on the amount of memory needed from A_all_buf.
             A_all[:,cs[1]+1,cs[2]+1,cs[3]+1] .= A[:];
             if (nprocs>1) MPI.Waitall!(reqs); end
             nx, ny, nz = size(view(A,:,:,:));
