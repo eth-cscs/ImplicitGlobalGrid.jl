@@ -17,7 +17,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
     @testset "1. select_device" begin
-        me, = init_global_grid(3, 4, 5; init_MPI=false);
+        me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false);
         @static if test_gpu
             gpu_id = select_device();
             @test gpu_id < length(CUDA.devices())
