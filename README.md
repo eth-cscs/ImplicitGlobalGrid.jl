@@ -245,7 +245,7 @@ ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA
 ImplicitGlobalGrid may be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html) from the REPL:
 ```julia-repl
 julia>]
-  pkg> add https://github.com/eth-cscs/ImplicitGlobalGrid.jl
+  pkg> add ImplicitGlobalGrid
   pkg> test ImplicitGlobalGrid
 ```
 

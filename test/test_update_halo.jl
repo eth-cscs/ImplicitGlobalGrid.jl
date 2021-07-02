@@ -858,82 +858,82 @@ dz = 1.0
 				@test all(Vz .== Vz_ref)
 				finalize_global_grid(finalize_MPI=false);
 			end;
-			@testset "3D (changing datatype)" begin
-				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
-				Vz     = zeros(nx,ny,nz+1);
-				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-				Vz_ref = copy(Vz);
-				Vx     = zeros(Float32,nx+1,ny,nz);
-				Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-				Vx_ref = copy(Vx);
-				Vz[[1, end],       :,       :] .= 0.0;
-				Vz[       :,[1, end],       :] .= 0.0;
-				Vz[       :,       :,[1, end]] .= 0.0;
-				Vz     = Array(Vz);
-				Vz_ref = Array(Vz_ref);
-				@require !all(Vz .== Vz_ref)
-				update_halo!(Vz);
-				@test all(Vz .== Vz_ref)
-				Vx[[1, end],       :,       :] .= 0.0;
-				Vx[       :,[1, end],       :] .= 0.0;
-				Vx[       :,       :,[1, end]] .= 0.0;
-				Vx     = Array(Vx);
-				Vx_ref = Array(Vx_ref);
-				@require !all(Vx .== Vx_ref)
-				update_halo!(Vx);
-				@test all(Vx .== Vx_ref)
-				#TODO: added for GPU - quick fix:
-				Vz     = zeros(nx,ny,nz+1);
-				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-				Vz_ref = copy(Vz);
-				Vz[[1, end],       :,       :] .= 0.0;
-				Vz[       :,[1, end],       :] .= 0.0;
-				Vz[       :,       :,[1, end]] .= 0.0;
-				Vz     = Array(Vz);
-				Vz_ref = Array(Vz_ref);
-				@require !all(Vz .== Vz_ref)
-				update_halo!(Vz);
-				@test all(Vz .== Vz_ref)
-				finalize_global_grid(finalize_MPI=false);
-			end;
-			@testset "3D (changing datatype) (Complex)" begin
-				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
-				Vz     = zeros(nx,ny,nz+1);
-				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-				Vz_ref = copy(Vz);
-				Vx     = zeros(ComplexF64,nx+1,ny,nz);
-				Vx    .= [(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-				Vx_ref = copy(Vx);
-				Vz[[1, end],       :,       :] .= 0.0;
-				Vz[       :,[1, end],       :] .= 0.0;
-				Vz[       :,       :,[1, end]] .= 0.0;
-				Vz     = Array(Vz);
-				Vz_ref = Array(Vz_ref);
-				@require !all(Vz .== Vz_ref)
-				update_halo!(Vz);
-				@test all(Vz .== Vz_ref)
-				Vx[[1, end],       :,       :] .= 0.0;
-				Vx[       :,[1, end],       :] .= 0.0;
-				Vx[       :,       :,[1, end]] .= 0.0;
-				Vx     = Array(Vx);
-				Vx_ref = Array(Vx_ref);
-				@require !all(Vx .== Vx_ref)
-				update_halo!(Vx);
-				@test all(Vx .== Vx_ref)
-				#TODO: added for GPU - quick fix:
-				Vz     = zeros(nx,ny,nz+1);
-				Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-				Vz_ref = copy(Vz);
-				Vz[[1, end],       :,       :] .= 0.0;
-				Vz[       :,[1, end],       :] .= 0.0;
-				Vz[       :,       :,[1, end]] .= 0.0;
-				Vz     = Array(Vz);
-				Vz_ref = Array(Vz_ref);
-				@require !all(Vz .== Vz_ref)
-				update_halo!(Vz);
-				@test all(Vz .== Vz_ref)
-				finalize_global_grid(finalize_MPI=false);
-			end;
+			# @testset "3D (changing datatype)" begin
+			# 	init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
+			# 	Vz     = zeros(nx,ny,nz+1);
+			# 	Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+			# 	Vz_ref = copy(Vz);
+			# 	Vx     = zeros(Float32,nx+1,ny,nz);
+			# 	Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+			# 	Vx_ref = copy(Vx);
+			# 	Vz[[1, end],       :,       :] .= 0.0;
+			# 	Vz[       :,[1, end],       :] .= 0.0;
+			# 	Vz[       :,       :,[1, end]] .= 0.0;
+			# 	Vz     = Array(Vz);
+			# 	Vz_ref = Array(Vz_ref);
+			# 	@require !all(Vz .== Vz_ref)
+			# 	update_halo!(Vz);
+			# 	@test all(Vz .== Vz_ref)
+			# 	Vx[[1, end],       :,       :] .= 0.0;
+			# 	Vx[       :,[1, end],       :] .= 0.0;
+			# 	Vx[       :,       :,[1, end]] .= 0.0;
+			# 	Vx     = Array(Vx);
+			# 	Vx_ref = Array(Vx_ref);
+			# 	@require !all(Vx .== Vx_ref)
+			# 	update_halo!(Vx);
+			# 	@test all(Vx .== Vx_ref)
+			# 	#TODO: added for GPU - quick fix:
+			# 	Vz     = zeros(nx,ny,nz+1);
+			# 	Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+			# 	Vz_ref = copy(Vz);
+			# 	Vz[[1, end],       :,       :] .= 0.0;
+			# 	Vz[       :,[1, end],       :] .= 0.0;
+			# 	Vz[       :,       :,[1, end]] .= 0.0;
+			# 	Vz     = Array(Vz);
+			# 	Vz_ref = Array(Vz_ref);
+			# 	@require !all(Vz .== Vz_ref)
+			# 	update_halo!(Vz);
+			# 	@test all(Vz .== Vz_ref)
+			# 	finalize_global_grid(finalize_MPI=false);
+			# end;
+			# @testset "3D (changing datatype) (Complex)" begin
+			# 	init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
+			# 	Vz     = zeros(nx,ny,nz+1);
+			# 	Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+			# 	Vz_ref = copy(Vz);
+			# 	Vx     = zeros(ComplexF64,nx+1,ny,nz);
+			# 	Vx    .= [(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+			# 	Vx_ref = copy(Vx);
+			# 	Vz[[1, end],       :,       :] .= 0.0;
+			# 	Vz[       :,[1, end],       :] .= 0.0;
+			# 	Vz[       :,       :,[1, end]] .= 0.0;
+			# 	Vz     = Array(Vz);
+			# 	Vz_ref = Array(Vz_ref);
+			# 	@require !all(Vz .== Vz_ref)
+			# 	update_halo!(Vz);
+			# 	@test all(Vz .== Vz_ref)
+			# 	Vx[[1, end],       :,       :] .= 0.0;
+			# 	Vx[       :,[1, end],       :] .= 0.0;
+			# 	Vx[       :,       :,[1, end]] .= 0.0;
+			# 	Vx     = Array(Vx);
+			# 	Vx_ref = Array(Vx_ref);
+			# 	@require !all(Vx .== Vx_ref)
+			# 	update_halo!(Vx);
+			# 	@test all(Vx .== Vx_ref)
+			# 	#TODO: added for GPU - quick fix:
+			# 	Vz     = zeros(nx,ny,nz+1);
+			# 	Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+			# 	Vz_ref = copy(Vz);
+			# 	Vz[[1, end],       :,       :] .= 0.0;
+			# 	Vz[       :,[1, end],       :] .= 0.0;
+			# 	Vz[       :,       :,[1, end]] .= 0.0;
+			# 	Vz     = Array(Vz);
+			# 	Vz_ref = Array(Vz_ref);
+			# 	@require !all(Vz .== Vz_ref)
+			# 	update_halo!(Vz);
+			# 	@test all(Vz .== Vz_ref)
+			# 	finalize_global_grid(finalize_MPI=false);
+			# end;
 			@testset "3D (two fields simultaneously)" begin
 				init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false);
 				Vz     = zeros(nx,ny,nz+1);
