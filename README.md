@@ -58,10 +58,10 @@ using ImplicitGlobalGrid, CUDA
     # Physics
     lam        = 1.0;                                       # Thermal conductivity
     cp_min     = 1.0;                                       # Minimal heat capacity
-    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of domain in dimensions x, y and z.
+    lx, ly, lz = 10.0, 10.0, 10.0;                          # Length of domain in dimensions x, y and z
 
     # Numerics
-    nx, ny, nz = 256, 256, 256;                             # Number of gridpoints dimensions x, y and z.
+    nx, ny, nz = 256, 256, 256;                             # Number of gridpoints dimensions x, y and z
     nt         = 100000;                                    # Number of time steps
     init_global_grid(nx, ny, nz);                           # Initialize the implicit global grid
     dx         = lx/(nx_g()-1);                             # Space step in dimension x
@@ -139,16 +139,16 @@ using ImplicitGlobalGrid, CUDA, Plots
     #(...)
     for it = 1:nt
         if mod(it, 1000) == 1                                                                 # Visualize only every 1000th time step
-            T_nohalo .= T[2:end-1,2:end-1,2:end-1];                                           # Copy data to CPU removing the halo.
+            T_nohalo .= T[2:end-1,2:end-1,2:end-1];                                           # Copy data to CPU removing the halo
             gather!(T_nohalo, T_v)                                                            # Gather data on process 0 (could be interpolated/sampled first)
-            if (me==0) heatmap(transpose(T_v[:,ny_v÷2,:]), aspect_ratio=1); frame(anim); end  # Visualize it on process 0.
+            if (me==0) heatmap(transpose(T_v[:,ny_v÷2,:]), aspect_ratio=1); frame(anim); end  # Visualize it on process 0
         end
         #(...)
     end
 
     # Postprocessing
-    if (me==0) gif(anim, "diffusion3D.gif", fps = 15) end                                     # Create a gif movie on process 0.
-    if (me==0) mp4(anim, "diffusion3D.mp4", fps = 15) end                                     # Create a mp4 movie on process 0.
+    if (me==0) gif(anim, "diffusion3D.gif", fps = 15) end                                     # Create a gif movie on process 0
+    if (me==0) mp4(anim, "diffusion3D.mp4", fps = 15) end                                     # Create a mp4 movie on process 0
     finalize_global_grid();                                                                   # Finalize the implicit global grid
 end
 
