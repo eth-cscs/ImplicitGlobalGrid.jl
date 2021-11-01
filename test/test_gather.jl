@@ -28,6 +28,7 @@ dz = 1.0
             if (me == 0) @test_throws ErrorException gather!(A, A_g) end # Error: A_g is not nprocs*length(A) (1D)
             if (me == 0) @test_throws ErrorException gather!(B, B_g) end # Error: B_g is not nprocs*length(B) (2D)
             if (me == 0) @test_throws ErrorException gather!(C, C_g) end # Error: C_g is not nprocs*length(C) (3D)
+            if (me == 0) @test_throws ErrorException gather!(C, nothing) end # Error: global is nothing
         	finalize_global_grid(finalize_MPI=false);
         end;
     end;
@@ -134,6 +135,17 @@ dz = 1.0
             	finalize_global_grid(finalize_MPI=false);
             end;
         end
+        @testset "nothing on non-root" begin
+            me, dims = init_global_grid(nx, 1, 1, overlapx=0, quiet=true, init_MPI=false);
+            P   = zeros(nx);
+            P_g = me == 0 ? zeros(nx*dims[1]) : nothing
+            P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
+            P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
+            P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
+            gather!(P, P_g);
+            if (me == 0) @test all(P_g .== P_g_ref) end
+            finalize_global_grid(finalize_MPI=false);
+        end;
     end;
 end;
 
