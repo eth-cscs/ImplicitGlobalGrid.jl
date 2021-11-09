@@ -25,19 +25,20 @@ let
         A_all_buf = zeros(0);
     end
 
-    function gather!(A::Array{T}, A_global::Array{T}; root::Integer=0) where T <: GGNumber
+    function gather!(A::Array{T}, A_global::Union{Array{T}, Nothing}; root::Integer=0) where T <: GGNumber
         check_initialized();
         cart_gather!(A, A_global, me(), global_grid().dims, comm(); root=root);
         return nothing
     end
 
-    function cart_gather!(A::Array{T}, A_global::Array{T}, me::Integer, dims::Array{T2}, comm_cart::MPI.Comm; root::Integer=0, tag::Integer=0, ndims::Integer=NDIMS_MPI) where T <: GGNumber where T2 <: Integer
+    function cart_gather!(A::Array{T}, A_global::Union{Array{T}, Nothing}, me::Integer, dims::Array{T2}, comm_cart::MPI.Comm; root::Integer=0, tag::Integer=0, ndims::Integer=NDIMS_MPI) where T <: GGNumber where T2 <: Integer
         nprocs = prod(dims);
         if me != root
             req = MPI.REQUEST_NULL;
             req = MPI.Isend(A, root, tag, comm_cart);
             MPI.Wait!(req);
         else # (me == root)
+            A_global === nothing && error("The input argument A_global can't be `nothing` on the root")
             if length(A_global) != nprocs*length(A) error("The input argument A_global must be of length nprocs*length(A)") end
             if (eltype(A_all_buf) != T)
                 A_all_buf = reinterpret(T, A_all_buf);
