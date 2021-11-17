@@ -5,12 +5,10 @@ version = "0.11.0"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-ExprTools = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 
 [compat]
 CUDA = "1, 3.1"
-ExprTools = "=0.1.0, =0.1.1, =0.1.2, =0.1.3, =0.1.6"
 MPI = "0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18"
 julia = "1"
 
