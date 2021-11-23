@@ -25,10 +25,10 @@ __init__() = (
 ##--------------------
 ## CONSTANT PARAMETERS
 
-const NDIMS_MPI = 3              # Internally, we set the number of dimensions always to 3 for calls to MPI. This ensures a fixed size for MPI coords, neigbors, etc and in general a simple, easy to read code.
-const NNEIGHBORS_PER_DIM = 2     # Number of neighbors per dimension (left neighbor + right neighbor).
-const GG_ALLOC_GRANULARITY = 32  # Internal buffers are allocated with a granulariy of GG_ALLOC_GRANULARITY elements in order to ensure correct reinterpretation when used for different types and to reduce amount of re-allocations.
-
+const NDIMS_MPI = 3                    # Internally, we set the number of dimensions always to 3 for calls to MPI. This ensures a fixed size for MPI coords, neigbors, etc and in general a simple, easy to read code.
+const NNEIGHBORS_PER_DIM = 2           # Number of neighbors per dimension (left neighbor + right neighbor).
+const GG_ALLOC_GRANULARITY = 32        # Internal buffers are allocated with a granulariy of GG_ALLOC_GRANULARITY elements in order to ensure correct reinterpretation when used for different types and to reduce amount of re-allocations.
+const GG_THREADCOPY_THRESHOLD = 32768  # When LoopVectorization is deactivated, then the GG_THREADCOPY_THRESHOLD defines the size in bytes upon which memory copy is performed with multiple threads.
 
 ##------
 ## TYPES
@@ -58,9 +58,10 @@ struct GlobalGrid
     reorder::GGInt
     comm::MPI.Comm
     cudaaware_MPI::Vector{Bool}
+    loopvectorization::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, [false,false,false], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, [false,false,false], [true,true,true], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
@@ -93,6 +94,8 @@ neighbors(dim::Integer)                = global_grid().neighbors[:,dim]
 neighbor(n::Integer, dim::Integer)     = global_grid().neighbors[n,dim]
 cudaaware_MPI()                        = global_grid().cudaaware_MPI
 cudaaware_MPI(dim::Integer)            = global_grid().cudaaware_MPI[dim]
+loopvectorization()                    = global_grid().loopvectorization
+loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL
 any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
 any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
