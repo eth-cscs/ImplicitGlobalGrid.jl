@@ -39,16 +39,23 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 See also: [`finalize_global_grid`](@ref)
 """
 function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlapx::Integer=2, overlapy::Integer=2, overlapz::Integer=2, disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, quiet::Bool=false)
-    nxyz          = [nx, ny, nz];
-    dims          = [dimx, dimy, dimz];
-    periods       = [periodx, periody, periodz];
-    overlaps      = [overlapx, overlapy, overlapz];
-    cudaaware_MPI = [false, false, false]
+    nxyz              = [nx, ny, nz];
+    dims              = [dimx, dimy, dimz];
+    periods           = [periodx, periody, periodz];
+    overlaps          = [overlapx, overlapy, overlapz];
+    cudaaware_MPI     = [false, false, false]
+    loopvectorization = [false, false, false]
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
+    if haskey(ENV, "IGG_LOOPVECTORIZATION") loopvectorization .= (parse(Int64, ENV["IGG_LOOPVECTORIZATION"]) > 0); end
     if none(cudaaware_MPI)
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMX"]) > 0); end
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMY") cudaaware_MPI[2] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMY"]) > 0); end
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMZ") cudaaware_MPI[3] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMZ"]) > 0); end
+    end
+    if all(loopvectorization)
+        if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMX") loopvectorization[1] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMX"]) > 0); end
+        if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMY") loopvectorization[2] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMY"]) > 0); end
+        if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMZ") loopvectorization[3] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMZ"]) > 0); end
     end
     if (nx==1) error("Invalid arguments: nx can never be 1.") end
     if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
@@ -71,7 +78,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cudaaware_MPI, quiet));
+    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cudaaware_MPI, loopvectorization, quiet));
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]))"); end
     init_timing_functions();
     return me, dims, nprocs, coords, comm_cart; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
