@@ -5,6 +5,7 @@ import MPI
     using CUDA
 end
 using Base.Threads
+using LoopVectorization
 
 
 """
@@ -408,12 +409,13 @@ function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{Un
     ix = (length(sendranges[1])==1) ? sendranges[1][1] : sendranges[1];
     iy = (length(sendranges[2])==1) ? sendranges[2][1] : sendranges[2];
     iz = (length(sendranges[3])==1) ? sendranges[3][1] : sendranges[3];
-    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(sendbuf,:), view(view(A,ix, :, :),:));
-    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf,:), view(view(A,ix, :,iz),:));
-    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf,:), view(view(A, :,iy, :),:));
-    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf,:), view(view(A, :,iy,iz),:));
-    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(view(sendbuf,:), view(view(A, :, :,iz),:));
-    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(view(sendbuf,:), view(view(A,sendranges...),:)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
+    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(sendbuf, view(A,ix, :, :), loopvectorization(dim));
+    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(sendbuf, view(A,ix, :,iz), loopvectorization(dim));
+    elseif (dim == 1 && length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(sendbuf, view(A,ix,iy,iz), loopvectorization(dim));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(sendbuf, view(A, :,iy, :), loopvectorization(dim));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(sendbuf, view(A, :,iy,iz), loopvectorization(dim));
+    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(sendbuf, view(A, :, :,iz), loopvectorization(dim));
+    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(sendbuf, view(A,sendranges...), loopvectorization(dim)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -422,12 +424,13 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
     ix = (length(recvranges[1])==1) ? recvranges[1][1] : recvranges[1];
     iy = (length(recvranges[2])==1) ? recvranges[2][1] : recvranges[2];
     iz = (length(recvranges[3])==1) ? recvranges[3][1] : recvranges[3];
-    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(view(A,ix, :, :), :), view(recvbuf,:));
-    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(view(A,ix, :,iz), :), view(recvbuf,:));
-    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(view(A, :,iy, :), :), view(recvbuf,:));
-    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(view(A, :,iy,iz), :), view(recvbuf,:));
-    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(view(view(A, :, :,iz), :), view(recvbuf,:));
-    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(view(view(A,recvranges...),:), view(recvbuf,:)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
+    if     (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(A,ix, :, :), recvbuf, loopvectorization(dim));
+    elseif (dim == 1 && length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(A,ix, :,iz), recvbuf, loopvectorization(dim));
+    elseif (dim == 1 && length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(view(A,ix,iy,iz), recvbuf, loopvectorization(dim));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(A, :,iy, :), recvbuf, loopvectorization(dim));
+    elseif (dim == 2 && ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(A, :,iy,iz), recvbuf, loopvectorization(dim));
+    elseif (dim == 3 && ix == 1:size(A,1) && iy == 1:size(A,2)                     ) memcopy!(view(A, :, :,iz), recvbuf, loopvectorization(dim));
+    elseif (dim == 1 || dim == 2 || dim == 3)                                        memcopy!(view(A,recvranges...), recvbuf, loopvectorization(dim)); # This general case is slower than the three optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -521,27 +524,47 @@ function sendrecv_halo_local(n::Integer, dim::Integer, A::GGArray, i::Integer)
             end
         else
             if n == 1
-                memcopy!(recvbuf_flat(2,dim,i,A), sendbuf_flat(1,dim,i,A));
+                memcopy!(recvbuf_flat(2,dim,i,A), sendbuf_flat(1,dim,i,A), loopvectorization(dim));
             elseif n == 2
-                memcopy!(recvbuf_flat(1,dim,i,A), sendbuf_flat(2,dim,i,A));
+                memcopy!(recvbuf_flat(1,dim,i,A), sendbuf_flat(2,dim,i,A), loopvectorization(dim));
             end
         end
     end
 end
 
-function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}) where T <: GGNumber
-	if nthreads() > 1
-		@threads for ix = 1:length(dst)  # NOTE: Set the number of threads e.g. as: export JULIA_NUM_THREADS=12
-		    @inbounds dst[ix] = src[ix]  # NOTE: We fix here exceptionally the use of @inbounds as this copy between two flat vectors (which must have the right length) is considered safe.
+function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, loopvectorization::Bool) where T <: GGNumber
+    if loopvectorization && !(T <: Complex)  # NOTE: LoopVectorization does not yet support Complex numbers and copy reinterpreted arrays leads to bad performance.
+        memcopy_loopvect!(dst, src)
+    else
+        dst_flat = view(dst,:)
+        src_flat = view(src,:)
+        memcopy_threads!(dst_flat, src_flat)
+    end
+end
+
+function memcopy_threads!(dst::AbstractArray{T}, src::AbstractArray{T}) where T <: GGNumber
+    if nthreads() > 1 && sizeof(src) >= GG_THREADCOPY_THRESHOLD
+		@threads for i = 1:length(dst)  # NOTE: Set the number of threads e.g. as: export JULIA_NUM_THREADS=12
+		    @inbounds dst[i] = src[i]   # NOTE: We fix here exceptionally the use of @inbounds as this copy between two flat vectors (which must have the right length) is considered safe.
 		end
-	else
-		@inbounds dst .= src
-	end
+    else
+        @inbounds copyto!(dst, src)
+    end
+end
+
+function memcopy_loopvect!(dst::AbstractArray{T}, src::AbstractArray{T}) where T <: GGNumber
+    if nthreads() > 1 && length(src) > 1
+        @tturbo for i ∈ eachindex(dst, src)  # NOTE: tturbo will use maximally Threads.nthreads() threads. Set the number of threads e.g. as: export JULIA_NUM_THREADS=12. NOTE: tturbo fails if src_flat and dst_flat are used due to an issue in ArrayInterface : https://github.com/JuliaArrays/ArrayInterface.jl/issues/228
+		    @inbounds dst[i] = src[i]        # NOTE: We fix here exceptionally the use of @inbounds (currently anyways done by LoopVectorization) as this copy between two flat vectors (which must have the right length) is considered safe.
+		end
+    else
+        @inbounds copyto!(dst, src)
+    end
 end
 
 @static if ENABLE_CUDA
     function cumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
-    	@inbounds dst .= src
+    	@inbounds CUDA.copyto!(dst, src)
     end
 end
 
