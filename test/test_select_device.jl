@@ -20,7 +20,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
             gpu_id = select_device();
             @test gpu_id < length(CUDA.devices())
         else
-            @test_throws CUDA.CuError select_device()
+            @test_throws ErrorException select_device()
         end
         finalize_global_grid(finalize_MPI=false);
     end;
