@@ -3,17 +3,15 @@ push!(LOAD_PATH, "../src")
 using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
+using CUDA
 import ImplicitGlobalGrid: @require
 
-test_gpu = GG.ENABLE_CUDA
-if test_gpu
-	using CUDA
-	@assert CUDA.functional(true)
-end
+test_gpu = CUDA.functional()
+
 
 ## Test setup
 MPI.Init();
-nprocs = MPI.Comm_size(MPI.COMM_WORLD);
+nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any number of processes.
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
     @testset "1. select_device" begin
@@ -22,7 +20,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             gpu_id = select_device();
             @test gpu_id < length(CUDA.devices())
         else
-            @test_throws ErrorException select_device()
+            @test_throws CUDA.CuError select_device()
         end
         finalize_global_grid(finalize_MPI=false);
     end;
