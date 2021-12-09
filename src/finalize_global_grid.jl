@@ -17,7 +17,6 @@ See also: [`init_global_grid`](@ref)
 """
 function finalize_global_grid(;finalize_MPI::Bool=true)
     check_initialized();
-    #TODO
     free_gather_buffer();
     free_update_halo_buffers();
     if (finalize_MPI)
