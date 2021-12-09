@@ -6,12 +6,12 @@ push!(LOAD_PATH, "../src")
 using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
+using CUDA
 import ImplicitGlobalGrid: @require, longnameof
 
-test_gpu = GG.ENABLE_CUDA
+test_gpu = CUDA.functional()
+
 if test_gpu
-	using CUDA
-	@assert CUDA.functional(true)
 	global cuzeros = CUDA.zeros
 	global allocators = [zeros, cuzeros]
 	global ArrayConstructors = [Array, CuArray]
@@ -24,7 +24,7 @@ end
 
 ## Test setup
 MPI.Init();
-nprocs = MPI.Comm_size(MPI.COMM_WORLD);
+nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any number of processes.
 ndims_mpi = GG.NDIMS_MPI;
 nneighbors_per_dim = GG.NNEIGHBORS_PER_DIM; # Should be 2 (one left and one right neighbor).
 nx = 7;

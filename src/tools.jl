@@ -1,9 +1,7 @@
 export nx_g, ny_g, nz_g, x_g, y_g, z_g, tic, toc
 
 import MPI
-@static if ENABLE_CUDA
-    using CUDA
-end
+using CUDA
 
 
 macro nx_g()    esc(:( global_grid().nxyz_g[1] )) end

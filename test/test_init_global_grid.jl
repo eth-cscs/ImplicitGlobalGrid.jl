@@ -5,7 +5,7 @@ import MPI
 import ImplicitGlobalGrid: @require
 
 
-## Test setup (NOTE: Testset "2. initialization including MPI" completes the test setup as it initializes MPI and must therefore mandatorily be at the 2nd position)
+## Test setup (NOTE: Testset "2. initialization including MPI" completes the test setup as it initializes MPI and must therefore mandatorily be at the 2nd position). NOTE: these tests require nprocs == 1.
 p0 = MPI.MPI_PROC_NULL
 nx = 4;
 ny = 4;

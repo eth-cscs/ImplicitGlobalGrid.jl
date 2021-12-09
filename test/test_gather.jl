@@ -7,7 +7,7 @@ import ImplicitGlobalGrid: @require
 
 ## Test setup
 MPI.Init();
-nprocs = MPI.Comm_size(MPI.COMM_WORLD);
+nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any number of processes.
 nx = 7;
 ny = 5;
 nz = 6;
@@ -138,10 +138,12 @@ dz = 1.0
         @testset "nothing on non-root" begin
             me, dims = init_global_grid(nx, 1, 1, overlapx=0, quiet=true, init_MPI=false);
             P   = zeros(nx);
-            P_g = me == 0 ? zeros(nx*dims[1]) : nothing
+            P_g = (me == 0) ? zeros(nx*dims[1]) : nothing
             P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
-            P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
-            P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
+            if (me == 0)
+                P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
+                P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
+            end
             gather!(P, P_g);
             if (me == 0) @test all(P_g .== P_g_ref) end
             finalize_global_grid(finalize_MPI=false);

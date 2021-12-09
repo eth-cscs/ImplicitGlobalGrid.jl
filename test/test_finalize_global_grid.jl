@@ -7,7 +7,7 @@ import ImplicitGlobalGrid: @require
 
 @testset "$(basename(@__FILE__))" begin
     @testset "1. finalization of global grid and MPI" begin
-        init_global_grid(4, 4, 4, quiet=true);
+        init_global_grid(4, 4, 4, quiet=true); # NOTE: these tests can run with any number of processes.
         @require GG.grid_is_initialized()
         @require !MPI.Finalized()
         finalize_global_grid()

@@ -1,24 +1,18 @@
-# Enable CUDA if the package is installed and functional (enables to use the package for CPU-only without requiring the CUDA package functional - or the CUDA package would even not need to be installed if the installation procedure allowed it). NOTE: it cannot be precompiled for GPU on a node without GPU.
-const CUDA_IS_INSTALLED = (import CUDA==nothing && CUDA.functional())
-const ENABLE_CUDA = CUDA_IS_INSTALLED # This could of course be set to false even if CUDA_IS_INSTALLED.
-macro enable_if_cuda(block) # Macro intended to put one-liners depending on ENABLE_CUDA (Note an alternative would be to create always a function for CPU and GPU and rely on multiple dispatch).
-    esc(
-        quote
-            @static if ENABLE_CUDA
-                $block
-            end
-        end
-    )
+import MPI
+using CUDA
+
+
+##-------------------------
+## HANDLING OF CUDA SUPPORT
+let
+    global cuda_enabled, set_cuda_enabled
+    _cuda_enabled::Bool         = false
+    cuda_enabled()::Bool        = _cuda_enabled
+    set_cuda_enabled(val::Bool) = (_cuda_enabled = val;)
 end
 
-import MPI
-@static if ENABLE_CUDA
-    using CUDA
-end
-import CUDA
 __init__() = (
-    if (CUDA.functional() && !ENABLE_CUDA) error("CUDA is functional, but when ImplicitGlobalGrid was precompiled it was not functional. Remove the folder ImplicitGlobalGrid contained in $(DEPOT_PATH[1])/compiled/ and then restart Julia.") end;
-    if (!CUDA.functional() && ENABLE_CUDA) error("CUDA is not functional, but when ImplicitGlobalGrid was precompiled it was functional. Remove the folder ImplicitGlobalGrid contained in $(DEPOT_PATH[1])/compiled/ and then restart Julia.") end
+    set_cuda_enabled(CUDA.functional())  # NOTE: cuda could be enabled/disabled depending on some additional criteria.
 )
 
 
@@ -33,15 +27,10 @@ const GG_THREADCOPY_THRESHOLD = 32768  # When LoopVectorization is deactivated, 
 ##------
 ## TYPES
 
-const GGInt    = Cint
-const GGNumber = Number
-
-@static if ENABLE_CUDA
-    const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}
-    const cuzeros = CUDA.zeros
-else
-    const GGArray{T,N} = Union{Array{T,N}}
-end
+const GGInt        = Cint
+const GGNumber     = Number
+const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}
+const cuzeros      = CUDA.zeros
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -100,20 +89,14 @@ has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL
 any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
 any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
-@static if ENABLE_CUDA
-    is_cuarray(A::GGArray)             = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
-else
-    is_cuarray(A::GGArray)             = false
-end
+is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##---------------
 ## CUDA functions
 
-@static if ENABLE_CUDA
-    function register(buf::Array{T}) where T <: GGNumber
-        rbuf = Mem.register(Mem.Host, pointer(buf), sizeof(buf), Mem.HOSTREGISTER_DEVICEMAP);
-        rbuf_d = convert(CuPtr{T}, rbuf);
-        return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
-    end
+function register(buf::Array{T}) where T <: GGNumber
+    rbuf = Mem.register(Mem.Host, pointer(buf), sizeof(buf), Mem.HOSTREGISTER_DEVICEMAP);
+    rbuf_d = convert(CuPtr{T}, rbuf);
+    return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
 end

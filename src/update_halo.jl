@@ -1,9 +1,7 @@
 export update_halo!
 
 import MPI
-@static if ENABLE_CUDA
-    using CUDA
-end
+using CUDA
 using Base.Threads
 using LoopVectorization
 
@@ -30,9 +28,10 @@ function update_halo!(A::GGArray...)
 end
 
 function _update_halo!(fields::GGArray...)
+    if (any_cuarray(fields...) && !cuda_enabled()) error("cuda is not enabled as CUDA was not functional when the ImplicitGlobalGrid module was loaded."); end #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
-    @enable_if_cuda if any_cuarray(fields...) allocate_custreams(fields...); end
+    if any_cuarray(fields...) allocate_custreams(fields...); end
 
     for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
@@ -94,10 +93,10 @@ let
     curecvbufs_raw_h = nothing
 
     function free_update_halo_buffers()
-        @enable_if_cuda if any(cudaaware_MPI()) free_cubufs(cusendbufs_raw) end
-        @enable_if_cuda if any(cudaaware_MPI()) free_cubufs(curecvbufs_raw) end
-        @enable_if_cuda if none(cudaaware_MPI()) unregister_cubufs(cusendbufs_raw_h) end
-        @enable_if_cuda if none(cudaaware_MPI()) unregister_cubufs(curecvbufs_raw_h) end
+        if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(cusendbufs_raw) end
+        if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(curecvbufs_raw) end
+        if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(cusendbufs_raw_h) end
+        if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(curecvbufs_raw_h) end
         sendbufs_raw = nothing;
         recvbufs_raw = nothing;
         cusendbufs_raw = nothing
@@ -107,22 +106,22 @@ let
         GC.gc();
     end
 
-    @static if ENABLE_CUDA
-        function free_cubufs(bufs)
-            if (bufs !== nothing)
-                for i = 1:length(bufs)
-                    for n = 1:length(bufs[i])
-                        if is_cuarray(bufs[i][n]) CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
-                    end
+    # (CUDA functions)
+    function free_cubufs(bufs)
+        if (bufs !== nothing)
+            for i = 1:length(bufs)
+                for n = 1:length(bufs[i])
+                    if is_cuarray(bufs[i][n]) CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
-        function unregister_cubufs(bufs)
-            if (bufs !== nothing)
-                for i = 1:length(bufs)
-                    for n = 1:length(bufs[i])
-                        if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    end
+    end
+
+    function unregister_cubufs(bufs)
+        if (bufs !== nothing)
+            for i = 1:length(bufs)
+                for n = 1:length(bufs[i])
+                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
@@ -133,32 +132,33 @@ let
         if (isnothing(sendbufs_raw) || isnothing(recvbufs_raw))
             free_update_halo_buffers();
             init_bufs_arrays();
-            @enable_if_cuda init_cubufs_arrays();
+            if cuda_enabled() init_cubufs_arrays(); end
         end
         init_bufs(T, fields...);
-        @enable_if_cuda init_cubufs(T, fields...);
+        if cuda_enabled() init_cubufs(T, fields...); end
         for i = 1:length(fields)
             A = fields[i];
             for n = 1:NNEIGHBORS_PER_DIM # Ensure that the buffers are interpreted to contain elements of the same type as the array.
                 reinterpret_bufs(T, i, n);
-                @enable_if_cuda reinterpret_cubufs(T, i, n);
+                if cuda_enabled() reinterpret_cubufs(T, i, n); end
             end
             max_halo_elems = (ndims(A) > 1) ? prod(sort([size(A)...])[2:end]) : 1;
             if (length(sendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     reallocate_bufs(T, i, n, max_halo_elems);
-                    @enable_if_cuda if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
+                    if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
                 end
                 GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
             end
             if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
-                    @enable_if_cuda if (is_cuarray(A) &&  any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                    if (is_cuarray(A) &&  any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
                 end
             end
         end
     end
 
+    # (CPU functions)
     function init_bufs_arrays()
         sendbufs_raw = Array{Array{Any,1},1}();
         recvbufs_raw = Array{Array{Any,1},1}();
@@ -179,39 +179,39 @@ let
         recvbufs_raw[i][n] = zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
-    @static if ENABLE_CUDA
-        function init_cubufs_arrays()
-            cusendbufs_raw = Array{Array{Any,1},1}();
-            curecvbufs_raw = Array{Array{Any,1},1}();
-            cusendbufs_raw_h = Array{Array{Any,1},1}();
-            curecvbufs_raw_h = Array{Array{Any,1},1}();
-        end
-
-        function init_cubufs(T::DataType, fields::GGArray...)
-            while (length(cusendbufs_raw) < length(fields)) push!(cusendbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
-            while (length(curecvbufs_raw) < length(fields)) push!(curecvbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
-            while (length(cusendbufs_raw_h) < length(fields)) push!(cusendbufs_raw_h, [[], []]); end
-            while (length(curecvbufs_raw_h) < length(fields)) push!(curecvbufs_raw_h, [[], []]); end
-        end
-
-        function reinterpret_cubufs(T::DataType, i::Integer, n::Integer)
-            if (eltype(cusendbufs_raw[i][n]) != T) cusendbufs_raw[i][n] = reinterpret(T, cusendbufs_raw[i][n]); end
-            if (eltype(curecvbufs_raw[i][n]) != T) curecvbufs_raw[i][n] = reinterpret(T, curecvbufs_raw[i][n]); end
-        end
-
-        function reallocate_cubufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
-            cusendbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
-            curecvbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
-        end
-
-        function reregister_cubufs(T::DataType, i::Integer, n::Integer)
-            if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-            if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-            cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
-            curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
-        end
+    # (CUDA functions)
+    function init_cubufs_arrays()
+        cusendbufs_raw = Array{Array{Any,1},1}();
+        curecvbufs_raw = Array{Array{Any,1},1}();
+        cusendbufs_raw_h = Array{Array{Any,1},1}();
+        curecvbufs_raw_h = Array{Array{Any,1},1}();
     end
 
+    function init_cubufs(T::DataType, fields::GGArray...)
+        while (length(cusendbufs_raw) < length(fields)) push!(cusendbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
+        while (length(curecvbufs_raw) < length(fields)) push!(curecvbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
+        while (length(cusendbufs_raw_h) < length(fields)) push!(cusendbufs_raw_h, [[], []]); end
+        while (length(curecvbufs_raw_h) < length(fields)) push!(curecvbufs_raw_h, [[], []]); end
+    end
+
+    function reinterpret_cubufs(T::DataType, i::Integer, n::Integer)
+        if (eltype(cusendbufs_raw[i][n]) != T) cusendbufs_raw[i][n] = reinterpret(T, cusendbufs_raw[i][n]); end
+        if (eltype(curecvbufs_raw[i][n]) != T) curecvbufs_raw[i][n] = reinterpret(T, curecvbufs_raw[i][n]); end
+    end
+
+    function reallocate_cubufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
+        cusendbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
+        curecvbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
+    end
+
+    function reregister_cubufs(T::DataType, i::Integer, n::Integer)
+        if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+        if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+        cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
+        curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
+    end
+
+    # (CPU functions)
     function sendbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGArray{T}) where T <: GGNumber
         return view(sendbufs_raw[i][n]::AbstractVector{T},1:prod(halosize(dim,A)));
     end
@@ -228,23 +228,22 @@ let
         return reshape(recvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    @static if ENABLE_CUDA
-        function cusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-            return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
-        end
+    # (CUDA functions)
+    function cusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
+    end
 
-        function curecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-            return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
-        end
+    function curecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
+    end
 
-        #TODO: see if I should remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-        function cusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-            return reshape(cusendbuf_flat(n,dim,i,A), halosize(dim,A));
-        end
+    #TODO: see if I should remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
+    function cusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return reshape(cusendbuf_flat(n,dim,i,A), halosize(dim,A));
+    end
 
-        function curecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-            return reshape(curecvbuf_flat(n,dim,i,A), halosize(dim,A));
-        end
+    function curecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return reshape(curecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
     # Make sendbufs_raw and recvbufs_raw accessible for unit testing.
@@ -261,6 +260,7 @@ end
 
 # NOTE: the tasks and custreams are stored here in a let clause to have them survive the end of a call to update_boundaries. This avoids the creation of new tasks and cuda streams every time. Besides, that this could be relevant for performance, it is important for debugging the overlapping the communication with computation (if at every call new stream/task objects are created this becomes very messy and hard to analyse).
 
+# (CPU functions)
 function allocate_tasks(fields::GGArray...)
     allocate_tasks_iwrite(fields...);
     allocate_tasks_iread(fields...);
@@ -319,69 +319,69 @@ let
 end
 
 
-@static if ENABLE_CUDA
-    function allocate_custreams(fields::GGArray...)
-        allocate_custreams_iwrite(fields...);
-        allocate_custreams_iread(fields...);
-    end
+# (CUDA functions)
+function allocate_custreams(fields::GGArray...)
+    allocate_custreams_iwrite(fields...);
+    allocate_custreams_iread(fields...);
+end
 
-    let
-        global iwrite_sendbufs!, allocate_custreams_iwrite, wait_iwrite
+let
+    global iwrite_sendbufs!, allocate_custreams_iwrite, wait_iwrite
 
-        custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
+    custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-        wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
+    wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
 
-        function allocate_custreams_iwrite(fields::GGArray...)
-    	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
-            end
-        end
-
-        function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a GPU array.
-            if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-                if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                    ranges = sendranges(n, dim, A);
-                    nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
-                    halosize = [r[end] - r[1] + 1 for r in ranges];
-                    nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                    @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(cusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-                else
-                    write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
-                end
-            end
+    function allocate_custreams_iwrite(fields::GGArray...)
+	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+            custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
     end
 
-    let
-        global iread_recvbufs!, allocate_custreams_iread, wait_iread
-
-        custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
-
-        wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
-
-        function allocate_custreams_iread(fields::GGArray...)
-    	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-                custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
-            end
-        end
-
-        function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber # Function to be called if A is a GPU array.
-            if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-                if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                    ranges = recvranges(n, dim, A);
-                    nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
-                    halosize = [r[end] - r[1] + 1 for r in ranges];
-                    nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                    @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(curecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-                else
-                    read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
-                end
+    function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a GPU array.
+        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+            if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = sendranges(n, dim, A);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                halosize = [r[end] - r[1] + 1 for r in ranges];
+                nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(cusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+            else
+                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
             end
         end
     end
 end
 
+let
+    global iread_recvbufs!, allocate_custreams_iread, wait_iread
+
+    custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
+
+    wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
+
+    function allocate_custreams_iread(fields::GGArray...)
+	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+            custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+        end
+    end
+
+    function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber # Function to be called if A is a GPU array.
+        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+            if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = recvranges(n, dim, A);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                halosize = [r[end] - r[1] + 1 for r in ranges];
+                nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(curecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+            else
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
+            end
+        end
+    end
+end
+
+# (CPU functions)
 # Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
 function sendranges(n::Integer, dim::Integer, A::GGArray)
     if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
@@ -434,56 +434,55 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
     end
 end
 
-@static if ENABLE_CUDA
-    # Write to the send buffer on the host or device from the array on the device (d2x).
-    function write_d2x!(cusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
-        ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + sendrangex[1] - 1
-        iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + sendrangey[1] - 1
-        iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + sendrangez[1] - 1
-        if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
-        if     (dim == 1) cusendbuf[iy,iz] = A[ix,iy,iz];
-        elseif (dim == 2) cusendbuf[ix,iz] = A[ix,iy,iz];
-        elseif (dim == 3) cusendbuf[ix,iy] = A[ix,iy,iz];
-        end
-        return nothing
+# (CUDA functions)
+# Write to the send buffer on the host or device from the array on the device (d2x).
+function write_d2x!(cusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+    ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + sendrangex[1] - 1
+    iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + sendrangey[1] - 1
+    iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + sendrangez[1] - 1
+    if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
+    if     (dim == 1) cusendbuf[iy,iz] = A[ix,iy,iz];
+    elseif (dim == 2) cusendbuf[ix,iz] = A[ix,iy,iz];
+    elseif (dim == 3) cusendbuf[ix,iy] = A[ix,iy,iz];
     end
+    return nothing
+end
 
-    # Read from the receive buffer on the host or device and store on the array on the device (x2d).
-    function read_x2d!(curecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
-        ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + recvrangex[1] - 1
-        iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + recvrangey[1] - 1
-        iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + recvrangez[1] - 1
-        if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
-        if     (dim == 1) A[ix,iy,iz] = curecvbuf[iy,iz];
-        elseif (dim == 2) A[ix,iy,iz] = curecvbuf[ix,iz];
-        elseif (dim == 3) A[ix,iy,iz] = curecvbuf[ix,iy];
-        end
-        return nothing
+# Read from the receive buffer on the host or device and store on the array on the device (x2d).
+function read_x2d!(curecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+    ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + recvrangex[1] - 1
+    iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + recvrangey[1] - 1
+    iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + recvrangez[1] - 1
+    if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
+    if     (dim == 1) A[ix,iy,iz] = curecvbuf[iy,iz];
+    elseif (dim == 2) A[ix,iy,iz] = curecvbuf[ix,iz];
+    elseif (dim == 3) A[ix,iy,iz] = curecvbuf[ix,iy];
     end
+    return nothing
+end
 
-    # Write to the send buffer on the host from the array on the device (d2h).
-    function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-        Mem.unsafe_copy3d!(
-            pointer(sendbuf), Mem.Host, pointer(A), Mem.Device,
-            length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
-            srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
-            srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
-            dstPitch=sizeof(T)*length(sendranges[1]), dstHeight=length(sendranges[2]),
-            async=true, stream=custream
-        )
-    end
+# Write to the send buffer on the host from the array on the device (d2h).
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    Mem.unsafe_copy3d!(
+        pointer(sendbuf), Mem.Host, pointer(A), Mem.Device,
+        length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
+        srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
+        srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
+        dstPitch=sizeof(T)*length(sendranges[1]), dstHeight=length(sendranges[2]),
+        async=true, stream=custream
+    )
+end
 
-    # Read from the receive buffer on the host and store on the array on the device (h2d).
-    function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-        Mem.unsafe_copy3d!(
-            pointer(A), Mem.Device, pointer(recvbuf), Mem.Host,
-            length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
-            dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
-            srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
-            dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
-            async=true, stream=custream
-        )
-    end
+# Read from the receive buffer on the host and store on the array on the device (h2d).
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    Mem.unsafe_copy3d!(
+        pointer(A), Mem.Device, pointer(recvbuf), Mem.Host,
+        length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
+        dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
+        srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
+        dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
+        async=true, stream=custream
+    )
 end
 
 
@@ -494,7 +493,7 @@ function irecv_halo!(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Inte
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
-            @enable_if_cuda req = MPI.Irecv!(curecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Irecv!(curecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Irecv!(recvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         end
@@ -506,7 +505,7 @@ function isend_halo(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integ
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
-            @enable_if_cuda req = MPI.Isend(cusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Isend(cusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Isend(sendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         end
@@ -518,9 +517,9 @@ function sendrecv_halo_local(n::Integer, dim::Integer, A::GGArray, i::Integer)
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
             if n == 1
-                @enable_if_cuda cumemcopy!(curecvbuf_flat(2,dim,i,A), cusendbuf_flat(1,dim,i,A));
+                cumemcopy!(curecvbuf_flat(2,dim,i,A), cusendbuf_flat(1,dim,i,A));
             elseif n == 2
-                @enable_if_cuda cumemcopy!(curecvbuf_flat(1,dim,i,A), cusendbuf_flat(2,dim,i,A));
+                cumemcopy!(curecvbuf_flat(1,dim,i,A), cusendbuf_flat(2,dim,i,A));
             end
         else
             if n == 1
@@ -542,6 +541,7 @@ function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, loopvectorizatio
     end
 end
 
+# (CPU functions)
 function memcopy_threads!(dst::AbstractArray{T}, src::AbstractArray{T}) where T <: GGNumber
     if nthreads() > 1 && sizeof(src) >= GG_THREADCOPY_THRESHOLD
 		@threads for i = 1:length(dst)  # NOTE: Set the number of threads e.g. as: export JULIA_NUM_THREADS=12
@@ -562,10 +562,9 @@ function memcopy_loopvect!(dst::AbstractArray{T}, src::AbstractArray{T}) where T
     end
 end
 
-@static if ENABLE_CUDA
-    function cumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
-    	@inbounds CUDA.copyto!(dst, src)
-    end
+# (CUDA functions)
+function cumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
+	@inbounds CUDA.copyto!(dst, src)
 end
 
 
