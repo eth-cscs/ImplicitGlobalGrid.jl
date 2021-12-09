@@ -9,7 +9,7 @@ macro coords(i) :(GG.global_grid().coords[$i]) end
 ## Test setup
 MPI.Init();
 nprocs = MPI.Comm_size(MPI.COMM_WORLD);
-@require nprocs == 1  # NOTE: these tests requires nprocs == 1.
+@require nprocs == 1  # NOTE: these tests require nprocs == 1.
 
 @testset "$(basename(@__FILE__))" begin
     @testset "1. *_g functions" begin
