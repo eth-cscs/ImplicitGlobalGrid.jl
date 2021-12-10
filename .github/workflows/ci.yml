@@ -2,6 +2,8 @@ name: CI
 on:
   - push
   - pull_request
+env:
+  JULIA_NUM_THREADS: 2
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -10,7 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.6'
+          - '1.6' # Minimum required Julia version (due to dependency of LoopVectorization.jl 0.12 and CUDA.jl)
+          - '1'   # Latest stable 1.x release of Julia
           - 'nightly'
         os:
           - ubuntu-latest
