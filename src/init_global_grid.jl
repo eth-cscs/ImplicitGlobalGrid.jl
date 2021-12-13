@@ -39,6 +39,7 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 See also: [`finalize_global_grid`](@ref)
 """
 function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlapx::Integer=2, overlapy::Integer=2, overlapz::Integer=2, disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, quiet::Bool=false)
+    if grid_is_initialized() error("The global grid has already been initialized.") end
     nxyz              = [nx, ny, nz];
     dims              = [dimx, dimy, dimz];
     periods           = [periodx, periody, periodz];
