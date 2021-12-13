@@ -23,6 +23,7 @@ nz = 1;
         @testset "initialized" begin
             @test GG.grid_is_initialized()
             @test MPI.Initialized()
+            @test_throws ErrorException("The global grid has already been initialized.") init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);  # Error: IGG already initialised
         end;
         @testset "return values" begin
             @test me     == 0
@@ -95,8 +96,8 @@ nz = 1;
         nz = 4;
         @test_throws ErrorException init_global_grid(1, ny, nz, quiet=true, init_MPI=false);                         # Error: nx==1.
         @test_throws ErrorException init_global_grid(nx, 1, nz, quiet=true, init_MPI=false);                         # Error: ny==1, while nz>1.
-        @test_throws ErrorException init_global_grid(nx, ny, 1, dimz=3, quiet=true, init_MPI=false);                # Error: dimz>1 while nz==1.
-        @test_throws ErrorException init_global_grid(nx, ny, 1, periodz=1, quiet=true, init_MPI=false);             # Error: periodz==1 while nz==1.
+        @test_throws ErrorException init_global_grid(nx, ny, 1, dimz=3, quiet=true, init_MPI=false);                 # Error: dimz>1 while nz==1.
+        @test_throws ErrorException init_global_grid(nx, ny, 1, periodz=1, quiet=true, init_MPI=false);              # Error: periodz==1 while nz==1.
         @test_throws ErrorException init_global_grid(nx, ny, nz, periody=1, overlapy=3, quiet=true, init_MPI=false); # Error: periody==1 while ny<2*overlapy-1 (4<5).
         @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true);                                        # Error: MPI already initialized
     end;
