@@ -24,7 +24,7 @@ https://github.com/eth-cscs/ImplicitGlobalGrid.jl
 To see a description of a function type `?<functionname>`.
 
 !!! note "Performance note"
-    If the system supports CUDA-aware MPI, it may be activated for ImplicitGlobalGrid by setting the following environment variable (at latest before the first call to `init_global_grid`):
+    If the system supports CUDA-aware MPI, it may be activated for ImplicitGlobalGrid by setting the following environment variable (at latest before the call to `init_global_grid`):
     ```shell
     shell> export IGG_CUDAAWARE_MPI=1
     ```
