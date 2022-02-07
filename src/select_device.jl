@@ -6,7 +6,9 @@ using CUDA
 """
     select_device()
 
-Select the device (GPU) corresponding to the node-local MPI rank and return its ID. This function only needs to be called when using nodes with more than one device.
+Select the device (GPU) corresponding to the node-local MPI rank and return its ID.
+
+See also: [`init_global_grid`](@ref)
 """
 function select_device()
 	if cuda_enabled()
@@ -21,3 +23,5 @@ function select_device()
 		error("Cannot select a device because CUDA was detected not functional when the ImplicitGlobalGrid module was loaded.")
 	end
 end
+
+_select_device() = select_device()
