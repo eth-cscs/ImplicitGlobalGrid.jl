@@ -20,6 +20,7 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `init_MPI::Bool=true`: whether to initialize MPI (`true`) or not (`false`).
+    - `device_type::String="auto"`: the type of the device to be used if available: "CUDA", "AMDGPU" or "auto". If `device_type` is "auto" (default), it is automatically determined, depending on which of the modules used for programming the devices (CUDA.jl or AMDGPU.jl) is functional; if both are functional, an error will be given if `device_type` is set as "auto".
     - `select_device::Bool=true`: whether to automatically select the device (GPU) (`true`) or not (`false`) if CUDA is functional. If `true`, it selects the device corresponding to the node-local MPI rank. This method of device selection suits both single and multi-device compute nodes and is recommended in general. It is also the default method of device selection of the *function* [`select_device`](@ref).
     For more information, refer to the documentation of MPI.jl / MPI.
 
@@ -39,16 +40,14 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 
 See also: [`finalize_global_grid`](@ref), [`select_device`](@ref)
 """
-function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlapx::Integer=2, overlapy::Integer=2, overlapz::Integer=2, disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, select_device::Bool=true, quiet::Bool=false)
+function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlapx::Integer=2, overlapy::Integer=2, overlapz::Integer=2, disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
     if grid_is_initialized() error("The global grid has already been initialized.") end
     nxyz              = [nx, ny, nz];
     dims              = [dimx, dimy, dimz];
     periods           = [periodx, periody, periodz];
     overlaps          = [overlapx, overlapy, overlapz];
-    device_type       = DEVICE_TYPE_AUTO
     cudaaware_MPI     = [false, false, false]
     loopvectorization = [false, false, false]
-    if haskey(ENV, "IGG_DEVICE_TYPE") device_type = ENV["IGG_DEVICE_TYPE"]; end
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
     if haskey(ENV, "IGG_LOOPVECTORIZATION") loopvectorization .= (parse(Int64, ENV["IGG_LOOPVECTORIZATION"]) > 0); end
     if none(cudaaware_MPI)
@@ -61,8 +60,8 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMY") loopvectorization[2] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMY"]) > 0); end
         if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMZ") loopvectorization[3] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMZ"]) > 0); end
     end
-    if !(device_type in [DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("IGG_DEVICE_TYPE: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_AUTO") end
-    if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set the environment variable IGG_DEVICE_TYPE to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
+    if !(device_type in [DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_AUTO") end
+    if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
     if     (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) set_cuda_enabled(cuda_functional())      # NOTE: cuda could be enabled/disabled depending on some additional criteria.
     elseif (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) set_amdgpu_enabled(amdgpu_functional())  # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
     end
