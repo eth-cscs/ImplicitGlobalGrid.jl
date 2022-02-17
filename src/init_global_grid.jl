@@ -46,6 +46,8 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     dims              = [dimx, dimy, dimz];
     periods           = [periodx, periody, periodz];
     overlaps          = [overlapx, overlapy, overlapz];
+    cuda_enabled      = false
+    amdgpu_enabled    = false
     cudaaware_MPI     = [false, false, false]
     loopvectorization = [false, false, false]
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
@@ -62,8 +64,8 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     end
     if !(device_type in [DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_AUTO") end
     if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
-    if     (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) set_cuda_enabled(cuda_functional())      # NOTE: cuda could be enabled/disabled depending on some additional criteria.
-    elseif (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) set_amdgpu_enabled(amdgpu_functional())  # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+    if     (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) cuda_enabled   = cuda_functional()    # NOTE: cuda could be enabled/disabled depending on some additional criteria.
+    elseif (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_functional()  # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
     end
     if (nx==1) error("Invalid arguments: nx can never be 1.") end
     if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
@@ -86,7 +88,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cudaaware_MPI, loopvectorization, quiet));
+    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, loopvectorization, quiet));
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]))"); end
     if (cuda_enabled() && select_device) _select_device() end
     init_timing_functions();

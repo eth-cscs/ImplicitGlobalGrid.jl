@@ -5,19 +5,13 @@ using CUDA
 ##-------------------------
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
 let
-    global cuda_functional, cuda_enabled, set_cuda_functional, set_cuda_enabled, amdgpu_functional, amdgpu_enabled, set_amdgpu_functional, set_amdgpu_enabled
+    global cuda_functional, amdgpu_functional, set_cuda_functional, set_amdgpu_functional
     _cuda_functional::Bool           = false
-    _cuda_enabled::Bool              = false
     _amdgpu_functional::Bool         = false
-    _amdgpu_enabled::Bool            = false
     cuda_functional()::Bool          = _cuda_functional
-    cuda_enabled()::Bool             = _cuda_enabled
-    set_cuda_functional(val::Bool)   = (_cuda_functional = val;)
-    set_cuda_enabled(val::Bool)      = (_cuda_enabled = val;)
     amdgpu_functional()::Bool        = _amdgpu_functional
-    amdgpu_enabled()::Bool           = _amdgpu_enabled
+    set_cuda_functional(val::Bool)   = (_cuda_functional = val;)
     set_amdgpu_functional(val::Bool) = (_amdgpu_functional = val;)
-    set_amdgpu_enabled(val::Bool)    = (_amdgpu_enabled = val;)
 end
 
 __init__() = (
@@ -59,11 +53,13 @@ struct GlobalGrid
     disp::GGInt
     reorder::GGInt
     comm::MPI.Comm
+    cuda_enabled::Bool
+    amdgpu_enabled::Bool
     cudaaware_MPI::Vector{Bool}
     loopvectorization::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, [false,false,false], [true,true,true], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [true,true,true], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
