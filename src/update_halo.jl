@@ -463,8 +463,8 @@ end
 
 # Write to the send buffer on the host from the array on the device (d2h).
 function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-    Mem.unsafe_copy3d!(
-        pointer(sendbuf), Mem.Host, pointer(A), Mem.Device,
+    CUDA.Mem.unsafe_copy3d!(
+        pointer(sendbuf), CUDA.Mem.Host, pointer(A), CUDA.Mem.Device,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
         srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
@@ -475,8 +475,8 @@ end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
 function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
-    Mem.unsafe_copy3d!(
-        pointer(A), Mem.Device, pointer(recvbuf), Mem.Host,
+    CUDA.Mem.unsafe_copy3d!(
+        pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
         srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),

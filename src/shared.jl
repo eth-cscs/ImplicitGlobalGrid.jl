@@ -1,5 +1,5 @@
-import MPI
-using CUDA
+import MPI, CUDA, AMDGPU     # NOTE: CUDA and AMDGPU are imported as using of them would lead to name space clashes (e.g., 'Mem') and any update of these packages could potentially bring new name space clashes.
+import CUDA: @cuda, CuArray
 
 
 ##-------------------------
@@ -14,10 +14,10 @@ let
     set_amdgpu_functional(val::Bool) = (_amdgpu_functional = val;)
 end
 
-__init__() = (
+function __init__()
     set_cuda_functional(CUDA.functional())
     set_amdgpu_functional(AMDGPU_functional())
-)
+end
 
 
 ##--------------------
@@ -107,7 +107,7 @@ is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this funct
 ## CUDA functions
 
 function register(buf::Array{T}) where T <: GGNumber
-    rbuf = Mem.register(Mem.Host, pointer(buf), sizeof(buf), Mem.HOSTREGISTER_DEVICEMAP);
+    rbuf = CUDA.Mem.register(CUDA.Mem.Host, pointer(buf), sizeof(buf), CUDA.Mem.HOSTREGISTER_DEVICEMAP);
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
 end
