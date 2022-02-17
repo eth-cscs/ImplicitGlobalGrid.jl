@@ -22,7 +22,7 @@ end
 
 __init__() = (
     set_cuda_functional(CUDA.functional())
-    set_amdgpu_functional(AMDGPU.functional())
+    set_amdgpu_functional(AMDGPU_functional())
 )
 
 
@@ -113,3 +113,9 @@ function register(buf::Array{T}) where T <: GGNumber
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
 end
+
+
+##---------------
+## AMDGPU functions
+
+AMDGPU_functional() = AMDGPU.has_rocm_gpu() # NOTE: this function should check also if the AMDGPU stack if properly installed and thus functional.
