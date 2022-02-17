@@ -22,7 +22,7 @@ end
 
 __init__() = (
     set_cuda_functional(CUDA.functional())
-    # set_amdgpu_functional(AMDGPU.functional()) #TODO: AMDGPU dependency TO BE ADDED
+    set_amdgpu_functional(AMDGPU.functional())
 )
 
 
