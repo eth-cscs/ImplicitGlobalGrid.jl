@@ -116,4 +116,4 @@ end
 ##---------------
 ## AMDGPU functions
 
-AMDGPU_functional() = AMDGPU.has_rocm_gpu() # NOTE: this function should check also if the AMDGPU stack if properly installed and thus functional.
+AMDGPU_functional(show_reason=false) = AMDGPU.has_rocm_gpu() # NOTE: this function should check also if the AMDGPU stack if properly installed and thus functional.
