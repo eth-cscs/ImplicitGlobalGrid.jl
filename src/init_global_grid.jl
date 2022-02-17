@@ -45,10 +45,17 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     dims              = [dimx, dimy, dimz];
     periods           = [periodx, periody, periodz];
     overlaps          = [overlapx, overlapy, overlapz];
+    device_type       = DEVICE_TYPE_AUTO
     cudaaware_MPI     = [false, false, false]
     loopvectorization = [false, false, false]
+    if haskey(ENV, "IGG_DEVICE_TYPE") device_type = ENV["IGG_DEVICE_TYPE"]; end
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
     if haskey(ENV, "IGG_LOOPVECTORIZATION") loopvectorization .= (parse(Int64, ENV["IGG_LOOPVECTORIZATION"]) > 0); end
+    if !(device_type in [DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("IGG_DEVICE_TYPE: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_AUTO") end
+    if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set the environment variable IGG_DEVICE_TYPE to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
+    if     (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) set_cuda_enabled(cuda_functional())      # NOTE: cuda could be enabled/disabled depending on some additional criteria.
+    elseif (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) set_amdgpu_enabled(amdgpu_functional())  # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+    end
     if none(cudaaware_MPI)
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMX"]) > 0); end
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMY") cudaaware_MPI[2] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMY"]) > 0); end
