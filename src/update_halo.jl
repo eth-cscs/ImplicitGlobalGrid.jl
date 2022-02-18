@@ -310,11 +310,13 @@ let
 
 
     # Make sendbufs_raw and recvbufs_raw accessible for unit testing.
-    global get_sendbufs_raw, get_recvbufs_raw, get_cusendbufs_raw, get_curecvbufs_raw
-    get_sendbufs_raw()   = deepcopy(sendbufs_raw)
-    get_recvbufs_raw()   = deepcopy(recvbufs_raw)
-    get_cusendbufs_raw() = deepcopy(cusendbufs_raw)
-    get_curecvbufs_raw() = deepcopy(curecvbufs_raw)
+    global get_sendbufs_raw, get_recvbufs_raw, get_cusendbufs_raw, get_curecvbufs_raw, get_rocsendbufs_raw, get_rocrecvbufs_raw
+    get_sendbufs_raw()    = deepcopy(sendbufs_raw)
+    get_recvbufs_raw()    = deepcopy(recvbufs_raw)
+    get_cusendbufs_raw()  = deepcopy(cusendbufs_raw)
+    get_curecvbufs_raw()  = deepcopy(curecvbufs_raw)
+    get_rocsendbufs_raw() = deepcopy(rocsendbufs_raw)
+    get_rocrecvbufs_raw() = deepcopy(rocrecvbufs_raw)
 end
 
 
