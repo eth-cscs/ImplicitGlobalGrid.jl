@@ -644,7 +644,7 @@ end
 function irecv_halo!(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-        if cudaaware_MPI(dim) && is_cuarray(A)
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Irecv!(recvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
@@ -656,7 +656,7 @@ end
 function isend_halo(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-        if cudaaware_MPI(dim) && is_cuarray(A)
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             req = MPI.Isend(gpusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Isend(sendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
@@ -667,11 +667,11 @@ end
 
 function sendrecv_halo_local(n::Integer, dim::Integer, A::GGArray, i::Integer)
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-        if cudaaware_MPI(dim) && is_cuarray(A)
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             if n == 1
-                cumemcopy!(gpurecvbuf_flat(2,dim,i,A), gpusendbuf_flat(1,dim,i,A));
+                gpumemcopy!(gpurecvbuf_flat(2,dim,i,A), gpusendbuf_flat(1,dim,i,A));
             elseif n == 2
-                cumemcopy!(gpurecvbuf_flat(1,dim,i,A), gpusendbuf_flat(2,dim,i,A));
+                gpumemcopy!(gpurecvbuf_flat(1,dim,i,A), gpusendbuf_flat(2,dim,i,A));
             end
         else
             if n == 1
@@ -714,9 +714,18 @@ function memcopy_loopvect!(dst::AbstractArray{T}, src::AbstractArray{T}) where T
     end
 end
 
+
 # (CUDA functions)
-function cumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
+
+function gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
 	@inbounds CUDA.copyto!(dst, src)
+end
+
+
+# (AMDGPU functions)
+
+function gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
+	@inbounds AMDGPU.copyto!(dst, src)
 end
 
 
