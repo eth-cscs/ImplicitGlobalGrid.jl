@@ -59,10 +59,11 @@ struct GlobalGrid
     cuda_enabled::Bool
     amdgpu_enabled::Bool
     cudaaware_MPI::Vector{Bool}
+    rocmaware_MPI::Vector{Bool}
     loopvectorization::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [true,true,true], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
@@ -97,6 +98,8 @@ cuda_enabled()                         = global_grid().cuda_enabled
 amdgpu_enabled()                       = global_grid().amdgpu_enabled
 cudaaware_MPI()                        = global_grid().cudaaware_MPI
 cudaaware_MPI(dim::Integer)            = global_grid().cudaaware_MPI[dim]
+rocmaware_MPI()                        = global_grid().rocmaware_MPI
+rocmaware_MPI(dim::Integer)            = global_grid().rocmaware_MPI[dim]
 loopvectorization()                    = global_grid().loopvectorization
 loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL

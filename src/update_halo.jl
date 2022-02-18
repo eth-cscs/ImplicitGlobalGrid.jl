@@ -88,13 +88,16 @@ let
     cusendbufs_raw_h = nothing
     curecvbufs_raw_h = nothing
 
+
+    # (CPU functions)
+
     function free_update_halo_buffers()
         if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(cusendbufs_raw) end
         if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(curecvbufs_raw) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(cusendbufs_raw_h) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(curecvbufs_raw_h) end
-        sendbufs_raw = nothing;
-        recvbufs_raw = nothing;
+        sendbufs_raw = nothing
+        recvbufs_raw = nothing
         cusendbufs_raw = nothing
         curecvbufs_raw = nothing
         cusendbufs_raw_h = nothing
@@ -102,7 +105,9 @@ let
         GC.gc();
     end
 
+
     # (CUDA functions)
+
     function free_cubufs(bufs)
         if (bufs !== nothing)
             for i = 1:length(bufs)
@@ -154,7 +159,9 @@ let
         end
     end
 
+
     # (CPU functions)
+
     function init_bufs_arrays()
         sendbufs_raw = Array{Array{Any,1},1}();
         recvbufs_raw = Array{Array{Any,1},1}();
@@ -175,7 +182,9 @@ let
         recvbufs_raw[i][n] = zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
+
     # (CUDA functions)
+
     function init_cubufs_arrays()
         cusendbufs_raw = Array{Array{Any,1},1}();
         curecvbufs_raw = Array{Array{Any,1},1}();
@@ -207,7 +216,9 @@ let
         curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
     end
 
+
     # (CPU functions)
+
     function sendbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGArray{T}) where T <: GGNumber
         return view(sendbufs_raw[i][n]::AbstractVector{T},1:prod(halosize(dim,A)));
     end
@@ -224,7 +235,9 @@ let
         return reshape(recvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
+
     # (CUDA functions)
+
     function cusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
         return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
@@ -241,6 +254,7 @@ let
     function curecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
         return reshape(curecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
+
 
     # Make sendbufs_raw and recvbufs_raw accessible for unit testing.
     global get_sendbufs_raw, get_recvbufs_raw, get_cusendbufs_raw, get_curecvbufs_raw
