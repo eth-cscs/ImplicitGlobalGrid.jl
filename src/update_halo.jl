@@ -378,7 +378,7 @@ let
 
     tasks = Array{Task}(undef, NNEIGHBORS_PER_DIM, 0);
 
-    wait_iread(n::Integer, A::Array{T}, i::Integer) where T <: GGNumber = (schedule(tasks[n,i]); wait(tasks[n,i]);) # The argument A is used for multiple dispatch. #NOTE: The current implementation only starts a task when it is waited for, in order to make sure that only one task is run at a time and that they are run in the desired order (best for performance currently as the tasks are mapped only to one thread via context switching).
+    wait_iread(n::Integer, A::Array{T}, i::Integer) where T <: GGNumber = (schedule(tasks[n,i]); wait(tasks[n,i]);) #NOTE: The current implementation only starts a task when it is waited for, in order to make sure that only one task is run at a time and that they are run in the desired order (best for performance currently as the tasks are mapped only to one thread via context switching).
 
     function allocate_tasks_iread(fields::GGArray...)
         if length(fields) > size(tasks,2)  # Note: for simplicity, we create a tasks for every field even if it is not an Array
@@ -386,7 +386,7 @@ let
         end
     end
 
-    function iread_recvbufs!(n::Integer, dim::Integer, A::Array{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a CPU array.
+    function iread_recvbufs!(n::Integer, dim::Integer, A::Array{T}, i::Integer) where T <: GGNumber
         tasks[n,i] = @task begin
             if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
                 read_h2h!(recvbuf(n,dim,i,A), A, recvranges(n,dim,A), dim);
@@ -412,7 +412,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
+    wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]);
 
     function allocate_custreams_iwrite(fields::GGArray...)
 	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
@@ -420,7 +420,7 @@ let
         end
     end
 
-    function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber  # Method to be called if A is a CUDA GPU array.
+    function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, A);
@@ -440,7 +440,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]); # The argument A is used for multiple dispatch.
+    wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]);
 
     function allocate_custreams_iread(fields::GGArray...)
 	    if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
@@ -448,7 +448,7 @@ let
         end
     end
 
-    function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber # Method to be called if A is a CUDA GPU array.
+    function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, A);
@@ -482,7 +482,7 @@ let
 	    error("AMDGPU is not yet supported")
     end
 
-    function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber  # Method to be called if A is a AMDGPU array.
+    function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         error("AMDGPU is not yet supported")
     end
 end
@@ -498,7 +498,7 @@ let
         error("AMDGPU is not yet supported")
     end
 
-    function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber # Method to be called if A is a AMDGPU array.
+    function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         error("AMDGPU is not yet supported")
     end
 
