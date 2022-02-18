@@ -505,7 +505,7 @@ let
 end
 
 
-# (CPU functions)
+# (CPU/GPU functions)
 
 # Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
 function sendranges(n::Integer, dim::Integer, A::GGArray)
@@ -528,6 +528,9 @@ function recvranges(n::Integer, dim::Integer, A::GGArray)
     recvranges[dim] = ixyz_dim:ixyz_dim;
     return recvranges
 end
+
+
+# (CPU functions)
 
 # Write to the send buffer on the host from the array on the host (h2h). Note: it works for 1D-3D, as sendranges contains always 3 ranges independently of the number of dimensions of A (see function sendranges).
 function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
