@@ -12,7 +12,7 @@ Update the halo of the given GPU/CPU-array(s).
 
 !!! note "Performance note"
     Group subsequent calls to `update_halo!` in a single call for better performance (enables additional pipelining).
-    Consider activating CUDA-aware MPI (see [`ImplicitGlobalGrid`](@ref)).
+    Consider activating CUDA-aware MPI for Nvidia GPUs or ROCm-aware MPI for AMD GPUs (see [`ImplicitGlobalGrid`](@ref)).
 """
 function update_halo!(A::GGArray...)
     check_initialized();
