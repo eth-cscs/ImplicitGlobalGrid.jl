@@ -82,7 +82,7 @@ halosize(dim::Integer, A::GGArray) = (ndims(A)>1) ? size(A)[1:ndims(A).!=dim] : 
 # NOTE: CUDA and AMDGPU buffers live and are dealt with independently, enabling the support of usage of CUDA and AMD GPUs at the same time.
 
 let
-    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, cusendbuf, curecvbuf, cusendbuf_flat, curecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
+    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
     sendbufs_raw = nothing
     recvbufs_raw = nothing
     cusendbufs_raw = nothing
@@ -291,21 +291,21 @@ let
 
     # (CUDA functions)
 
-    function cusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
         return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
 
-    function curecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
         return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
 
     #TODO: see if I should remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function cusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-        return reshape(cusendbuf_flat(n,dim,i,A), halosize(dim,A));
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function curecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
-        return reshape(curecvbuf_flat(n,dim,i,A), halosize(dim,A));
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+        return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
 
@@ -411,7 +411,7 @@ let
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(cusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
                 write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
             end
@@ -439,7 +439,7 @@ let
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(curecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
             end
@@ -547,27 +547,27 @@ end
 # (CUDA functions)
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
-function write_d2x!(cusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+function write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
     ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + sendrangex[1] - 1
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + sendrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + sendrangez[1] - 1
     if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
-    if     (dim == 1) cusendbuf[iy,iz] = A[ix,iy,iz];
-    elseif (dim == 2) cusendbuf[ix,iz] = A[ix,iy,iz];
-    elseif (dim == 3) cusendbuf[ix,iy] = A[ix,iy,iz];
+    if     (dim == 1) gpusendbuf[iy,iz] = A[ix,iy,iz];
+    elseif (dim == 2) gpusendbuf[ix,iz] = A[ix,iy,iz];
+    elseif (dim == 3) gpusendbuf[ix,iy] = A[ix,iy,iz];
     end
     return nothing
 end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
-function read_x2d!(curecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
     ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + recvrangex[1] - 1
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + recvrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + recvrangez[1] - 1
     if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
-    if     (dim == 1) A[ix,iy,iz] = curecvbuf[iy,iz];
-    elseif (dim == 2) A[ix,iy,iz] = curecvbuf[ix,iz];
-    elseif (dim == 3) A[ix,iy,iz] = curecvbuf[ix,iy];
+    if     (dim == 1) A[ix,iy,iz] = gpurecvbuf[iy,iz];
+    elseif (dim == 2) A[ix,iy,iz] = gpurecvbuf[ix,iz];
+    elseif (dim == 3) A[ix,iy,iz] = gpurecvbuf[ix,iy];
     end
     return nothing
 end
@@ -629,7 +629,7 @@ function irecv_halo!(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Inte
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
-            req = MPI.Irecv!(curecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Irecv!(recvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         end
@@ -641,7 +641,7 @@ function isend_halo(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integ
     req = MPI.REQUEST_NULL;
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
-            req = MPI.Isend(cusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Isend(gpusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
             req = MPI.Isend(sendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         end
@@ -653,9 +653,9 @@ function sendrecv_halo_local(n::Integer, dim::Integer, A::GGArray, i::Integer)
     if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
         if cudaaware_MPI(dim) && is_cuarray(A)
             if n == 1
-                cumemcopy!(curecvbuf_flat(2,dim,i,A), cusendbuf_flat(1,dim,i,A));
+                cumemcopy!(gpurecvbuf_flat(2,dim,i,A), gpusendbuf_flat(1,dim,i,A));
             elseif n == 2
-                cumemcopy!(curecvbuf_flat(1,dim,i,A), cusendbuf_flat(2,dim,i,A));
+                cumemcopy!(gpurecvbuf_flat(1,dim,i,A), gpusendbuf_flat(2,dim,i,A));
             end
         else
             if n == 1

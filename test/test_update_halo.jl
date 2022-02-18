@@ -154,7 +154,7 @@ dz = 1.0
 	    end;
 	    @testset "(cu)sendbuf / (cu)recvbuf" begin
 			sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
-			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.cusendbuf, GG.curecvbuf); end
+			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf); end
 	        GG.free_update_halo_buffers();
 	        GG.allocate_bufs(A, P);
 	        for dim = 1:ndims(A), n = 1:nneighbors_per_dim
@@ -168,7 +168,7 @@ dz = 1.0
 	    end;
 		@testset "(cu)sendbuf / (cu)recvbuf (Complex)" begin
 			sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
-			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.cusendbuf, GG.curecvbuf); end
+			@static if (test_gpu && zeros == cuzeros) sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf); end
 	        GG.free_update_halo_buffers();
 	        GG.allocate_bufs(Y, Z);
 	        for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
@@ -339,8 +339,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[2,:,:][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== 0.0)
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[2,:,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[2,:,:][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
@@ -351,8 +351,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[end-1,:,:][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== 0.0)
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[end-1,:,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[end-1,:,:][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
@@ -364,8 +364,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[:,2,:][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== CuArray(A[:,4,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[:,2,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== CuArray(A[:,4,:][:]))
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[:,2,:][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== Array(A[:,4,:][:]))
@@ -376,8 +376,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[:,end-1,:][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== CuArray(A[:,end-3,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[:,end-1,:][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== CuArray(A[:,end-3,:][:]))
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[:,end-1,:][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== Array(A[:,end-3,:][:]))
@@ -389,8 +389,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[:,:,3][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== CuArray(A[:,:,4][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[:,:,3][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== CuArray(A[:,:,4][:]))
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[:,:,3][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== Array(A[:,:,4][:]))
@@ -401,8 +401,8 @@ dz = 1.0
 				GG.wait_iwrite(n, P, 1);
 				GG.wait_iwrite(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.cusendbuf_flat(n,dim,1,P) .== CuArray(P[:,:,end-2][:]))
-					@test all(GG.cusendbuf_flat(n,dim,2,A) .== CuArray(A[:,:,end-3][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,1,P) .== CuArray(P[:,:,end-2][:]))
+					@test all(GG.gpusendbuf_flat(n,dim,2,A) .== CuArray(A[:,:,end-3][:]))
 				else
 					@test all(GG.sendbuf_flat(n,dim,1,P) .== Array(P[:,:,end-2][:]))
 					@test all(GG.sendbuf_flat(n,dim,2,A) .== Array(A[:,:,end-3][:]))
@@ -422,8 +422,8 @@ dz = 1.0
 				dim = 1
 				for n = 1:nneighbors_per_dim
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						GG.curecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-						GG.curecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+						GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+						GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 					else
 						GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 						GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -435,7 +435,7 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[1,:,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[1,:,:][:]))
 					@test all(                         0.0 .== CuArray(A[1,:,:][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:]))
@@ -447,7 +447,7 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[end,:,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[end,:,:][:]))
 					@test all(                         0.0 .== CuArray(A[end,:,:][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:]))
@@ -456,8 +456,8 @@ dz = 1.0
 				dim = 2
 				for n = 1:nneighbors_per_dim
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						GG.curecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-						GG.curecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+						GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+						GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 					else
 						GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 						GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -469,8 +469,8 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[:,1,:][:]))
-					@test all(GG.curecvbuf_flat(n,dim,2,A) .== CuArray(A[:,1,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[:,1,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,2,A) .== CuArray(A[:,1,:][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:]))
 					@test all(GG.recvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:]))
@@ -481,8 +481,8 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[:,end,:][:]))
-					@test all(GG.curecvbuf_flat(n,dim,2,A) .== CuArray(A[:,end,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[:,end,:][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,2,A) .== CuArray(A[:,end,:][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:]))
 					@test all(GG.recvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:]))
@@ -490,8 +490,8 @@ dz = 1.0
 				dim = 3
 				for n = 1:nneighbors_per_dim
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						GG.curecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-						GG.curecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+						GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+						GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 					else
 						GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 						GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -503,8 +503,8 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[:,:,1][:]))
-					@test all(GG.curecvbuf_flat(n,dim,2,A) .== CuArray(A[:,:,1][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[:,:,1][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,2,A) .== CuArray(A[:,:,1][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:]))
 					@test all(GG.recvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:]))
@@ -515,8 +515,8 @@ dz = 1.0
 				GG.wait_iread(n, P, 1);
 				GG.wait_iread(n, A, 2);
 				if zeros == cuzeros && GG.cudaaware_MPI(dim)
-					@test all(GG.curecvbuf_flat(n,dim,1,P) .== CuArray(P[:,:,end][:]))
-					@test all(GG.curecvbuf_flat(n,dim,2,A) .== CuArray(A[:,:,end][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,1,P) .== CuArray(P[:,:,end][:]))
+					@test all(GG.gpurecvbuf_flat(n,dim,2,A) .== CuArray(A[:,:,end][:]))
 				else
 					@test all(GG.recvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:]))
 					@test all(GG.recvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:]))
@@ -532,8 +532,8 @@ dz = 1.0
 					dim = 1
 					for n = 1:nneighbors_per_dim
 						if zeros == cuzeros && GG.cudaaware_MPI(dim)
-							GG.cusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-							GG.cusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+							GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+							GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 						else
 							GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 							GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -544,10 +544,10 @@ dz = 1.0
 						GG.sendrecv_halo_local(n, dim, A, 2);
 					end
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						@test all(GG.curecvbuf_flat(1,dim,1,P) .== GG.cusendbuf_flat(2,dim,1,P));
-						@test all(GG.curecvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
-						@test all(GG.curecvbuf_flat(2,dim,1,P) .== GG.cusendbuf_flat(1,dim,1,P));
-						@test all(GG.curecvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+						@test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+						@test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
 					else
 						@test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
 						@test all(GG.recvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
@@ -557,8 +557,8 @@ dz = 1.0
 					dim = 2
 					for n = 1:nneighbors_per_dim
 						if zeros == cuzeros && GG.cudaaware_MPI(dim)
-							GG.cusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-							GG.cusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+							GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+							GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 						else
 							GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 							GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -569,10 +569,10 @@ dz = 1.0
 						GG.sendrecv_halo_local(n, dim, A, 2);
 					end
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						@test all(GG.curecvbuf_flat(1,dim,1,P) .== GG.cusendbuf_flat(2,dim,1,P));
-						@test all(GG.curecvbuf_flat(1,dim,2,A) .== GG.cusendbuf_flat(2,dim,2,A));
-						@test all(GG.curecvbuf_flat(2,dim,1,P) .== GG.cusendbuf_flat(1,dim,1,P));
-						@test all(GG.curecvbuf_flat(2,dim,2,A) .== GG.cusendbuf_flat(1,dim,2,A));
+						@test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
+						@test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
 					else
 						@test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
 						@test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
@@ -582,8 +582,8 @@ dz = 1.0
 					dim = 3
 					for n = 1:nneighbors_per_dim
 						if zeros == cuzeros && GG.cudaaware_MPI(dim)
-							GG.cusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-							GG.cusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+							GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+							GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
 						else
 							GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
 							GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
@@ -594,10 +594,10 @@ dz = 1.0
 						GG.sendrecv_halo_local(n, dim, A, 2);
 					end
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						@test all(GG.curecvbuf_flat(1,dim,1,P) .== GG.cusendbuf_flat(2,dim,1,P));
-						@test all(GG.curecvbuf_flat(1,dim,2,A) .== GG.cusendbuf_flat(2,dim,2,A));
-						@test all(GG.curecvbuf_flat(2,dim,1,P) .== GG.cusendbuf_flat(1,dim,1,P));
-						@test all(GG.curecvbuf_flat(2,dim,2,A) .== GG.cusendbuf_flat(1,dim,2,A));
+						@test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
+						@test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+						@test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
 					else
 						@test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
 						@test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
@@ -617,10 +617,10 @@ dz = 1.0
 				GG.allocate_bufs(P, A);
 				for n = 1:nneighbors_per_dim
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						GG.cusendbuf(n,dim,1,P) .= 9.0;
-						GG.curecvbuf(n,dim,1,P) .= 0;
-						GG.cusendbuf(n,dim,2,A) .= 9.0;
-						GG.curecvbuf(n,dim,2,A) .= 0;
+						GG.gpusendbuf(n,dim,1,P) .= 9.0;
+						GG.gpurecvbuf(n,dim,1,P) .= 0;
+						GG.gpusendbuf(n,dim,2,A) .= 9.0;
+						GG.gpurecvbuf(n,dim,2,A) .= 0;
 					else
 						GG.sendbuf(n,dim,1,P) .= 9.0;
 						GG.recvbuf(n,dim,1,P) .= 0;
@@ -639,8 +639,8 @@ dz = 1.0
 	            MPI.Waitall!(reqs[:]);
 				for n = 1:nneighbors_per_dim
 					if zeros == cuzeros && GG.cudaaware_MPI(dim)
-						@test all(GG.curecvbuf(n,dim,1,P) .== 9.0)
-						@test all(GG.curecvbuf(n,dim,2,A) .== 9.0)
+						@test all(GG.gpurecvbuf(n,dim,1,P) .== 9.0)
+						@test all(GG.gpurecvbuf(n,dim,2,A) .== 9.0)
 					else
 						@test all(GG.recvbuf(n,dim,1,P) .== 9.0)
 						@test all(GG.recvbuf(n,dim,2,A) .== 9.0)
