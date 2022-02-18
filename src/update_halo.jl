@@ -79,50 +79,64 @@ halosize(dim::Integer, A::GGArray) = (ndims(A)>1) ? size(A)[1:ndims(A).!=dim] : 
 ##---------------------------------------
 ## FUNCTIONS RELATED TO BUFFER ALLOCATION
 
+# NOTE: CUDA and AMDGPU buffers live and are dealt with independently, enabling the support of usage of CUDA and AMD GPUs at the same time.
+
 let
-    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, cusendbuf, curecvbuf, cusendbuf_flat, curecvbuf_flat
+    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, cusendbuf, curecvbuf, cusendbuf_flat, curecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
     sendbufs_raw = nothing
     recvbufs_raw = nothing
     cusendbufs_raw = nothing
     curecvbufs_raw = nothing
     cusendbufs_raw_h = nothing
     curecvbufs_raw_h = nothing
-
-
-    # (CPU functions)
+    rocsendbufs_raw = nothing
+    rocrecvbufs_raw = nothing
+    rocsendbufs_raw_h = nothing
+    rocrecvbufs_raw_h = nothing
 
     function free_update_halo_buffers()
-        if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(cusendbufs_raw) end
-        if (cuda_enabled() && any(cudaaware_MPI())) free_cubufs(curecvbufs_raw) end
-        if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(cusendbufs_raw_h) end
-        if (cuda_enabled() && none(cudaaware_MPI())) unregister_cubufs(curecvbufs_raw_h) end
+        if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(cusendbufs_raw) end
+        if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(curecvbufs_raw) end
+        if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(cusendbufs_raw_h) end
+        if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(curecvbufs_raw_h) end
+        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
+        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
+        if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocsendbufs_raw_h) end
+        if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocrecvbufs_raw_h) end
         sendbufs_raw = nothing
         recvbufs_raw = nothing
         cusendbufs_raw = nothing
         curecvbufs_raw = nothing
         cusendbufs_raw_h = nothing
         curecvbufs_raw_h = nothing
-        GC.gc();
+        rocsendbufs_raw = nothing
+        rocrecvbufs_raw = nothing
+        rocsendbufs_raw_h = nothing
+        rocrecvbufs_raw_h = nothing
+        GC.gc()
     end
 
 
     # (CUDA functions)
 
-    function free_cubufs(bufs)
+    function free_gpubufs(bufs)
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if is_cuarray(bufs[i][n]) CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                    if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                    if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
     end
 
-    function unregister_cubufs(bufs)
+    function unregister_gpubufs(bufs)
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer))   CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = [];
+                    else                                       error("AMDGPU is not yet supported") #if (isa(bufs[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                    end
                 end
             end
         end

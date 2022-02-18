@@ -46,20 +46,20 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     cuda_enabled      = false
     amdgpu_enabled    = false
     cudaaware_MPI     = [false, false, false]
-    rocmaware_MPI     = [false, false, false]
+    amdgpuaware_MPI   = [false, false, false]
     loopvectorization = [false, false, false]
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
-    if haskey(ENV, "IGG_ROCMAWARE_MPI") rocmaware_MPI .= (parse(Int64, ENV["IGG_ROCMAWARE_MPI"]) > 0); end
+    if haskey(ENV, "IGG_ROCMAWARE_MPI") amdgpuaware_MPI .= (parse(Int64, ENV["IGG_ROCMAWARE_MPI"]) > 0); end
     if haskey(ENV, "IGG_LOOPVECTORIZATION") loopvectorization .= (parse(Int64, ENV["IGG_LOOPVECTORIZATION"]) > 0); end
     if none(cudaaware_MPI)
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMX"]) > 0); end
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMY") cudaaware_MPI[2] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMY"]) > 0); end
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMZ") cudaaware_MPI[3] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMZ"]) > 0); end
     end
-    if none(rocmaware_MPI)
-        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMX") rocmaware_MPI[1] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMX"]) > 0); end
-        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMY") rocmaware_MPI[2] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMY"]) > 0); end
-        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMZ") rocmaware_MPI[3] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMZ"]) > 0); end
+    if none(amdgpuaware_MPI)
+        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMX") amdgpuaware_MPI[1] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMX"]) > 0); end
+        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMY") amdgpuaware_MPI[2] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMY"]) > 0); end
+        if haskey(ENV, "IGG_ROCMAWARE_MPI_DIMZ") amdgpuaware_MPI[3] = (parse(Int64, ENV["IGG_ROCMAWARE_MPI_DIMZ"]) > 0); end
     end
     if all(loopvectorization)
         if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMX") loopvectorization[1] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMX"]) > 0); end
@@ -92,7 +92,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, rocmaware_MPI, loopvectorization, quiet));
+    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, loopvectorization, quiet));
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]))"); end
     if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
     init_timing_functions();

@@ -59,7 +59,7 @@ struct GlobalGrid
     cuda_enabled::Bool
     amdgpu_enabled::Bool
     cudaaware_MPI::Vector{Bool}
-    rocmaware_MPI::Vector{Bool}
+    amdgpuaware_MPI::Vector{Bool}
     loopvectorization::Vector{Bool}
     quiet::Bool
 end
@@ -98,8 +98,8 @@ cuda_enabled()                         = global_grid().cuda_enabled
 amdgpu_enabled()                       = global_grid().amdgpu_enabled
 cudaaware_MPI()                        = global_grid().cudaaware_MPI
 cudaaware_MPI(dim::Integer)            = global_grid().cudaaware_MPI[dim]
-rocmaware_MPI()                        = global_grid().rocmaware_MPI
-rocmaware_MPI(dim::Integer)            = global_grid().rocmaware_MPI[dim]
+amdgpuaware_MPI()                      = global_grid().amdgpuaware_MPI
+amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
 loopvectorization()                    = global_grid().loopvectorization
 loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL
