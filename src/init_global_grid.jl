@@ -1,8 +1,5 @@
 export init_global_grid
 
-import MPI
-
-
 """
     init_global_grid(nx, ny, nz)
     me, dims, nprocs, coords, comm_cart = init_global_grid(nx, ny, nz; <keyword arguments>)

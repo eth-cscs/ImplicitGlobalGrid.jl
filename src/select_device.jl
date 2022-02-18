@@ -1,8 +1,5 @@
 export select_device
 
-import MPI
-using CUDA
-
 """
     select_device()
 

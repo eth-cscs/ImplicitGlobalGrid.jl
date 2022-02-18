@@ -1,11 +1,5 @@
 export update_halo!
 
-import MPI
-using CUDA
-using Base.Threads
-using LoopVectorization
-
-
 """
     update_halo!(A)
     update_halo!(A...)
@@ -28,10 +22,12 @@ function update_halo!(A::GGArray...)
 end
 
 function _update_halo!(fields::GGArray...)
-    if (any_cuarray(fields...) && !cuda_enabled()) error("cuda is not enabled as CUDA was not functional when the ImplicitGlobalGrid module was loaded."); end #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
+    if (any_cuarray(fields...) && !cuda_enabled())    error("CUDA is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end    #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
+    if (any_rocarray(fields...) && !amdgpu_enabled()) error("AMDGPU is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end  #NOTE: in the following, it is only required to check for `amdgpu_enabled()` when the context does not imply `any_rocarray(fields...)` or `is_rocarray(A)`.
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
     if any_cuarray(fields...) allocate_custreams(fields...); end
+    if any_rocarray(fields...) allocate_rocqueues(fields...); end
 
     for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
@@ -200,8 +196,8 @@ let
     end
 
     function reallocate_cubufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
-        cusendbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
-        curecvbufs_raw[i][n] = cuzeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
+        cusendbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
+        curecvbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
     function reregister_cubufs(T::DataType, i::Integer, n::Integer)
@@ -258,9 +254,11 @@ end
 ##----------------------------------------------
 ## FUNCTIONS TO WRITE AND READ SEND/RECV BUFFERS
 
-# NOTE: the tasks and custreams are stored here in a let clause to have them survive the end of a call to update_boundaries. This avoids the creation of new tasks and cuda streams every time. Besides, that this could be relevant for performance, it is important for debugging the overlapping the communication with computation (if at every call new stream/task objects are created this becomes very messy and hard to analyse).
+# NOTE: the tasks, custreams and rocqueues are stored here in a let clause to have them survive the end of a call to update_boundaries. This avoids the creation of new tasks and cuda streams every time. Besides, that this could be relevant for performance, it is important for debugging the overlapping the communication with computation (if at every call new stream/task objects are created this becomes very messy and hard to analyse).
+
 
 # (CPU functions)
+
 function allocate_tasks(fields::GGArray...)
     allocate_tasks_iwrite(fields...);
     allocate_tasks_iread(fields...);
@@ -320,6 +318,7 @@ end
 
 
 # (CUDA functions)
+
 function allocate_custreams(fields::GGArray...)
     allocate_custreams_iwrite(fields...);
     allocate_custreams_iread(fields...);
@@ -338,7 +337,7 @@ let
         end
     end
 
-    function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a GPU array.
+    function iwrite_sendbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber  # Method to be called if A is a CUDA GPU array.
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, A);
@@ -366,7 +365,7 @@ let
         end
     end
 
-    function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber # Function to be called if A is a GPU array.
+    function iread_recvbufs!(n::Integer, dim::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber # Method to be called if A is a CUDA GPU array.
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, A);
@@ -381,7 +380,50 @@ let
     end
 end
 
+
+# (AMDGPU functions)
+
+function allocate_rocqueues(fields::GGArray...)
+    allocate_rocqueues_iwrite(fields...);
+    allocate_rocqueues_iread(fields...);
+end
+
+let
+    global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
+
+    #rocqueues
+
+    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
+
+    function allocate_rocqueues_iwrite(fields::GGArray...)
+	    error("AMDGPU is not yet supported")
+    end
+
+    function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber  # Method to be called if A is a AMDGPU array.
+        error("AMDGPU is not yet supported")
+    end
+end
+
+let
+    global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
+
+    #rocqueues
+
+    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
+
+    function allocate_rocqueues_iread(fields::GGArray...)
+        error("AMDGPU is not yet supported")
+    end
+
+    function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber # Method to be called if A is a AMDGPU array.
+        error("AMDGPU is not yet supported")
+    end
+
+end
+
+
 # (CPU functions)
+
 # Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
 function sendranges(n::Integer, dim::Integer, A::GGArray)
     if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
@@ -434,7 +476,9 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
     end
 end
 
+
 # (CUDA functions)
+
 # Write to the send buffer on the host or device from the array on the device (d2x).
 function write_d2x!(cusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
     ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + sendrangex[1] - 1
@@ -483,6 +527,31 @@ function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::A
         dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
         async=true, stream=custream
     )
+end
+
+
+# (AMDGPU functions)
+
+# Write to the send buffer on the host or device from the array on the device (d2x).
+function write_d2x!(rocsendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+    #error("AMDGPU is not yet supported")
+    return nothing
+end
+
+# Read from the receive buffer on the host or device and store on the array on the device (x2d).
+function read_x2d!(rocrecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+    #error("AMDGPU is not yet supported")
+    return nothing
+end
+
+# Write to the send buffer on the host from the array on the device (d2h).
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, rocqueue::HSAQueue) where T <: GGNumber where T2 <: Integer
+    error("AMDGPU is not yet supported")
+end
+
+# Read from the receive buffer on the host and store on the array on the device (h2d).
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, rocqueue::HSAQueue) where T <: GGNumber where T2 <: Integer
+    error("AMDGPU is not yet supported")
 end
 
 

@@ -1,9 +1,5 @@
 export nx_g, ny_g, nz_g, x_g, y_g, z_g, tic, toc
 
-import MPI
-using CUDA
-
-
 macro nx_g()    esc(:( global_grid().nxyz_g[1] )) end
 macro ny_g()    esc(:( global_grid().nxyz_g[2] )) end
 macro nz_g()    esc(:( global_grid().nxyz_g[3] )) end

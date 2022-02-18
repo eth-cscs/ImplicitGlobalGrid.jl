@@ -1,5 +1,8 @@
-import MPI, CUDA, AMDGPU     # NOTE: CUDA and AMDGPU are imported as using of them would lead to name space clashes (e.g., 'Mem') and any update of these packages could potentially bring new name space clashes.
-import CUDA: @cuda, CuArray
+import MPI
+using CUDA
+using AMDGPU
+using Base.Threads
+using LoopVectorization
 
 
 ##-------------------------
@@ -31,13 +34,13 @@ const DEVICE_TYPE_AUTO = "auto"
 const DEVICE_TYPE_CUDA = "CUDA"
 const DEVICE_TYPE_AMDGPU = "AMDGPU"
 
+
 ##------
 ## TYPES
 
 const GGInt        = Cint
 const GGNumber     = Number
-const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}}
-const cuzeros      = CUDA.zeros
+const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -99,8 +102,10 @@ loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL
 any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
 any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
+any_rocarray(fields::GGArray...)       = any([is_rocarray(A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##---------------
