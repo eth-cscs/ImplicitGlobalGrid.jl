@@ -135,7 +135,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   error("AMDGPU is not yet supported") end  # TODO: corresponds AMDGPU.Mem.Buffer indeed to CUDA.Mem.HostBuffer?
+                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   error("AMDGPU is not yet supported") end  # TODO: corresponds AMDGPU.Mem.Buffer indeed to CUDA.Mem.HostBuffer? Then, AMDGPU equivalent of CUDA.Mem.unregister?
                 end
             end
         end
@@ -147,26 +147,35 @@ let
             free_update_halo_buffers();
             init_bufs_arrays();
             if cuda_enabled() init_cubufs_arrays(); end
+            if amdgpu_enabled() init_rocbufs_arrays(); end
         end
         init_bufs(T, fields...);
         if cuda_enabled() init_cubufs(T, fields...); end
+        if amdgpu_enabled() init_rocbufs(T, fields...); end
         for i = 1:length(fields)
             A = fields[i];
             for n = 1:NNEIGHBORS_PER_DIM # Ensure that the buffers are interpreted to contain elements of the same type as the array.
                 reinterpret_bufs(T, i, n);
                 if cuda_enabled() reinterpret_cubufs(T, i, n); end
+                if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
             max_halo_elems = (ndims(A) > 1) ? prod(sort([size(A)...])[2:end]) : 1;
             if (length(sendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     reallocate_bufs(T, i, n, max_halo_elems);
                     if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
+                    if (is_rocarray(A) && none(amdgpuaware_MPI())) reregister_rocbufs(T, i, n); end  # ...
                 end
                 GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
             end
             if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     if (is_cuarray(A) &&  any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                end
+            end
+            if (!isnothing(rocsendbufs_raw) && length(rocsendbufs_raw[i][1]) < max_halo_elems)
+                for n = 1:NNEIGHBORS_PER_DIM
+                    if (is_rocarray(A) &&  any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
                 end
             end
         end
@@ -227,6 +236,37 @@ let
         if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
         curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
+    end
+
+
+    # (AMDGPU functions)
+
+    function init_rocbufs_arrays()
+        rocsendbufs_raw = Array{Array{Any,1},1}();
+        rocrecvbufs_raw = Array{Array{Any,1},1}();
+        rocsendbufs_raw_h = Array{Array{Any,1},1}();
+        rocrecvbufs_raw_h = Array{Array{Any,1},1}();
+    end
+
+    function init_rocbufs(T::DataType, fields::GGArray...)
+        while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [RocArray{T}(undef,0), RocArray{T}(undef,0)]); end
+        while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [RocArray{T}(undef,0), RocArray{T}(undef,0)]); end
+        while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [[], []]); end
+        while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [[], []]); end
+    end
+
+    function reinterpret_rocbufs(T::DataType, i::Integer, n::Integer)
+        if (eltype(rocsendbufs_raw[i][n]) != T) rocsendbufs_raw[i][n] = reinterpret(T, rocsendbufs_raw[i][n]); end
+        if (eltype(rocrecvbufs_raw[i][n]) != T) rocrecvbufs_raw[i][n] = reinterpret(T, rocrecvbufs_raw[i][n]); end
+    end
+
+    function reallocate_rocbufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
+        rocsendbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
+        rocrecvbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
+    end
+
+    function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
+        error("AMDGPU is not yet supported")
     end
 
 
