@@ -481,9 +481,9 @@ end
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
 function write_d2x!(cusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
-    ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + sendrangex[1] - 1
-    iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + sendrangey[1] - 1
-    iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + sendrangez[1] - 1
+    ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + sendrangex[1] - 1
+    iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + sendrangey[1] - 1
+    iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + sendrangez[1] - 1
     if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
     if     (dim == 1) cusendbuf[iy,iz] = A[ix,iy,iz];
     elseif (dim == 2) cusendbuf[ix,iz] = A[ix,iy,iz];
@@ -494,9 +494,9 @@ end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
 function read_x2d!(curecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
-    ix = (blockIdx().x-1) * blockDim().x + threadIdx().x + recvrangex[1] - 1
-    iy = (blockIdx().y-1) * blockDim().y + threadIdx().y + recvrangey[1] - 1
-    iz = (blockIdx().z-1) * blockDim().z + threadIdx().z + recvrangez[1] - 1
+    ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + recvrangex[1] - 1
+    iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + recvrangey[1] - 1
+    iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + recvrangez[1] - 1
     if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
     if     (dim == 1) A[ix,iy,iz] = curecvbuf[iy,iz];
     elseif (dim == 2) A[ix,iy,iz] = curecvbuf[ix,iz];
