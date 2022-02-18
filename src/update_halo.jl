@@ -299,12 +299,26 @@ let
         return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
 
-    #TODO: see if I should remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+
+    # (AMDGPU functions)
+
+    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
+        return view(rocsendbufs_raw[i][n]::ROCVector{T},1:prod(halosize(dim,A)));
+    end
+
+    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
+        return view(rocrecvbufs_raw[i][n]::ROCVector{T},1:prod(halosize(dim,A)));
+    end
+
+
+    # (GPU functions)
+
+    #TODO: see if remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
         return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
