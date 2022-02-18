@@ -134,9 +134,8 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer))   CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = [];
-                    else                                       error("AMDGPU is not yet supported") #if (isa(bufs[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    end
+                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   error("AMDGPU is not yet supported") end  # TODO: corresponds AMDGPU.Mem.Buffer indeed to CUDA.Mem.HostBuffer?
                 end
             end
         end
