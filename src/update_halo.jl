@@ -249,8 +249,8 @@ let
     end
 
     function init_rocbufs(T::DataType, fields::GGArray...)
-        while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [RocArray{T}(undef,0), RocArray{T}(undef,0)]); end
-        while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [RocArray{T}(undef,0), RocArray{T}(undef,0)]); end
+        while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
+        while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [[], []]); end
         while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [[], []]); end
     end
@@ -313,7 +313,7 @@ let
 
     # (GPU functions)
 
-    #TODO: see if remove T here and in other cases for CuArray or Array (but then it does not verify that CuArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
+    #TODO: see if remove T here and in other cases for CuArray, ROCArray or Array (but then it does not verify that CuArray/ROCArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
     function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
@@ -474,7 +474,7 @@ end
 let
     global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
 
-    #rocqueues
+    rocqueues = Array{HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
 
     wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
 
@@ -490,7 +490,7 @@ end
 let
     global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
 
-    #rocqueues
+    rocqueues = Array{HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
 
     wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
 
