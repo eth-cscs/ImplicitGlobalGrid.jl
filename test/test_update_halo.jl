@@ -13,10 +13,6 @@ import ImplicitGlobalGrid: AMDGPU_functional #NOTE: this is to be replaced with 
 test_cuda = CUDA.functional()
 test_amdgpu = AMDGPU_functional()
 
-# cuzeros  = nothing  # To enable statements like: if zeros==cuzeros
-# roczeros = nothing  # To enable statements like: if zeros==roczeros
-# gpuzeros = nothing
-# GPUArray = nothing
 array_types          = ["CPU"]
 gpu_array_types      = []
 device_types         = ["auto"]
@@ -28,8 +24,6 @@ GPUArrayConstructors = []
 CPUArray             = Array
 if test_cuda
 	cuzeros = CUDA.zeros
-	#gpuzeros = cuzeros
-	#GPUArray = CuArray
 	push!(array_types, "CUDA")
 	push!(gpu_array_types, "CUDA")
 	push!(device_types, "CUDA")
@@ -41,8 +35,6 @@ if test_cuda
 end
 if test_amdgpu
 	roczeros = AMDGPU.zeros
-	#gpuzeros = roczeros
-	#GPUArray = ROCArray
 	push!(array_types, "AMDGPU")
 	push!(gpu_array_types, "AMDGPU")
 	push!(device_types, "AMDGPU")
