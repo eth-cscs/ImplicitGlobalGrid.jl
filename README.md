@@ -6,7 +6,7 @@ ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Superc
 
 ![Weak scaling Piz Daint](docs/images/fig_parEff_HM3D_Julia_CUDA_all_Daint_extrapol.png)
 
-ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) to perform halo updates close to hardware limit and leverages CUDA-aware MPI for GPU-applications. The communication can straightforwardly be hidden behind computation \[[1][JuliaCon19], [3][JuliaCon20a]\] (how this can be done automatically when using ParallelStencil.jl is shown in \[[3][JuliaCon20a]\]; a general approach particularly suited for CUDA C applications is explained in \[[4][GTC19]\]).
+ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) to perform halo updates close to hardware limit and leverages CUDA-aware or ROCm-aware MPI for GPU-applications. The communication can straightforwardly be hidden behind computation \[[1][JuliaCon19], [3][JuliaCon20a]\] (how this can be done automatically when using ParallelStencil.jl is shown in \[[3][JuliaCon20a]\]; a general approach particularly suited for CUDA C applications is explained in \[[4][GTC19]\]).
 
 A particularity of ImplicitGlobalGrid is the automatic *implicit creation of the global computational grid* based on the number of processes the application is run with (and based on the process topology, which can be explicitly chosen by the user or automatically defined). As a consequence, the user only needs to write a code to solve his problem on one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform a single GPU/CPU application into a massively scaling Multi-GPU/CPU application**. See the [example](#multi-gpu-with-three-functions) below. 1-D, 2-D and 3-D grids are supported. Here is a sketch of the global grid that results from running a 2-D solver with 4 processes (P1-P4) (a 2x2 process topology is created by default in this case):
 
@@ -17,7 +17,7 @@ A particularity of ImplicitGlobalGrid is the automatic *implicit creation of the
 * [50-lines Multi-GPU example](#50-lines-multi-gpu-example)
 * [Straightforward in-situ visualization / monitoring](#straightforward-in-situ-visualization--monitoring)
 * [Seamless interoperability with MPI.jl](#seamless-interoperability-with-mpijl)
-* [CUDA-aware MPI support](#cuda-aware-mpi-support)
+* [CUDA-aware/ROCm-aware MPI support](#cuda-awarerocm-aware-mpi-support)
 * [Module documentation callable from the Julia REPL / IJulia](#module-documentation-callable-from-the-julia-repl--ijulia)
 * [Dependencies](#dependencies)
 * [Installation](#installation)
@@ -176,8 +176,8 @@ finalize_global_grid(;finalize_MPI=false)
 ```
 Besides, `init_global_grid` makes every argument it passes to an [MPI.jl] function customizable via its keyword arguments.
 
-## CUDA-aware MPI support
-If the system supports CUDA-aware MPI, it may be activated for ImplicitGlobalGrid by setting an environment variable as specified in the module documentation callable from the [Julia REPL] or in [IJulia] (see next section).
+## CUDA-aware/ROCm-aware MPI support
+If the system supports CUDA-aware/ROCm-aware MPI, it may be activated for ImplicitGlobalGrid by setting an environment variable as specified in the module documentation callable from the [Julia REPL] or in [IJulia] (see next section).
 
 ## Module documentation callable from the Julia REPL / IJulia
 The module documentation can be called from the [Julia REPL] or in [IJulia]:
@@ -231,17 +231,20 @@ search: ImplicitGlobalGrid
 
   │ Performance note
   │
-  │  If the system supports CUDA-aware MPI, it may be activated for
-  │  ImplicitGlobalGrid by setting the following environment variable (at latest
-  │  before the first call to init_global_grid):
+  │  If the system supports CUDA-aware MPI (for Nvidia GPUs) or
+  │  ROCm-aware MPI (for AMD GPUs), it may be activated for
+  │  ImplicitGlobalGrid by setting one of the following environment
+  │  variables (at latest before the call to init_global_grid):
   │
   │  shell> export IGG_CUDAAWARE_MPI=1
+  │
+  │  shell> export IGG_ROCMAWARE_MPI=1
 
 julia>
 ```
 
 ## Dependencies
-ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) and the Julia CUDA package ([CUDA.jl] \[[5][Julia CUDA paper 1], [6][Julia CUDA paper 2]\]).
+ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]), the Julia CUDA package ([CUDA.jl] \[[5][Julia CUDA paper 1], [6][Julia CUDA paper 2]\]) and the Julia AMDGPU package ([AMDGPU.jl]).
 
 ## Installation
 ImplicitGlobalGrid may be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html) from the REPL:
@@ -270,6 +273,7 @@ julia>]
 [GTC19]: https://on-demand.gputechconf.com/gtc/2019/video/_/S9368/
 [MPI.jl]: https://github.com/JuliaParallel/MPI.jl
 [CUDA.jl]: https://github.com/JuliaGPU/CUDA.jl
+[AMDGPU.jl]: https://github.com/JuliaGPU/AMDGPU.jl
 [Julia Plots package]: https://github.com/JuliaPlots/Plots.jl
 [Julia Plots documentation]: http://docs.juliaplots.org/latest/backends/
 [Julia CUDA paper 1]: https://doi.org/10.1109/TPDS.2018.2872064
