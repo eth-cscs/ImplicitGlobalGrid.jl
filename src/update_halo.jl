@@ -117,14 +117,14 @@ let
     end
 
 
-    # (CUDA functions)
+    # (CUDA, AMDGPU functions)
 
     function free_gpubufs(bufs)
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
-                    if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                    # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: One would need to have undafe_free to check if own==true and return without doing anything in that case https://github.com/JuliaGPU/AMDGPU.jl/blob/f836632a5370b9b791c825df3525457688b5e180/src/array.jl#L77-L81
                 end
             end
         end
@@ -135,7 +135,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   error("AMDGPU is not yet supported") end  # TODO: corresponds AMDGPU.Mem.Buffer indeed to CUDA.Mem.HostBuffer? Then, AMDGPU equivalent of CUDA.Mem.unregister?
+                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   AMDGPU.Mem.unlock(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
@@ -233,7 +233,7 @@ let
 
     function reregister_cubufs(T::DataType, i::Integer, n::Integer)
         if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-        if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+        if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # BUG? It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
         curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
     end
@@ -266,7 +266,10 @@ let
     end
 
     function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
-        error("AMDGPU is not yet supported")
+        if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
+        if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
+        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]); # DEBUG: register no yet implemented
+        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]); # DEBUG: register no yet implemented
     end
 
 
@@ -474,32 +477,73 @@ end
 let
     global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
 
-    rocqueues = Array{HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
+    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = wait(rocsignals[n,i]);
 
     function allocate_rocqueues_iwrite(fields::GGArray...)
-	    error("AMDGPU is not yet supported")
+        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+            error("AMDGPU is not yet supported")
+            # for n=1:NNEIGHBORS_PER_DIM
+            #     for i=1:(length(fields)-size(rocqueues,2))
+            #         rocqueues[n,i] = AMDGPU.HSAQueue(get_default_agent())
+            #         AMDGPU.HSA.amd_queue_set_priority(rocqueues[n,i].queue, AMDGPU.HSA.AMD_QUEUE_PRIORITY_HIGH)
+            #         rocsignals[n,i] = []
+            #     end
+            # end
+            rocqueues  = [rocqueues [AMDGPU.HSAQueue(get_default_agent()) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+            rocsignals = [rocsignals [rocsignals for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))];
+        end
     end
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
-        error("AMDGPU is not yet supported")
+        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+            # DEBUG: unsure about the copy perf in AMD
+            # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = sendranges(n, dim, A);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                nthreads = (32, 1, 1);
+                halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
+                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
+            # else
+                # error("AMDGPU is not yet supported")
+                # write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
+            # end
+        end
     end
 end
 
 let
     global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
 
-    rocqueues = Array{HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = error("AMDGPU is not yet supported")
+    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = wait(rocsignals[n,i]);
 
     function allocate_rocqueues_iread(fields::GGArray...)
-        error("AMDGPU is not yet supported")
+        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+            error("AMDGPU is not yet supported")
+            rocqueues  = [rocqueues [AMDGPU.HSAQueue(get_default_agent()) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+            rocsignals = [rocsignals for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))];
+        end
     end
 
     function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
-        error("AMDGPU is not yet supported")
+        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+            # DEBUG: unsure about the copy perf in AMD
+            # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = recvranges(n, dim, A);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                nthreads = (32, 1, 1);
+                halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
+                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
+            # else
+                # error("AMDGPU is not yet supported")
+                # read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
+            # end
+        end
     end
 
 end
@@ -620,13 +664,27 @@ end
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
 function write_d2x!(rocsendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
-    #error("AMDGPU is not yet supported")
+    ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + sendrangex[1] - 1
+    iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + sendrangey[1] - 1
+    iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + sendrangez[1] - 1
+    if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
+    # if     (dim == 1) gpusendbuf[iy,iz] = A[ix,iy,iz];
+    # elseif (dim == 2) gpusendbuf[ix,iz] = A[ix,iy,iz];
+    # elseif (dim == 3) gpusendbuf[ix,iy] = A[ix,iy,iz];
+    # end
     return nothing
 end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
 function read_x2d!(rocrecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
-    #error("AMDGPU is not yet supported")
+    ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + recvrangex[1] - 1
+    iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + recvrangey[1] - 1
+    iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + recvrangez[1] - 1
+    if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
+    if     (dim == 1) A[ix,iy,iz] = gpurecvbuf[iy,iz];
+    elseif (dim == 2) A[ix,iy,iz] = gpurecvbuf[ix,iz];
+    elseif (dim == 3) A[ix,iy,iz] = gpurecvbuf[ix,iy];
+    end
     return nothing
 end
 
