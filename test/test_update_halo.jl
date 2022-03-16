@@ -434,119 +434,119 @@ dz = 1.0
                 end
                 finalize_global_grid(finalize_MPI=false);
             end;
-    #         @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-    #             P = zeros(nx,  ny,  nz  );
-    #             A = zeros(nx-1,ny+2,nz+1);
-    #             GG.allocate_bufs(P, A);
-    #             if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
-    #             elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
-    #             else                            GG.allocate_tasks(P, A);
-    #             end
-    #             dim = 1
-    #             for n = 1:nneighbors_per_dim
-    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 else
-    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 end
-    #             end
-    #             n = 1
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:]))
-    #                 @test all(                          0.0 .== Array(A[1,:,:][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[1,:,:][:]))
-    #                 @test all(                       0.0 .== CPUArray(A[1,:,:][:]))
-    #             end
-    #             n = 2
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:]))
-    #                 @test all(                          0.0 .== Array(A[end,:,:][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[end,:,:][:]))
-    #                 @test all(                       0.0 .== CPUArray(A[end,:,:][:]))
-    #             end
-    #             dim = 2
-    #             for n = 1:nneighbors_per_dim
-    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 else
-    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 end
-    #             end
-    #             n = 1
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:]))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,1,:][:]))
-    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,1,:][:]))
-    #             end
-    #             n = 2
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:]))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,end,:][:]))
-    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,end,:][:]))
-    #             end
-    #             dim = 3
-    #             for n = 1:nneighbors_per_dim
-    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 else
-    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-    #                 end
-    #             end
-    #             n = 1
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:]))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,1][:]))
-    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,1][:]))
-    #             end
-    #             n = 2
-    #             GG.iread_recvbufs!(n, dim, P, 1);
-    #             GG.iread_recvbufs!(n, dim, A, 2);
-    #             GG.wait_iread(n, P, 1);
-    #             GG.wait_iread(n, A, 2);
-    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:]))
-    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:]))
-    #             else
-    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end][:]))
-    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end][:]))
-    #             end
-    #             finalize_global_grid(finalize_MPI=false);
-    #         end;
+            @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                P = zeros(nx,  ny,  nz  );
+                A = zeros(nx-1,ny+2,nz+1);
+                GG.allocate_bufs(P, A);
+                if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
+                elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
+                else                            GG.allocate_tasks(P, A);
+                end
+                dim = 1
+                for n = 1:nneighbors_per_dim
+                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    else
+                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    end
+                end
+                n = 1
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:]))
+                    @test all(                          0.0 .== Array(A[1,:,:][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[1,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A[1,:,:][:]))
+                end
+                n = 2
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:]))
+                    @test all(                          0.0 .== Array(A[end,:,:][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[end,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A[end,:,:][:]))
+                end
+                dim = 2
+                for n = 1:nneighbors_per_dim
+                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    else
+                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    end
+                end
+                n = 1
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:]))
+                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,1,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,1,:][:]))
+                end
+                n = 2
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:]))
+                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,end,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,end,:][:]))
+                end
+                dim = 3
+                for n = 1:nneighbors_per_dim
+                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    else
+                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+                    end
+                end
+                n = 1
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:]))
+                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,1][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,1][:]))
+                end
+                n = 2
+                GG.iread_recvbufs!(n, dim, P, 1);
+                GG.iread_recvbufs!(n, dim, A, 2);
+                GG.wait_iread(n, P, 1);
+                GG.wait_iread(n, A, 2);
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:]))
+                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:]))
+                else
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end][:]))
+                end
+                finalize_global_grid(finalize_MPI=false);
+            end;
     #         if (nprocs==1)
     #             @testset "sendrecv_halo_local ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
     #                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);

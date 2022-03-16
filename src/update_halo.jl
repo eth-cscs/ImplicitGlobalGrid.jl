@@ -481,7 +481,7 @@ let
     rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
-        if !ismissing(rocsignals[n,i])
+        if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             wait(rocsignals[n,i]);
             rocsignals[n,i] = missing;
         end
@@ -491,7 +491,7 @@ let
         if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
             nqueues = length(fields)-size(rocqueues,2);
             new_rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues);
+            new_rocsignals = Array{Union{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
                     q = AMDGPU.HSAQueue(get_default_agent())
@@ -507,15 +507,18 @@ let
     function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: write_d2h_async commented for now as AMDGPU support for it in dev
-            if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = sendranges(n, dim, A);
+            # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 # rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
-                @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
-            else
+                # tmp DEBUG:
+                wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
+                sendbuf_flat(n,dim,i,A) .= Array(gpusendbuf_flat(n,dim,i,A))
+            # else
                 # error("AMDGPU is not yet supported")
-            end
+                # write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
+            # end
         end
     end
 end
@@ -526,13 +529,19 @@ let
     rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = wait(rocsignals[n,i]);
+    function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
+        if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            wait(rocsignals[n,i]);
+            rocsignals[n,i] = missing;
+        end
+        return
+    end
 
     function allocate_rocqueues_iread(fields::GGArray...)
         if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
             nqueues = length(fields)-size(rocqueues,2);
             new_rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, nqueues);
+            new_rocsignals = Array{Union{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
                     q = AMDGPU.HSAQueue(get_default_agent())
@@ -549,10 +558,13 @@ let
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: write_d2h_async commented for now as AMDGPU support for it in dev
             # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = recvranges(n, dim, A);
+                ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
+                # rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
+                # tmp DEBUG:
+                gpurecvbuf_flat(n,dim,i,A) .= ROCArray(recvbuf_flat(n,dim,i,A))
+                wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
             # else
                 # error("AMDGPU is not yet supported")
                 # read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
