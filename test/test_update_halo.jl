@@ -686,9 +686,9 @@ dz = 1.0
                 P[[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
-                @require !all(P .== P_ref)
+                @require !all(CPUArray(P .== P_ref)) # DEBUG: CPUArray needed here and onwards as mapreduce! is failing on AMDGPU (see https://github.com/JuliaGPU/AMDGPU.jl/issues/210)
                 update_halo!(P);
-                @test all(P .== P_ref)
+                @test all(CPUArray(P .== P_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "2D" begin
@@ -700,9 +700,9 @@ dz = 1.0
                 P[       :,[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
-                @require !all(P .== P_ref)
+                @require !all(CPUArray(P .== P_ref))
                 update_halo!(P);
-                @test all(P .== P_ref)
+                @test all(CPUArray(P .== P_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D" begin
@@ -715,9 +715,9 @@ dz = 1.0
                 P[       :,       :,[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
-                @require !all(P .== P_ref)
+                @require !all(CPUArray(P .== P_ref))
                 update_halo!(P);
-                @test all(P .== P_ref)
+                @test all(CPUArray(P .== P_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (non-default overlap)" begin
@@ -730,9 +730,9 @@ dz = 1.0
                 P[       :,       :,[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
-                @require !all(P .== P_ref)
+                @require !all(CPUArray(P .== P_ref))
                 update_halo!(P);
-                @test all(P .== P_ref)
+                @test all(CPUArray(P .== P_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (not periodic)" begin
@@ -745,15 +745,15 @@ dz = 1.0
                 P[       :,       :,[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
-                @require !all(P .== P_ref)
+                @require !all(CPUArray(P .== P_ref))
                 update_halo!(P);
-                @test all(P[2:end-1,2:end-1,2:end-1] .== P_ref[2:end-1,2:end-1,2:end-1])
-                if (coords[1] ==         0) @test all(P[  1,  :,  :] .== 0.0); else @test all(P[      1,2:end-1,2:end-1] .== P_ref[      1,2:end-1,2:end-1]); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
-                if (coords[1] == dims[1]-1) @test all(P[end,  :,  :] .== 0.0); else @test all(P[    end,2:end-1,2:end-1] .== P_ref[    end,2:end-1,2:end-1]); end
-                if (coords[2] ==         0) @test all(P[  :,  1,  :] .== 0.0); else @test all(P[2:end-1,      1,2:end-1] .== P_ref[2:end-1,      1,2:end-1]); end
-                if (coords[2] == dims[2]-1) @test all(P[  :,end,  :] .== 0.0); else @test all(P[2:end-1,    end,2:end-1] .== P_ref[2:end-1,    end,2:end-1]); end
-                if (coords[3] ==         0) @test all(P[  :,  :,  1] .== 0.0); else @test all(P[2:end-1,2:end-1,      1] .== P_ref[2:end-1,2:end-1,      1]); end
-                if (coords[3] == dims[3]-1) @test all(P[  :,  :,end] .== 0.0); else @test all(P[2:end-1,2:end-1,    end] .== P_ref[2:end-1,2:end-1,    end]); end
+                @test all(CPUArray(P[2:end-1,2:end-1,2:end-1] .== P_ref[2:end-1,2:end-1,2:end-1]))
+                if (coords[1] ==         0) @test all(CPUArray(P[  1,  :,  :] .== 0.0)); else @test all(CPUArray(P[      1,2:end-1,2:end-1] .== P_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
+                if (coords[1] == dims[1]-1) @test all(CPUArray(P[end,  :,  :] .== 0.0)); else @test all(CPUArray(P[    end,2:end-1,2:end-1] .== P_ref[    end,2:end-1,2:end-1])); end
+                if (coords[2] ==         0) @test all(CPUArray(P[  :,  1,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,      1,2:end-1] .== P_ref[2:end-1,      1,2:end-1])); end
+                if (coords[2] == dims[2]-1) @test all(CPUArray(P[  :,end,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,    end,2:end-1] .== P_ref[2:end-1,    end,2:end-1])); end
+                if (coords[3] ==         0) @test all(CPUArray(P[  :,  :,  1] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,      1] .== P_ref[2:end-1,2:end-1,      1])); end
+                if (coords[3] == dims[3]-1) @test all(CPUArray(P[  :,  :,end] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,    end] .== P_ref[2:end-1,2:end-1,    end])); end
                 finalize_global_grid(finalize_MPI=false);
             end;
         end;
@@ -766,9 +766,9 @@ dz = 1.0
                 Vx[[1, end]] .= 0.0;
                 Vx     = Array(Vx);
                 Vx_ref = Array(Vx_ref);
-                @require !all(Vx .== Vx_ref)
+                @require !all(CPUArray(Vx .== Vx_ref))
                 update_halo!(Vx);
-                @test all(Vx .== Vx_ref)
+                @test all(CPUArray(Vx .== Vx_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "2D" begin
@@ -780,9 +780,9 @@ dz = 1.0
                 Vy[       :,[1, end]] .= 0.0;
                 Vy     = Array(Vy);
                 Vy_ref = Array(Vy_ref);
-                @require !all(Vy .== Vy_ref)
+                @require !all(CPUArray(Vy .== Vy_ref))
                 update_halo!(Vy);
-                @test all(Vy .== Vy_ref)
+                @test all(CPUArray(Vy .== Vy_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D" begin
@@ -795,9 +795,9 @@ dz = 1.0
                 Vz[       :,       :,[1, end]] .= 0.0;
                 Vz     = Array(Vz);
                 Vz_ref = Array(Vz_ref);
-                @require !all(Vz .== Vz_ref)
+                @require !all(CPUArray(Vz .== Vz_ref))
                 update_halo!(Vz);
-                @test all(Vz .== Vz_ref)
+                @test all(CPUArray(Vz .== Vz_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (non-default overlap)" begin
@@ -810,9 +810,9 @@ dz = 1.0
                 Vx[       :,       :,[1, end]] .= 0.0;
                 Vx     = Array(Vx);
                 Vx_ref = Array(Vx_ref);
-                @require !all(Vx .== Vx_ref)
+                @require !all(CPUArray(Vx .== Vx_ref))
                 update_halo!(Vx);
-                @test all(Vx .== Vx_ref)
+                @test all(CPUArray(Vx .== Vx_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (not periodic)" begin
@@ -825,15 +825,15 @@ dz = 1.0
                 Vz[       :,       :,[1, end]] .= 0.0;
                 Vz     = Array(Vz);
                 Vz_ref = Array(Vz_ref);
-                @require !all(Vz .== Vz_ref)
+                @require !all(CPUArray(Vz .== Vz_ref))
                 update_halo!(Vz);
-                @test all(Vz[2:end-1,2:end-1,2:end-1] .== Vz_ref[2:end-1,2:end-1,2:end-1])
-                if (coords[1] ==         0) @test all(Vz[  1,  :,  :] .== 0.0); else @test all(Vz[      1,2:end-1,2:end-1] .== Vz_ref[      1,2:end-1,2:end-1]); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
-                if (coords[1] == dims[1]-1) @test all(Vz[end,  :,  :] .== 0.0); else @test all(Vz[    end,2:end-1,2:end-1] .== Vz_ref[    end,2:end-1,2:end-1]); end
-                if (coords[2] ==         0) @test all(Vz[  :,  1,  :] .== 0.0); else @test all(Vz[2:end-1,      1,2:end-1] .== Vz_ref[2:end-1,      1,2:end-1]); end
-                if (coords[2] == dims[2]-1) @test all(Vz[  :,end,  :] .== 0.0); else @test all(Vz[2:end-1,    end,2:end-1] .== Vz_ref[2:end-1,    end,2:end-1]); end
-                if (coords[3] ==         0) @test all(Vz[  :,  :,  1] .== 0.0); else @test all(Vz[2:end-1,2:end-1,      1] .== Vz_ref[2:end-1,2:end-1,      1]); end
-                if (coords[3] == dims[3]-1) @test all(Vz[  :,  :,end] .== 0.0); else @test all(Vz[2:end-1,2:end-1,    end] .== Vz_ref[2:end-1,2:end-1,    end]); end
+                @test all(CPUArray(Vz[2:end-1,2:end-1,2:end-1] .== Vz_ref[2:end-1,2:end-1,2:end-1]))
+                if (coords[1] ==         0) @test all(CPUArray(Vz[  1,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[      1,2:end-1,2:end-1] .== Vz_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
+                if (coords[1] == dims[1]-1) @test all(CPUArray(Vz[end,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[    end,2:end-1,2:end-1] .== Vz_ref[    end,2:end-1,2:end-1])); end
+                if (coords[2] ==         0) @test all(CPUArray(Vz[  :,  1,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,      1,2:end-1] .== Vz_ref[2:end-1,      1,2:end-1])); end
+                if (coords[2] == dims[2]-1) @test all(CPUArray(Vz[  :,end,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,    end,2:end-1] .== Vz_ref[2:end-1,    end,2:end-1])); end
+                if (coords[3] ==         0) @test all(CPUArray(Vz[  :,  :,  1] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,      1] .== Vz_ref[2:end-1,2:end-1,      1])); end
+                if (coords[3] == dims[3]-1) @test all(CPUArray(Vz[  :,  :,end] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,    end] .== Vz_ref[2:end-1,2:end-1,    end])); end
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "2D (no halo in one dim)" begin
@@ -845,10 +845,10 @@ dz = 1.0
                 A[       :,[1, end]] .= 0.0;
                 A     = Array(A);
                 A_ref = Array(A_ref);
-                @require !all(A .== A_ref)
+                @require !all(CPUArray(A .== A_ref))
                 update_halo!(A);
-                @test all(A[2:end-1,:] .== A_ref[2:end-1,:])
-                @test all(A[[1, end],:] .== 0.0)
+                @test all(CPUArray(A[2:end-1,:] .== A_ref[2:end-1,:]))
+                @test all(CPUArray(A[[1, end],:] .== 0.0))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (no halo in one dim)" begin
@@ -861,10 +861,10 @@ dz = 1.0
                 A[       :,       :,[1, end]] .= 0.0;
                 A     = Array(A);
                 A_ref = Array(A_ref);
-                @require !all(A .== A_ref)
+                @require !all(CPUArray(A .== A_ref))
                 update_halo!(A);
-                @test all(A[:,2:end-1,:] .== A_ref[:,2:end-1,:])
-                @test all(A[:,[1, end],:] .== 0.0)
+                @test all(CPUArray(A[:,2:end-1,:] .== A_ref[:,2:end-1,:]))
+                @test all(CPUArray(A[:,[1, end],:] .== 0.0))
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (Complex)" begin
@@ -877,9 +877,9 @@ dz = 1.0
                 Vz[       :,       :,[1, end]] .= 0.0;
                 Vz     = Array(Vz);
                 Vz_ref = Array(Vz_ref);
-                @require !all(Vz .== Vz_ref)
+                @require !all(CPUArray(Vz .== Vz_ref))
                 update_halo!(Vz);
-                @test all(Vz .== Vz_ref)
+                @test all(CPUArray(Vz .== Vz_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
             # @testset "3D (changing datatype)" begin
@@ -976,11 +976,11 @@ dz = 1.0
                 Vz_ref = Array(Vz_ref);
                 Vx     = Array(Vx);
                 Vx_ref = Array(Vx_ref);
-                @require !all(Vz .== Vz_ref)
-                @require !all(Vx .== Vx_ref)
+                @require !all(CPUArray(Vz .== Vz_ref))
+                @require !all(CPUArray(Vx .== Vx_ref))
                 update_halo!(Vz, Vx);
-                @test all(Vz .== Vz_ref)
-                @test all(Vx .== Vx_ref)
+                @test all(CPUArray(Vz .== Vz_ref))
+                @test all(CPUArray(Vx .== Vx_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
         end;
