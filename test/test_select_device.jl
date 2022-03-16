@@ -10,7 +10,6 @@ import ImplicitGlobalGrid: @require
 test_cuda = CUDA.functional()
 test_amdgpu = AMDGPU.functional()
 
-
 ## Test setup
 MPI.Init();
 nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any number of processes.
