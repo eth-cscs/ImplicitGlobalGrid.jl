@@ -514,9 +514,8 @@ let
                 # rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
                 # tmp DEBUG:
                 wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
-                sendbuf_flat(n,dim,i,A) .= Array(gpusendbuf_flat(n,dim,i,A))
+                !amdgpuaware_MPI(dim) && sendbuf_flat(n,dim,i,A) .= Array(gpusendbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
             # else
-                # error("AMDGPU is not yet supported")
                 # write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
             # end
         end
@@ -563,10 +562,9 @@ let
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 # rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
                 # tmp DEBUG:
-                gpurecvbuf_flat(n,dim,i,A) .= ROCArray(recvbuf_flat(n,dim,i,A))
+                !amdgpuaware_MPI(dim) && gpurecvbuf_flat(n,dim,i,A) .= ROCArray(recvbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
                 wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
             # else
-                # error("AMDGPU is not yet supported")
                 # read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
             # end
         end
