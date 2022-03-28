@@ -125,5 +125,5 @@ end
 ## AMDGPU functions
 
 function register(buf::Array{T}) where T <: GGNumber
-    return ROCArray(buf), pointer(buf);
+    return unsafe_wrap(ROCArray,pointer(buf),size(buf)),pointer(buf);
 end
