@@ -124,7 +124,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
-                    # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: One would need to have undafe_free to check if own==true and return without doing anything in that case https://github.com/JuliaGPU/AMDGPU.jl/blob/f836632a5370b9b791c825df3525457688b5e180/src/array.jl#L77-L81
+                    # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
                 end
             end
         end
@@ -268,8 +268,8 @@ let
     function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
         if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
         if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
-        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]); # DEBUG: register no yet implemented
-        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]); # DEBUG: register no yet implemented
+        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]);
+        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]);
     end
 
 
@@ -506,15 +506,12 @@ let
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-            # DEBUG: write_d2h_async commented for now as AMDGPU support for it in dev
+            # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
-                # tmp DEBUG:
-                # wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
-                # !amdgpuaware_MPI(dim) && sendbuf_flat(n,dim,i,A) .= Array(gpusendbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
             else
                 rocsignals[n,i] = HSASignal(1)
                 write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),dim,rocsignals[n,i]);
@@ -556,15 +553,12 @@ let
 
     function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-            # DEBUG: write_d2h_async commented for now as AMDGPU support for it in dev
+            # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
-                # tmp DEBUG:
-                # !amdgpuaware_MPI(dim) && gpurecvbuf_flat(n,dim,i,A) .= ROCArray(recvbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
-                # wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
+                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
                 rocsignals[n,i] = HSASignal(1)
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, rocsignals[n,i]);
@@ -714,15 +708,6 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
     return nothing
 end
 
-# # Write to the send buffer on the host from the array on the device (d2h).
-# function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, rocqueue::HSAQueue) where T <: GGNumber where T2 <: Integer
-#     error("AMDGPU is not yet supported")
-# end
-
-# # Read from the receive buffer on the host and store on the array on the device (h2d).
-# function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, rocqueue::HSAQueue) where T <: GGNumber where T2 <: Integer
-#     error("AMDGPU is not yet supported")
-# end
 
 # Write to the send buffer on the host from the array on the device (d2h).
 function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, signal::HSASignal) where T <: GGNumber where T2 <: Integer

@@ -1,4 +1,4 @@
-authors = ["Samuel Omlin", "Ludovic Räss"]
+authors = ["Samuel Omlin", "Ludovic Räss", "Ivan Utkin"]
 name = "ImplicitGlobalGrid"
 uuid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 version = "0.13.0"
