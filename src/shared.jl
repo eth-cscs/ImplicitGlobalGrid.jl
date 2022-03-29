@@ -114,7 +114,7 @@ is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this func
 ##---------------
 ## CUDA functions
 
-function register(buf::Array{T}) where T <: GGNumber
+function register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
     rbuf = CUDA.Mem.register(CUDA.Mem.Host, pointer(buf), sizeof(buf), CUDA.Mem.HOSTREGISTER_DEVICEMAP);
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
@@ -124,6 +124,6 @@ end
 ##---------------
 ## AMDGPU functions
 
-function register(buf::Array{T}) where T <: GGNumber
+function register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
     return unsafe_wrap(ROCArray,pointer(buf),size(buf)),pointer(buf);
 end

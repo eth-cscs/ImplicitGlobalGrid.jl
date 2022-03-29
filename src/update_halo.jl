@@ -234,8 +234,8 @@ let
     function reregister_cubufs(T::DataType, i::Integer, n::Integer)
         if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # BUG? It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-        cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]);
-        curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]);
+        cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(CuArray,sendbufs_raw[i][n]);
+        curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(CuArray,recvbufs_raw[i][n]);
     end
 
 
@@ -268,8 +268,8 @@ let
     function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
         if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
         if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
-        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(sendbufs_raw[i][n]); # DEBUG: register no yet implemented
-        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(recvbufs_raw[i][n]); # DEBUG: register no yet implemented
+        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]); # DEBUG: register no yet implemented
+        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]); # DEBUG: register no yet implemented
     end
 
 
@@ -517,7 +517,7 @@ let
                 # !amdgpuaware_MPI(dim) && sendbuf_flat(n,dim,i,A) .= Array(gpusendbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
             else
                 rocsignals[n,i] = HSASignal(1)
-                write_d2h_async!(sendbuf_flat(n,dim,i,A), A,sendranges(n,dim,A),dim,rocsignals[n,i]);
+                write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),dim,rocsignals[n,i]);
             end
         end
     end
@@ -527,7 +527,7 @@ let
     global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
 
     rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
-    rocsignals = Array{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
@@ -541,7 +541,7 @@ let
         if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
             nqueues = length(fields)-size(rocqueues,2);
             new_rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
                     q = AMDGPU.HSAQueue(get_default_agent())
@@ -557,7 +557,7 @@ let
     function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: write_d2h_async commented for now as AMDGPU support for it in dev
-            # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
@@ -565,10 +565,10 @@ let
                 # tmp DEBUG:
                 # !amdgpuaware_MPI(dim) && gpurecvbuf_flat(n,dim,i,A) .= ROCArray(recvbuf_flat(n,dim,i,A)); # DEBUG: low-tech hack needed until further AMDGPU.jl functionalities are ready
                 # wait(@roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim)); # DEBUG: usually @roc is wrapped by wait(), but since here we don't want sync one should check what to do.
-            # else
-                # rocsignals[n,i] = HSASignal(1)
-                # read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
-            # end
+            else
+                rocsignals[n,i] = HSASignal(1)
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, rocsignals[n,i]);
+            end
         end
     end
 
@@ -726,25 +726,100 @@ end
 
 # Write to the send buffer on the host from the array on the device (d2h).
 function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-    dst_pptr = AMDGPU.HSA.PitchedPtr(pointer(sendbuf),sizeof(T)*length(sendranges[1]),length(sendranges[2]))
-    src_pptr = AMDGPU.HSA.PitchedPtr(pointer(A),sizeof(T)*size(A,1),length(sendranges[2]))
-    AMDGPU.HSA.amd_memory_async_copy_rect(dst_pptr,AMDGPU.HSA.Dim3(1,1,1),
-                                          src_pptr,AMDGPU.HSA.Dim3(sendranges[1][1],sendranges[2][1],sendranges[3][1]),
-                                          AMDGPU.HSA.Dim3(length(sendranges[1]),length(sendranges[2]),length(sendranges[3])),
+    locked_ptr = AMDGPU.Mem.lock(pointer(sendbuf), sizeof(sendbuf), get_default_agent())
+
+    src_bytes   = (sizeof(T)*(sendranges[1][1]-1),sendranges[2][1]-1,sendranges[3][1]-1)
+    range_bytes = (sizeof(T)*(length(sendranges[1])),length(sendranges[2]),length(sendranges[3]))
+
+    dst_ref     = Ref(AMDGPU.HSA.PitchedPtr(locked_ptr,sizeof(T)*length(sendranges[1]),sizeof(T)*length(sendranges[1])*length(sendranges[2])))
+    src_ref     = Ref(AMDGPU.HSA.PitchedPtr(pointer(A),sizeof(T)*size(A,1)            ,sizeof(T)*size(A,1)*size(A,2)))
+    dst_off     = Ref(AMDGPU.HSA.Dim3(0,0,0))
+    src_off     = Ref(AMDGPU.HSA.Dim3(src_bytes...))
+    range       = Ref(AMDGPU.HSA.Dim3(range_bytes...))
+
+    dst_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr},dst_ref)
+    src_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr},src_ref)
+    dst_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},dst_off)
+    src_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},src_off)
+    range_ptr   = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},range)
+
+    @assert dst_ptr     != C_NULL "dst_ptr is null"
+    @assert src_ptr     != C_NULL "src_ptr is null"
+    @assert dst_off_ptr != C_NULL "dst_off_ptr is null"
+    @assert src_off_ptr != C_NULL "src_off_ptr is null"
+    @assert range_ptr   != C_NULL "range_ptr is null"
+
+    @assert convert(Int,dst_ref[].base) % 4 == 0 "dst base % 4 != 0"
+    @assert convert(Int,src_ref[].base) % 4 == 0 "src base % 4 != 0"
+
+    @assert dst_ref[].pitch % 4 == 0 "dst pitch % 4 != 0"
+    @assert src_ref[].pitch % 4 == 0 "src pitch % 4 != 0"
+
+    @assert dst_ref[].slice % 4 == 0 "dst slice % 4 != 0"
+    @assert src_ref[].slice % 4 == 0 "src slice % 4 != 0"
+
+    @assert src_off[].x + range[].x <= src_ref[].pitch "Src rect width out of range"
+    @assert dst_off[].x + range[].x <= dst_ref[].pitch "Dst rect width out of range"
+    
+    @assert src_ref[].slice == 0 || (src_off[].y + range[].y) <= src_ref[].slice ÷ src_ref[].pitch "Src rect height out of range"
+    @assert dst_ref[].slice == 0 || (dst_off[].y + range[].y) <= dst_ref[].slice ÷ dst_ref[].pitch "Dst rect height out of range"
+
+    @assert range[].z <= 1 || (src_ref[].slice != 0 && dst_ref[].slice != 0) "Copy rect slice needed."
+    
+    AMDGPU.HSA.amd_memory_async_copy_rect(dst_ptr,dst_off_ptr,src_ptr,src_off_ptr,range_ptr,
                                           get_default_agent().agent,AMDGPU.HSA.LibHSARuntime.hsaDeviceToHost,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+    
+    AMDGPU.Mem.unlock(pointer(sendbuf))
+    return nothing
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
-    # CUDA.Mem.unsafe_copy3d!(
-    #     pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
-    #     length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
-    #     dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
-    #     srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
-    #     dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
-    #     async=true, stream=custream
-    # )
-    error("AMDGPU is not yet supported")
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+    locked_ptr = AMDGPU.Mem.lock(pointer(recvbuf), sizeof(recvbuf), get_default_agent())
+
+    dst_bytes   = (sizeof(T)*(recvranges[1][1]-1),recvranges[2][1]-1,recvranges[3][1]-1)
+    range_bytes = (sizeof(T)*(length(recvranges[1])),length(recvranges[2]),length(recvranges[3]))
+
+    src_ref     = Ref(AMDGPU.HSA.PitchedPtr(locked_ptr,sizeof(T)*length(recvranges[1]),sizeof(T)*length(recvranges[1])*length(recvranges[2])))
+    dst_ref     = Ref(AMDGPU.HSA.PitchedPtr(pointer(A),sizeof(T)*size(A,1)            ,sizeof(T)*size(A,1)*size(A,2)))
+    src_off     = Ref(AMDGPU.HSA.Dim3(0,0,0))
+    dst_off     = Ref(AMDGPU.HSA.Dim3(dst_bytes...))
+    range       = Ref(AMDGPU.HSA.Dim3(range_bytes...))
+
+    src_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr},src_ref)
+    dst_ptr     = Base.unsafe_convert(Ptr{AMDGPU.HSA.PitchedPtr},dst_ref)
+    src_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},src_off)
+    dst_off_ptr = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},dst_off)
+    range_ptr   = Base.unsafe_convert(Ptr{AMDGPU.HSA.Dim3},range)
+
+    @assert dst_ptr     != C_NULL "dst_ptr is null"
+    @assert src_ptr     != C_NULL "src_ptr is null"
+    @assert dst_off_ptr != C_NULL "dst_off_ptr is null"
+    @assert src_off_ptr != C_NULL "src_off_ptr is null"
+    @assert range_ptr   != C_NULL "range_ptr is null"
+
+    @assert convert(Int,dst_ref[].base) % 4 == 0 "dst base % 4 != 0"
+    @assert convert(Int,src_ref[].base) % 4 == 0 "src base % 4 != 0"
+
+    @assert dst_ref[].pitch % 4 == 0 "dst pitch % 4 != 0"
+    @assert src_ref[].pitch % 4 == 0 "src pitch % 4 != 0"
+
+    @assert dst_ref[].slice % 4 == 0 "dst slice % 4 != 0"
+    @assert src_ref[].slice % 4 == 0 "src slice % 4 != 0"
+
+    @assert src_off[].x + range[].x <= src_ref[].pitch "Src rect width out of range"
+    @assert dst_off[].x + range[].x <= dst_ref[].pitch "Dst rect width out of range"
+    
+    @assert src_ref[].slice == 0 || (src_off[].y + range[].y) <= src_ref[].slice ÷ src_ref[].pitch "Src rect height out of range"
+    @assert dst_ref[].slice == 0 || (dst_off[].y + range[].y) <= dst_ref[].slice ÷ dst_ref[].pitch "Dst rect height out of range"
+
+    @assert range[].z <= 1 || (src_ref[].slice != 0 && dst_ref[].slice != 0) "Copy rect slice needed."
+    
+    AMDGPU.HSA.amd_memory_async_copy_rect(dst_ptr,dst_off_ptr,src_ptr,src_off_ptr,range_ptr,
+                                          get_default_agent().agent,AMDGPU.HSA.LibHSARuntime.hsaHostToDevice,UInt32(0),C_NULL,signal.signal[]) |> AMDGPU.check
+    
+    AMDGPU.Mem.unlock(pointer(recvbuf))
+    return nothing
 end
 
 

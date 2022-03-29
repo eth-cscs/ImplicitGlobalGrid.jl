@@ -281,7 +281,7 @@ dz = 1.0
                         dim = 1;
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,2), size(P,3));
-                        buf_d, buf_h = GG.register(buf);
+                        buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [2:2, 1:size(P,2), 1:size(P,3)];
                         nthreads = (1, 1, 1);
                         halosize = [r[end] - r[1] + 1 for r in ranges];
@@ -302,7 +302,7 @@ dz = 1.0
                         dim = 2;
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), size(P,3));
-                        buf_d, buf_h = GG.register(buf);
+                        buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 3:3, 1:size(P,3)];
                         nthreads = (1, 1, 1);
                         halosize = [r[end] - r[1] + 1 for r in ranges];
@@ -323,7 +323,7 @@ dz = 1.0
                         dim = 3
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), size(P,2));
-                        buf_d, buf_h = GG.register(buf);
+                        buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 1:size(P,2), 4:4];
                         nthreads = (1, 1, 1);
                         halosize = [r[end] - r[1] + 1 for r in ranges];
@@ -341,7 +341,29 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.Mem.unregister(buf_h);
                     elseif array_type == "AMDGPU"
-                        @warn("AMDGPU is not yet supported")
+                        # (dim=1)
+                        dim = 1;
+                        P2  = gpuzeros(eltype(P),size(P));
+                        buf = zeros(size(P,2), size(P,3));
+                        buf_d, buf_h = GG.register(ROCArray,buf);
+                        ranges = [2:2, 1:size(P,2), 1:size(P,3)];
+                        nthreads = (1, 1, 1);
+                        halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
+                        wait( @roc gridsize=halosize groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim) );
+                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        wait( @roc gridsize=halosize groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim) );
+                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf .= 0.0;
+                        P2  .= 0.0;
+                        rocsignal = HSASignal(1)
+                        GG.write_d2h_async!(buf, P, ranges, dim, rocsignal);
+                        wait(rocsignal)
+
+                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        # GG.read_h2d_async!(buf, P2, ranges, dim, rocsignal)
+                        # wait(rocsignal)
+                        # @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        AMDGPU.Mem.unlock(buf_h);
                     end
                     finalize_global_grid(finalize_MPI=false);
                 end;
