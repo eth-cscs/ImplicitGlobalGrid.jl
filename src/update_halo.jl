@@ -432,7 +432,7 @@ let
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), dim, custreams[n,i]);
+                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), custreams[n,i]);
             end
         end
     end
@@ -460,7 +460,7 @@ let
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, custreams[n,i]);
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), custreams[n,i]);
             end
         end
     end
@@ -513,8 +513,8 @@ let
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since here we don0t want sync one should check what to do.
             else
-                rocsignals[n,i] = HSASignal(1)
-                write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),dim,rocsignals[n,i]);
+                rocsignals[n,i] = HSASignal()
+                write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
             end
         end
     end
@@ -560,8 +560,8 @@ let
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                rocsignals[n,i] = HSASignal(1)
-                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), dim, rocsignals[n,i]);
+                rocsignals[n,i] = HSASignal()
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
             end
         end
     end
@@ -656,7 +656,7 @@ function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.Mem.unsafe_copy3d!(
         pointer(sendbuf), CUDA.Mem.Host, pointer(A), CUDA.Mem.Device,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
@@ -668,7 +668,7 @@ function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.Mem.unsafe_copy3d!(
         pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
@@ -709,7 +709,7 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
     locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),get_default_agent()))
     AMDGPU.Mem.unsafe_copy3d!(
         locked_ptr, pointer(A),
@@ -723,7 +723,7 @@ function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges:
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer, signal::HSASignal) where T <: GGNumber where T2 <: Integer
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
     locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),get_default_agent()))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), locked_ptr,

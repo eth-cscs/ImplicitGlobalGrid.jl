@@ -293,9 +293,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
+                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
+                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.Mem.unregister(buf_h);
                         # (dim=2)
@@ -314,9 +314,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
+                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
+                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.Mem.unregister(buf_h);
                         # (dim=3)
@@ -335,9 +335,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, dim, custream); CUDA.synchronize();
+                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, custream); CUDA.synchronize();
+                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.Mem.unregister(buf_h);
                     elseif array_type == "AMDGPU"
@@ -355,10 +355,11 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal(1)
-                        GG.write_d2h_async!(buf, P, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                         # (dim=2)
@@ -375,10 +376,11 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal(1)
-                        GG.write_d2h_async!(buf, P, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                         # (dim=3)
@@ -395,10 +397,11 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal(1)
-                        GG.write_d2h_async!(buf, P, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, dim, rocsignal); wait(rocsignal);
+                        rocsignal = HSASignal()
+                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                     end
