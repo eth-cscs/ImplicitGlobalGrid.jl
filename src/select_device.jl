@@ -19,7 +19,7 @@ function select_device()
             @assert CUDA.functional(true)
             nb_devices = length(CUDA.devices())
         elseif amdgpu_enabled()
-            @assert AMDGPU.functional() # DEBUG: AMDGPU takes componant as args. See https://github.com/JuliaGPU/AMDGPU.jl/blob/3fe5af69269cdab2ccaf296340d1dc390ad03a6e/src/utils.jl#L108 
+            @assert AMDGPU.functional()
             nb_devices = length(AMDGPU.get_agents(:gpu))
         end
         comm_l = MPI.Comm_split_type(comm(), MPI.MPI_COMM_TYPE_SHARED, me())
