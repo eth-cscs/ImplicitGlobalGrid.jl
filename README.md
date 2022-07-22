@@ -1,4 +1,4 @@
-<h1> <img src="docs/src/assets/logo/logo_ImplicitGlobalGrid.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
+<h1> <img src="docs/src/assets/logo.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/stable)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/dev)
