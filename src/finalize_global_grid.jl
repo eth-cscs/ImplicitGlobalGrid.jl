@@ -1,8 +1,5 @@
 export finalize_global_grid
 
-import MPI
-
-
 """
     finalize_global_grid()
     finalize_global_grid(;finalize_MPI=true)

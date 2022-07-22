@@ -1,8 +1,5 @@
 export gather!
 
-import MPI
-
-
 @doc """
     gather!(A, A_global)
     gather!(A, A_global; root=0)

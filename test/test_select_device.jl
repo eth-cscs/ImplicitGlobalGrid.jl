@@ -4,10 +4,11 @@ using Test
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
 using CUDA
+using AMDGPU
 import ImplicitGlobalGrid: @require
 
-test_gpu = CUDA.functional()
-
+test_cuda = CUDA.functional()
+test_amdgpu = AMDGPU.functional()
 
 ## Test setup
 MPI.Init();
@@ -15,14 +16,23 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
     @testset "1. select_device" begin
-        me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false);
-        @static if test_gpu
+        @static if test_cuda
+            me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="CUDA");
             gpu_id = select_device();
             @test gpu_id < length(CUDA.devices())
-        else
-            @test_throws ErrorException select_device()
+            finalize_global_grid(finalize_MPI=false);
         end
-        finalize_global_grid(finalize_MPI=false);
+        @static if test_amdgpu
+            me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="AMDGPU");
+            gpu_id = select_device();
+            @test gpu_id < length(AMDGPU.device())
+            finalize_global_grid(finalize_MPI=false);
+        end
+        @static if !(test_cuda || test_amdgpu)
+            me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false);
+            @test_throws ErrorException select_device()
+            finalize_global_grid(finalize_MPI=false);
+        end
     end;
 end;
 
