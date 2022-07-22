@@ -4,13 +4,11 @@ CurrentModule = ImplicitGlobalGrid
 
 # API reference
 
-## Callable from the Julia REPL / IJulia
-
-The API reference can be called from the [Julia REPL] or in [IJulia]:
-```@repl
-using ImplicitGlobalGrid
-?
-ImplicitGlobalGrid
+This is the offical API reference of ImplicitGlobalGrid. Note that it can also be queried interactively from the [Julia REPL] using the [help mode](https://docs.julialang.org/en/v1/stdlib/REPL/#Help-mode):
+```julia-repl
+julia> using ImplicitGlobalGrid
+julia>?
+help?> ImplicitGlobalGrid
 ```
 
 ## Functions
