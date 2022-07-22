@@ -1,6 +1,9 @@
 <h1> <img src="docs/src/assets/logo/logo_ImplicitGlobalGrid.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
 
-[![Build Status](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/workflows/CI/badge.svg)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/dev)
+[![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/workflows/CI/badge.svg?branch=master)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl)
 
 ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University (Dr. Ludovic Räss) and the Swiss Geocomputing Centre (Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs \[[1][JuliaCon19], [2][PASC19], [3][JuliaCon20a]\]:
 
