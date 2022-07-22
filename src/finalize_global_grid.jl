@@ -11,11 +11,11 @@ Finalize the global grid (and also MPI by default).
 
 # Arguments
 !!! note "Advanced keyword arguments"
-    - `finalize_MPI::Bool=true`: whether to finalize MPI (`true`) or not (`false`).
+    - `finalize_MPI::Bool=(MPI.Initialized() && !MPI.Finalized())`: whether to finalize MPI (`true`) or not (`false`).
 
 See also: [`init_global_grid`](@ref)
 """
-function finalize_global_grid(;finalize_MPI::Bool=true)
+function finalize_global_grid(;finalize_MPI::Bool=(MPI.Initialized() && !MPI.Finalized()))
     check_initialized();
     free_gather_buffer();
     free_update_halo_buffers();
