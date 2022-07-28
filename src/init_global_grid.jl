@@ -86,7 +86,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     comm_cart = MPI.Cart_create(comm, dims, periods, reorder);
     me        = MPI.Comm_rank(comm_cart);
     coords    = MPI.Cart_coords(comm_cart);
-    neighbors = fill(MPI.MPI_PROC_NULL, NNEIGHBORS_PER_DIM, NDIMS_MPI);
+    neighbors = fill(MPI.Consts.MPI_PROC_NULL[], NNEIGHBORS_PER_DIM, NDIMS_MPI);
     for i = 1:NDIMS_MPI
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
