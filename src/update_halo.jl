@@ -477,8 +477,8 @@ end
 let
     global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
 
-    rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
-    rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
@@ -490,11 +490,11 @@ let
     function allocate_rocqueues_iwrite(fields::GGArray...)
         if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
             nqueues = length(fields)-size(rocqueues,2);
-            new_rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
+            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
-                    q = AMDGPU.HSAQueue(get_default_agent())
+                    q = AMDGPU.default_queue()
                     AMDGPU.HSA.amd_queue_set_priority(q.queue, AMDGPU.HSA.AMD_QUEUE_PRIORITY_HIGH)
                     new_rocqueues[n,i] = q
                 end
@@ -513,7 +513,7 @@ let
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
             else
-                rocsignals[n,i] = HSASignal()
+                rocsignals[n,i] = ROCSignal()
                 write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
             end
         end
@@ -523,8 +523,8 @@ end
 let
     global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
 
-    rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, 0)
-    rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
@@ -537,11 +537,11 @@ let
     function allocate_rocqueues_iread(fields::GGArray...)
         if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
             nqueues = length(fields)-size(rocqueues,2);
-            new_rocqueues  = Array{AMDGPU.HSAQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.HSASignal,AMDGPU.RuntimeEvent{AMDGPU.HSAStatusSignal},Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
+            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
-                    q = AMDGPU.HSAQueue(get_default_agent())
+                    q = AMDGPU.default_queue()
                     AMDGPU.HSA.amd_queue_set_priority(q.queue, AMDGPU.HSA.AMD_QUEUE_PRIORITY_HIGH)
                     new_rocqueues[n,i] = q
                 end
@@ -560,7 +560,7 @@ let
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
                 rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                rocsignals[n,i] = HSASignal()
+                rocsignals[n,i] = ROCSignal()
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
             end
         end
@@ -709,8 +709,8 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),get_default_agent()))
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::ROCSignal) where T <: GGNumber where T2 <: Integer
+    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),AMDGPU.default_device()))
     AMDGPU.Mem.unsafe_copy3d!(
         locked_ptr, pointer(A),
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
@@ -723,8 +723,8 @@ function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges:
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),get_default_agent()))
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::ROCSignal) where T <: GGNumber where T2 <: Integer
+    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),AMDGPU.default_device()))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), locked_ptr,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
