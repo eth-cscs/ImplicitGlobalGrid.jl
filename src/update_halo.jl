@@ -494,9 +494,7 @@ let
             new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
-                    q = AMDGPU.default_queue()
-                    AMDGPU.HSA.amd_queue_set_priority(q.queue, AMDGPU.HSA.AMD_QUEUE_PRIORITY_HIGH)
-                    new_rocqueues[n,i] = q
+                    new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
                 end
             end
             rocqueues  = [rocqueues  new_rocqueues]
@@ -511,7 +509,7 @@ let
                 ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
+                rocsignals[n,i] = @roc wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
             else
                 rocsignals[n,i] = ROCSignal()
                 write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
@@ -541,9 +539,7 @@ let
             new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
-                    q = AMDGPU.default_queue()
-                    AMDGPU.HSA.amd_queue_set_priority(q.queue, AMDGPU.HSA.AMD_QUEUE_PRIORITY_HIGH)
-                    new_rocqueues[n,i] = q
+                    new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
                 end
             end
             rocqueues  = [rocqueues  new_rocqueues]
@@ -558,7 +554,7 @@ let
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                rocsignals[n,i] = @roc wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
                 rocsignals[n,i] = ROCSignal()
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
@@ -684,9 +680,9 @@ end
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
 function write_d2x!(gpusendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
-    ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + sendrangex[1] - 1
-    iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + sendrangey[1] - 1
-    iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + sendrangez[1] - 1
+    ix = (workgroupIdx().x-1) * workgroupDim().x + workitemIdx().x + sendrangex[1] - 1
+    iy = (workgroupIdx().y-1) * workgroupDim().y + workitemIdx().y + sendrangey[1] - 1
+    iz = (workgroupIdx().z-1) * workgroupDim().z + workitemIdx().z + sendrangez[1] - 1
     if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
     if     (dim == 1) gpusendbuf[iy,iz] = A[ix,iy,iz];
     elseif (dim == 2) gpusendbuf[ix,iz] = A[ix,iy,iz];
@@ -697,9 +693,9 @@ end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
 function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
-    ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + recvrangex[1] - 1
-    iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + recvrangey[1] - 1
-    iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + recvrangez[1] - 1
+    ix = (workgroupIdx().x-1) * workgroupDim().x + workitemIdx().x + recvrangex[1] - 1
+    iy = (workgroupIdx().y-1) * workgroupDim().y + workitemIdx().y + recvrangey[1] - 1
+    iz = (workgroupIdx().z-1) * workgroupDim().z + workitemIdx().z + recvrangez[1] - 1
     if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
     if     (dim == 1) A[ix,iy,iz] = gpurecvbuf[iy,iz];
     elseif (dim == 2) A[ix,iy,iz] = gpurecvbuf[ix,iz];
