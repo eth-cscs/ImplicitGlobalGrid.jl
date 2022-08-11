@@ -10,7 +10,8 @@ reflinks = Dict(
     "[Julia CUDA paper 2]"        => "https://doi.org/10.1016/j.advengsoft.2019.02.002",
     "[Julia Plots documentation]" => "http://docs.juliaplots.org/latest/backends/",
     "[Julia Plots package]"       => "https://github.com/JuliaPlots/Plots.jl",
-    "[Julia REPL]"                => "https://docs.julialang.org/en/v1/stdlib/REPL/",
+    "[Julia package manager]" => "https://docs.julialang.org/en/v1/stdlib/Pkg/",
+    "[Julia REPL]"            => "https://docs.julialang.org/en/v1/stdlib/REPL/",
     "[MPI.jl]"                    => "https://github.com/JuliaParallel/MPI.jl",
-    "[PASC19]"                    => "https://pasc19.pasc-conference.org/program/schedule/presentation/?id=msa218&sess=sess144",
+    "[PASC19]"                    => "https://pasc19.pasc-conference.org/program/schedule/index.html%3Fpost_type=page&p=10&id=msa218&sess=sess144.html",
 )
