@@ -17,7 +17,7 @@ Update the halo of the given GPU/CPU-array(s).
 function update_halo!(A::GGArray...)
     check_initialized();
     check_fields(A...);
-    _update_halo!(A...);  # Asignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
+    _update_halo!(A...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
 
