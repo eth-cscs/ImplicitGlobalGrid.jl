@@ -479,6 +479,7 @@ let
 
     rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
@@ -492,13 +493,16 @@ let
             nqueues = length(fields)-size(rocqueues,2);
             new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
             new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues);
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
                     new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
+                    new_rocsignals_real[n,i] = ROCSignal()
                 end
             end
             rocqueues  = [rocqueues  new_rocqueues]
             rocsignals = [rocsignals new_rocsignals]
+            rocsignals_real = [rocsignals_real new_rocsignals_real]
         end
     end
 
@@ -506,10 +510,11 @@ let
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                AMDGPU.HSA.signal_store_screlease(rocsignals_real[n,i].signal[], 1)
                 ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
+                rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
             else
                 rocsignals[n,i] = ROCSignal()
                 write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
@@ -523,6 +528,7 @@ let
 
     rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
@@ -537,13 +543,16 @@ let
             nqueues = length(fields)-size(rocqueues,2);
             new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
             new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues);
             for i = 1:nqueues
                 for n=1:NNEIGHBORS_PER_DIM
                     new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
+                    new_rocsignals_real[n,i] = ROCSignal()
                 end
             end
             rocqueues  = [rocqueues  new_rocqueues]
             rocsignals = [rocsignals new_rocsignals]
+            ocsignals_real = [rocsignals_real new_rocsignals_real]
         end
     end
 
@@ -551,10 +560,11 @@ let
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                AMDGPU.HSA.signal_store_screlease(rocsignals_real[n,i].signal[], 1)
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
                 rocsignals[n,i] = ROCSignal()
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
