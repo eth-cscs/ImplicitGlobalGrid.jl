@@ -552,7 +552,7 @@ let
             end
             rocqueues  = [rocqueues  new_rocqueues]
             rocsignals = [rocsignals new_rocsignals]
-            ocsignals_real = [rocsignals_real new_rocsignals_real]
+            rocsignals_real = [rocsignals_real new_rocsignals_real]
         end
     end
 
