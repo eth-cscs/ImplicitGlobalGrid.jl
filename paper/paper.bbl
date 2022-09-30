@@ -1,0 +1,32 @@
+\begin{thebibliography}{1}
+
+\bibitem{besard2018effective}
+T.~Besard, C.~Foket, and B.~De~Sutter.
+Effective extensible programming: unleashing {J}ulia on {GPUs}.
+{\em IEEE Transactions on Parallel and Distributed Systems}, 30(4):827--841,
+  2018.
+
+\bibitem{byrne2021mpi}
+S.~Byrne, L.~C. Wilcox, and V.~Churavy.
+{MPI}.jl: {J}ulia bindings for the {M}essage {P}assing {I}nterface.
+In {\em Proceedings of the JuliaCon Conferences}, volume~1, page~68, 2021.
+\url{https://github.com/JuliaParallel/MPI.jl}.
+
+\bibitem{parallelstencil2022}
+S.~Omlin and L.~R{\"{a}}ss.
+{H}igh-performance x{PU} {S}tencil {C}omputations in {J}ulia.
+{\em Proc. JuliaCon Conf.}, ?:2, 2022.
+
+\bibitem{pasc21}
+S.~Omlin, L.~R{\"{a}}ss, N.~Keepfer, G.~Kwasniewski, B.~Malvoisin, and Y.~Y.
+  Podladchikov.
+{Solving Nonlinear Partial Differential Equations on GPU Supercomputers Using
+  Julia}.
+PASC21 conference, 2021.
+
+\bibitem{amdgpu_jl}
+J.~Samaroo, T.~Besard, V.~Churavy, D.~Lin, and other contributors.
+{AMDGPU.jl}: {AMD} {GPU} ({ROC}m) programming in {J}ulia.
+\url{https://github.com/JuliaGPU/AMDGPU.jl}, 2013.
+
+\end{thebibliography}
