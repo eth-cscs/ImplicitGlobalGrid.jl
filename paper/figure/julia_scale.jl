@@ -27,26 +27,19 @@ end
 σs = Teff[:,3] .- Teff[:,2]
 
 # Weak scaling parallel efficiency data on Piz Daint
-using Plots
+using Plots, Plots.Measures
 
 ax_log = false # choose between log or linear x-axis scale
 
 default(fontfamily="Computer Modern", linewidth=3,  markershape=:circle, markersize=4,
-        framestyle=:box, fillalpha=0.4)
-scalefontsizes(); scalefontsizes(1.4)
+        framestyle=:box, fillalpha=0.4,margin=5mm)
+scalefontsizes(); scalefontsizes(1.3)
 
-if ax_log
-xtick_powers = 0:1:12
-plot(xlabel="Number of GPUs", ylabel="Parallel efficiency", xscale=:log,
-     xticks=(2 .^ xtick_powers, "\$2^{" .* string.(xtick_powers) .* "}\$"), legend=false)
-plot!(nprocs, Teff[:,1], ribbon=σs,dpi=150)
-else
 # xtick_lin = (1,512,1024,2048,4096,5120)
 xtick_lin = (1,64,216,512,1000,2197)
 plot(xlabel="Number of GPUs", ylabel="Parallel efficiency",
      xticks=(xtick_lin, string.(xtick_lin)), legend=false)
-plot!(nprocs[[1,4,6,7,8,9]], Teff[[1,4,6,7,8,9],1], ribbon=σs,dpi=150)
-end
+plot!(nprocs[[1,4,6,7,8,9]], Teff[[1,4,6,7,8,9],1], ribbon=σs,dpi=150,size=(600, 380))
 
-ax_log ? png("julia_gpu_par_eff2.png") : png("julia_gpu_par_eff.png")
-# ax_log ? png("julia_gpu_par_eff2_nordma.png") : png("julia_gpu_par_eff_nordma.png")
+png("julia_gpu_par_eff.png")
+# png("julia_gpu_par_eff_nordma.png")
