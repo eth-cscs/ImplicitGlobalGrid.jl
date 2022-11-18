@@ -1,4 +1,4 @@
-export init_global_grid
+export init_global_grid, rocqueues
 
 """
     init_global_grid(nx, ny, nz)
@@ -94,6 +94,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, loopvectorization, quiet));
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]))"); end
     if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
+    if amdgpu_enabled init_rocqueues_with_priority() end
     init_timing_functions();
     return me, dims, nprocs, coords, comm_cart; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
 end
@@ -102,4 +103,13 @@ end
 function init_timing_functions()
     tic();
     toc();
+end
+
+rocqueues = Vector{AMDGPU.ROCQueue}(undef,2)
+function init_rocqueues_with_priority()
+    global rocqueues
+    for istep = 1:2
+        rocqueues[istep] = istep == 1 ? ROCQueue(AMDGPU.default_device(); priority=:high) : ROCQueue(AMDGPU.default_device())
+    end
+    return
 end
