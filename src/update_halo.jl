@@ -470,37 +470,39 @@ end
 # (AMDGPU functions)
 
 function allocate_rocqueues(fields::GGArray...)
-    allocate_rocqueues_iwrite(fields...);
-    allocate_rocqueues_iread(fields...);
+    allocate_rocsignals_iwrite(fields...);
+    allocate_rocsignals_iread(fields...);
 end
 
 let
-    global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
+    global iwrite_sendbufs!, allocate_rocsignals_iwrite, wait_iwrite
 
-    rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            @assert length(AMDGPU.active_kernels(rocsignals[n,i].queue)) > 0
+            if rocsignals[n,i].queue.status != AMDGPU.HSA.STATUS_SUCCESS
+                AMDGPU.Runtime.kill_queue!(rocsignals[n,i].queue)
+                println("failing iwrite me=$(me())")
+                throw(rocsignals[n,i].exception)
+            end
             wait(rocsignals[n,i]);
             rocsignals[n,i] = missing;
         end
     end
 
-    function allocate_rocqueues_iwrite(fields::GGArray...)
-        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
-            nqueues = length(fields)-size(rocqueues,2);
-            new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues);
-            for i = 1:nqueues
+    function allocate_rocsignals_iwrite(fields::GGArray...)
+        if length(fields) > size(rocsignals,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
+            nsignals = length(fields)-size(rocsignals,2);
+            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals);
+            for i = 1:nsignals
                 for n=1:NNEIGHBORS_PER_DIM
-                    new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
                     new_rocsignals_real[n,i] = ROCSignal()
                 end
             end
-            rocqueues  = [rocqueues  new_rocqueues]
             rocsignals = [rocsignals new_rocsignals]
             rocsignals_real = [rocsignals_real new_rocsignals_real]
         end
@@ -514,7 +516,9 @@ let
                 ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim); # DEBUG: usually @roc is wrapped by wait(), but since we don't want sync one should check what to do.
+                # rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                rocsignals[n,i] = @roc wait=false mark=false signal=rocsignals_real[n,i] queue=rocqueues[1] gridsize=halosize groupsize=nthreads write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                # wait( @roc gridsize=halosize groupsize=nthreads write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim));
             else
                 rocsignals[n,i] = ROCSignal()
                 write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
@@ -524,33 +528,35 @@ let
 end
 
 let
-    global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
+    global iread_recvbufs!, allocate_rocsignals_iread, wait_iread
 
-    rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
     rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
 
     function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            @assert length(AMDGPU.active_kernels(rocsignals[n,i].queue)) > 0
+            if rocsignals[n,i].queue.status != AMDGPU.HSA.STATUS_SUCCESS
+                AMDGPU.Runtime.kill_queue!(rocsignals[n,i].queue)
+                println("failing iread me=$(me())")
+                throw(rocsignals[n,i].exception)
+            end
             wait(rocsignals[n,i]);
             rocsignals[n,i] = missing;
         end
         return
     end
 
-    function allocate_rocqueues_iread(fields::GGArray...)
-        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-            nqueues = length(fields)-size(rocqueues,2);
-            new_rocqueues  = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, nqueues);
-            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nqueues);
-            for i = 1:nqueues
+    function allocate_rocsignals_iread(fields::GGArray...)
+        if length(fields) > size(rocsignals,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+            nsignals = length(fields)-size(rocsignals,2);
+            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
+            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals);
+            for i = 1:nsignals
                 for n=1:NNEIGHBORS_PER_DIM
-                    new_rocqueues[n,i] = ROCQueue(AMDGPU.default_device(); priority=:high)
                     new_rocsignals_real[n,i] = ROCSignal()
                 end
             end
-            rocqueues  = [rocqueues  new_rocqueues]
             rocsignals = [rocsignals new_rocsignals]
             rocsignals_real = [rocsignals_real new_rocsignals_real]
         end
@@ -564,7 +570,9 @@ let
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                # rocsignals[n,i] = @roc signal=rocsignals_real[n,i] wait=false mark=false gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                rocsignals[n,i] = @roc wait=false mark=false signal=rocsignals_real[n,i] queue=rocqueues[1] gridsize=halosize groupsize=nthreads read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                # wait( @roc gridsize=halosize groupsize=nthreads read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim));
             else
                 rocsignals[n,i] = ROCSignal()
                 read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
