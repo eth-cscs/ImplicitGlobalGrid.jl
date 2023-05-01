@@ -470,35 +470,20 @@ end
 # (AMDGPU functions)
 
 function allocate_rocqueues(fields::GGArray...)
-    allocate_rocsignals_iwrite(fields...);
-    allocate_rocsignals_iread(fields...);
+    allocate_rocqueues_iwrite(fields...);
+    allocate_rocqueues_iread(fields...);
 end
 
 let
-    global iwrite_sendbufs!, allocate_rocsignals_iwrite, wait_iwrite
+    global iwrite_sendbufs!, allocate_rocqueues_iwrite, wait_iwrite
 
-    rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
-    rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    function wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
-        if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            wait(rocsignals[n,i]);
-            rocsignals[n,i] = missing;
-        end
-    end
+    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocqueues[n,i]);
 
-    function allocate_rocsignals_iwrite(fields::GGArray...)
-        if length(fields) > size(rocsignals,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
-            nsignals = length(fields)-size(rocsignals,2);
-            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals);
-            for i = 1:nsignals
-                for n=1:NNEIGHBORS_PER_DIM
-                    new_rocsignals_real[n,i] = ROCSignal()
-                end
-            end
-            rocsignals = [rocsignals new_rocsignals]
-            rocsignals_real = [rocsignals_real new_rocsignals_real]
+    function allocate_rocqueues_iwrite(fields::GGArray...)
+        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
+            rocqueues = [rocqueues [AMDGPU.ROCQueue(; priority=:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))]];  # Create (additional) high priority queue to enable overlap with computation kernels.
         end
     end
 
@@ -506,45 +491,27 @@ let
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                AMDGPU.HSA.signal_store_screlease(rocsignals_real[n,i].signal, 1)
                 ranges   = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc wait=false mark=false signal=rocsignals_real[n,i] queue=rocqueues[1] gridsize=halosize groupsize=nthreads write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                rocsignals[n,i] = ROCSignal()
-                write_d2h_async!(sendbuf_flat(n,dim,i,A),A,sendranges(n,dim,A),rocsignals[n,i]);
+                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocqueues[n,i]);
             end
         end
     end
 end
 
 let
-    global iread_recvbufs!, allocate_rocsignals_iread, wait_iread
+    global iread_recvbufs!, allocate_rocqueues_iread, wait_iread
 
-    rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
-    rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(undef, NNEIGHBORS_PER_DIM, 0)
+    rocqueues = Array{AMDGPU.ROCQueue}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    function wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
-        if !ismissing(rocsignals[n,i]) # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            wait(rocsignals[n,i]);
-            rocsignals[n,i] = missing;
-        end
-        return
-    end
+    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocqueues[n,i]);
 
-    function allocate_rocsignals_iread(fields::GGArray...)
-        if length(fields) > size(rocsignals,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
-            nsignals = length(fields)-size(rocsignals,2);
-            new_rocsignals = Array{Union{AMDGPU.ROCSignal,AMDGPU.ROCKernelSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals); # DEBUG: tmp solution to avoid rocsignals array access filing when accessing an unset signal
-            new_rocsignals_real = Array{Union{AMDGPU.ROCSignal,Missing}}(missing, NNEIGHBORS_PER_DIM, nsignals);
-            for i = 1:nsignals
-                for n=1:NNEIGHBORS_PER_DIM
-                    new_rocsignals_real[n,i] = ROCSignal()
-                end
-            end
-            rocsignals = [rocsignals new_rocsignals]
-            rocsignals_real = [rocsignals_real new_rocsignals_real]
+    function allocate_rocqueues_iread(fields::GGArray...)
+        if length(fields) > size(rocqueues,2)  # Note: for simplicity, we create a queue for every field even if it is not a ROCArray
+            rocqueues = [rocqueues [AMDGPU.ROCQueue(; priority=:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocqueues,2))]];  # Create (additional) high priority queue to enable overlap with computation kernels.
         end
     end
 
@@ -552,14 +519,12 @@ let
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
             if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                AMDGPU.HSA.signal_store_screlease(rocsignals_real[n,i].signal, 1)
                 ranges   = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                rocsignals[n,i] = @roc wait=false mark=false signal=rocsignals_real[n,i] queue=rocqueues[1] gridsize=halosize groupsize=nthreads read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @roc gridsize=halosize groupsize=nthreads queue=rocqueues[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                rocsignals[n,i] = ROCSignal()
-                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocqueues[n,i]);
             end
         end
     end
@@ -708,7 +673,7 @@ end
 
 # Write to the send buffer on the host from the array on the device (d2h).
 function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::ROCSignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),AMDGPU.default_device()))
+    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),AMDGPU.device()))
     AMDGPU.Mem.unsafe_copy3d!(
         locked_ptr, pointer(A),
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
@@ -722,7 +687,7 @@ end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
 function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::ROCSignal) where T <: GGNumber where T2 <: Integer
-    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),AMDGPU.default_device()))
+    locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),AMDGPU.device()))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), locked_ptr,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);

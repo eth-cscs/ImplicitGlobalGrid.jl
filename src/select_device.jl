@@ -26,7 +26,7 @@ function select_device()
         if (MPI.Comm_size(comm_l) > nb_devices) error("More processes have been launched per node than there are GPUs available."); end
         me_l = MPI.Comm_rank(comm_l)
         if     cuda_enabled()   CUDA.device!(me_l)
-        elseif amdgpu_enabled() AMDGPU.default_device_id!(me_l+1)
+        elseif amdgpu_enabled() AMDGPU.device_id!(me_l+1)
         end
         return me_l
     else
