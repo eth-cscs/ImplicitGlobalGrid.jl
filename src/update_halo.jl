@@ -17,7 +17,7 @@ Update the halo of the given GPU/CPU-array(s).
 function update_halo!(A::GGArray...)
     check_initialized();
     check_fields(A...);
-    _update_halo!(A...);  # Asignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
+    _update_halo!(A...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
 
@@ -482,7 +482,7 @@ let
     wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = synchronize(rocstreams[n,i]);
 
     function allocate_rocstreams_iwrite(fields::GGArray...)
-        if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+        if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
             rocstreams = [rocstreams [AMDGPU.HIPStream(:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocstreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
     end
@@ -497,7 +497,7 @@ let
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                Base.copyto!(sendbuf_flat(n,dim,i,A), 1, A, 1,sendranges(n,dim,A); async=true)
+                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
             end
         end
     end
@@ -511,7 +511,7 @@ let
     wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = synchronize(rocstreams[n,i]);
 
     function allocate_rocstreams_iread(fields::GGArray...)
-        if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
+        if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
             rocstreams = [rocstreams [AMDGPU.HIPStream(:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocstreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
     end
@@ -526,8 +526,7 @@ let
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                # read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocsignals[n,i]);
-                Base.copyto!(recvbuf_flat(n,dim,i,A), 1, A, 1,recvranges(n,dim,A))
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
             end
         end
     end
@@ -687,6 +686,11 @@ end
 #     )
 #     return nothing
 # end
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    AMDGPU.stream!(rocstream)
+    AMDGPU.Base.copyto!(sendbuf, 1, A, 1, sendranges; async=true)
+    return nothing
+end
 
 # # Read from the receive buffer on the host and store on the array on the device (h2d).
 # function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
@@ -701,7 +705,11 @@ end
 #     )
 #     return nothing
 # end
-
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    AMDGPU.stream!(rocstream)
+    AMDGPU.Base.copyto!(recvbuf, 1, A, 1, recvranges)
+    return nothing
+end
 
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS

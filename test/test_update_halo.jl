@@ -348,60 +348,60 @@ dz = 1.0
                         buf_d, buf_h = GG.register(ROCArray,buf);
                         ranges = [2:2, 1:size(P,2), 1:size(P,3)];
                         nthreads = (1, 1, 1);
-                        halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim) );
+                        halosize = [r[end] - r[1] + 1 for r in ranges];
+                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim) );
+                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal()
-                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
+                        rocstream = AMDGPU.HIPStream();
+                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        rocsignal = HSASignal()
-                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
+                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                         # (dim=2)
                         dim = 2;
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), size(P,3));
-                        buf_d, buf_h = GG.register(ROCArray,buf);
+                        buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 3:3, 1:size(P,3)];
                         nthreads = (1, 1, 1);
-                        halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim) );
+                        halosize = [r[end] - r[1] + 1 for r in ranges];
+                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim) );
+                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal()
-                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
+                        rocstream = AMDGPU.HIPStream();
+                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        rocsignal = HSASignal()
-                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
+                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                         # (dim=3)
                         dim = 3
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), size(P,2));
-                        buf_d, buf_h = GG.register(ROCArray,buf);
+                        buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 1:size(P,2), 4:4];
                         nthreads = (1, 1, 1);
-                        halosize = Tuple([r[end] - r[1] + 1 for r in ranges]);
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim) );
+                        halosize = [r[end] - r[1] + 1 for r in ranges];
+                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        wait( @roc gridsize=halosize groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim) );
+                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocsignal = HSASignal()
-                        GG.write_d2h_async!(buf, P, ranges, rocsignal); wait(rocsignal);
+                        rocstream = AMDGPU.HIPStream();
+                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        rocsignal = HSASignal()
-                        GG.read_h2d_async!(buf, P2, ranges, rocsignal); wait(rocsignal);
+                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.Mem.unlock(buf_h);
                     end
