@@ -80,17 +80,19 @@ julia> A  = zeros(nx,ny,nz);
 julia> Vx = zeros(nx+1,ny,nz);
 
 julia> [x_g(ix, dx, A) for ix=1:size(A, 1)]
-3-element Array{Float64,1}:
+3-element Vector{Float64}:
  0.0
  2.0
  4.0
 
 julia> [x_g(ix, dx, Vx) for ix=1:size(Vx, 1)]
-4-element Array{Float64,1}:
+4-element Vector{Float64}:
  -1.0
   1.0
   3.0
   5.0
+
+julia> finalize_global_grid()
 ```
 """
 function x_g(ix::Integer, dx::GGNumber, A::GGArray)::GGNumber
@@ -126,17 +128,19 @@ julia> A  = zeros(nx,ny,nz);
 julia> Vy = zeros(nx,ny+1,nz);
 
 julia> [y_g(iy, dy, A) for iy=1:size(A, 1)]
-3-element Array{Float64,1}:
+3-element Vector{Float64}:
  0.0
  2.0
  4.0
 
 julia> [y_g(iy, dy, Vy) for iy=1:size(Vy, 2)]
-4-element Array{Float64,1}:
+4-element Vector{Float64}:
  -1.0
   1.0
   3.0
   5.0
+
+julia> finalize_global_grid()
 ```
 """
 function y_g(iy::Integer, dy::GGNumber, A::GGArray)::GGNumber
@@ -172,17 +176,19 @@ julia> A  = zeros(nx,ny,nz);
 julia> Vz = zeros(nx,ny,nz+1);
 
 julia> [z_g(iz, dz, A) for iz=1:size(A, 1)]
-3-element Array{Float64,1}:
+3-element Vector{Float64}:
  0.0
  2.0
  4.0
 
 julia> [z_g(iz, dz, Vz) for iz=1:size(Vz, 3)]
-4-element Array{Float64,1}:
+4-element Vector{Float64}:
  -1.0
   1.0
   3.0
   5.0
+
+julia> finalize_global_grid()
 ```
 """
 function z_g(iz::Integer, dz::GGNumber, A::GGArray)::GGNumber

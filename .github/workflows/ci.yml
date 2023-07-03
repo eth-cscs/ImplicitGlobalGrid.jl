@@ -1,7 +1,15 @@
 name: CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+    tags: '*'
+  pull_request:
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 env:
   JULIA_NUM_THREADS: 2
 jobs:
@@ -14,7 +22,7 @@ jobs:
         version:
           - '1.7' # Minimum required Julia version (due to dependency of AMDGPU.jl)
           - '1'   # Latest stable 1.x release of Julia
-          - 'nightly'
+          # - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
@@ -37,6 +45,28 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@latest
-      - uses: julia-actions/julia-runtest@latest
-
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v2
+        with:
+          files: lcov.info
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-docdeploy@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      - run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using ImplicitGlobalGrid
+            DocMeta.setdocmeta!(ImplicitGlobalGrid, :DocTestSetup, :(using ImplicitGlobalGrid); recursive=true)
+            doctest(ImplicitGlobalGrid)'
