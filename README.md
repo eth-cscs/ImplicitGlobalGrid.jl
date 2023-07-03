@@ -1,7 +1,5 @@
 <h1> <img src="docs/src/assets/logo.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://omlins.github.io/ImplicitGlobalGrid.jl/dev)
 [![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/workflows/CI/badge.svg?branch=master)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl)
 
