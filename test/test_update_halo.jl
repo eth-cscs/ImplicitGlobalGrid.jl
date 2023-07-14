@@ -198,855 +198,856 @@ dz = 1.0
             end
             GG.free_update_halo_buffers();
             GG.allocate_bufs(Y, Z);
-            for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
-                @test all(size(recvbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
-            end
-            for dim = 1:ndims(Z), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
-                @test all(size(recvbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
-            end
+            # for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
+            #     @test all(size(sendbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
+            #     @test all(size(recvbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
+            # end
+            # for dim = 1:ndims(Z), n = 1:nneighbors_per_dim
+            #     @test all(size(sendbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
+            #     @test all(size(recvbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
+            # end
         end;
         finalize_global_grid(finalize_MPI=false);
     end;
 
-    @testset "3. data transfer components" begin
-        @testset "iwrite_sendbufs! / iread_recvbufs!" begin
-            @testset "sendranges / recvranges ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                P   = zeros(nx,  ny,  nz  );
-                A   = zeros(nx-1,ny+2,nz+1);
-                @test GG.sendranges(1, 1, P) == [                    2:2,             1:size(P,2),             1:size(P,3)]
-                @test GG.sendranges(2, 1, P) == [size(P,1)-1:size(P,1)-1,             1:size(P,2),             1:size(P,3)]
-                @test GG.sendranges(1, 2, P) == [            1:size(P,1),                     2:2,             1:size(P,3)]
-                @test GG.sendranges(2, 2, P) == [            1:size(P,1), size(P,2)-1:size(P,2)-1,             1:size(P,3)]
-                @test GG.sendranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     3:3]
-                @test GG.sendranges(2, 3, P) == [            1:size(P,1),             1:size(P,2), size(P,3)-2:size(P,3)-2]
-                @test GG.recvranges(1, 1, P) == [                    1:1,             1:size(P,2),             1:size(P,3)]
-                @test GG.recvranges(2, 1, P) == [    size(P,1):size(P,1),             1:size(P,2),             1:size(P,3)]
-                @test GG.recvranges(1, 2, P) == [            1:size(P,1),                     1:1,             1:size(P,3)]
-                @test GG.recvranges(2, 2, P) == [            1:size(P,1),     size(P,2):size(P,2),             1:size(P,3)]
-                @test GG.recvranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     1:1]
-                @test GG.recvranges(2, 3, P) == [            1:size(P,1),             1:size(P,2),     size(P,3):size(P,3)]
-                @test_throws ErrorException  GG.sendranges(1, 1, A)
-                @test_throws ErrorException  GG.sendranges(2, 1, A)
-                @test GG.sendranges(1, 2, A) == [            1:size(A,1),                     4:4,             1:size(A,3)]
-                @test GG.sendranges(2, 2, A) == [            1:size(A,1), size(A,2)-3:size(A,2)-3,             1:size(A,3)]
-                @test GG.sendranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     4:4]
-                @test GG.sendranges(2, 3, A) == [            1:size(A,1),             1:size(A,2), size(A,3)-3:size(A,3)-3]
-                @test_throws ErrorException  GG.recvranges(1, 1, A)
-                @test_throws ErrorException  GG.recvranges(2, 1, A)
-                @test GG.recvranges(1, 2, A) == [            1:size(A,1),                     1:1,             1:size(A,3)]
-                @test GG.recvranges(2, 2, A) == [            1:size(A,1),     size(A,2):size(A,2),             1:size(A,3)]
-                @test GG.recvranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     1:1]
-                @test GG.recvranges(2, 3, A) == [            1:size(A,1),             1:size(A,2),     size(A,3):size(A,3)]
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "write_h2h! / read_h2h!" begin
-                init_global_grid(nx, ny, nz; quiet=true, init_MPI=false);
-                P  = zeros(nx,  ny,  nz  );
-                P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
-                P2 = zeros(size(P));
-                # (dim=1)
-                buf = zeros(size(P,2), size(P,3));
-                ranges = [2:2, 1:size(P,2), 1:size(P,3)];
-                GG.write_h2h!(buf, P, ranges, 1);
-                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
-                GG.read_h2h!(buf, P2, ranges, 1);
-                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
-                # (dim=2)
-                buf = zeros(size(P,1), size(P,3));
-                ranges = [1:size(P,1), 3:3, 1:size(P,3)];
-                GG.write_h2h!(buf, P, ranges, 2);
-                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
-                GG.read_h2h!(buf, P2, ranges, 2);
-                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
-                # (dim=3)
-                buf = zeros(size(P,1), size(P,2));
-                ranges = [1:size(P,1), 1:size(P,2), 4:4];
-                GG.write_h2h!(buf, P, ranges, 3);
-                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
-                GG.read_h2h!(buf, P2, ranges, 3);
-                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @static if test_cuda || test_amdgpu
-                @testset "write_d2x! / write_d2h_async! / read_x2d! / read_h2d_async! ($array_type arrays)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
-                    init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
-                    P  = zeros(nx,  ny,  nz  );
-                    P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
-                    P  = GPUArray(P);
-                    if array_type == "CUDA"
-                        # (dim=1)
-                        dim = 1;
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,2), size(P,3));
-                        buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [2:2, 1:size(P,2), 1:size(P,3)];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
-                        # (dim=2)
-                        dim = 2;
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,3));
-                        buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [1:size(P,1), 3:3, 1:size(P,3)];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
-                        # (dim=3)
-                        dim = 3
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,2));
-                        buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [1:size(P,1), 1:size(P,2), 4:4];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
-                    elseif array_type == "AMDGPU"
-                        # (dim=1)
-                        dim = 1;
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,2), size(P,3));
-                        buf_d, buf_h = GG.register(ROCArray,buf);
-                        ranges = [2:2, 1:size(P,2), 1:size(P,3)];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        AMDGPU.Mem.unlock(buf_h);
-                        # (dim=2)
-                        dim = 2;
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,3));
-                        buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [1:size(P,1), 3:3, 1:size(P,3)];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        AMDGPU.Mem.unlock(buf_h);
-                        # (dim=3)
-                        dim = 3
-                        P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,2));
-                        buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [1:size(P,1), 1:size(P,2), 4:4];
-                        nthreads = (1, 1, 1);
-                        halosize = [r[end] - r[1] + 1 for r in ranges];
-                        nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                        @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        buf .= 0.0;
-                        P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
-                        @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        AMDGPU.Mem.unlock(buf_h);
-                    end
-                    finalize_global_grid(finalize_MPI=false);
-                end;
-            end
-            @testset "iwrite_sendbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                P = zeros(nx,  ny,  nz  );
-                A = zeros(nx-1,ny+2,nz+1);
-                P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
-                A .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)]);
-                GG.allocate_bufs(P, A);
-                if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
-                elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
-                else                            GG.allocate_tasks(P, A);
-                end
-                dim = 1
-                n = 1
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[2,:,:][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[2,:,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
-                end
-                n = 2
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[end-1,:,:][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[end-1,:,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
-                end
-                dim = 2
-                n = 1
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,2,:][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,4,:][:]))
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,2,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,4,:][:]))
-                end
-                n = 2
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,end-1,:][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,end-3,:][:]))
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,end-1,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,end-3,:][:]))
-                end
-                dim = 3
-                n = 1
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,3][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,4][:]))
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,3][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,4][:]))
-                end
-                n = 2
-                GG.iwrite_sendbufs!(n, dim, P, 1);
-                GG.iwrite_sendbufs!(n, dim, A, 2);
-                GG.wait_iwrite(n, P, 1);
-                GG.wait_iwrite(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,end-2][:]))
-                    @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,end-3][:]))
-                else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end-2][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end-3][:]))
-                end
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                P = zeros(nx,  ny,  nz  );
-                A = zeros(nx-1,ny+2,nz+1);
-                GG.allocate_bufs(P, A);
-                if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
-                elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
-                else                            GG.allocate_tasks(P, A);
-                end
-                dim = 1
-                for n = 1:nneighbors_per_dim
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    else
-                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    end
-                end
-                n = 1
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:]))
-                    @test all(                          0.0 .== Array(A[1,:,:][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[1,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A[1,:,:][:]))
-                end
-                n = 2
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:]))
-                    @test all(                          0.0 .== Array(A[end,:,:][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[end,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A[end,:,:][:]))
-                end
-                dim = 2
-                for n = 1:nneighbors_per_dim
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    else
-                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    end
-                end
-                n = 1
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:]))
-                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,1,:][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,1,:][:]))
-                end
-                n = 2
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:]))
-                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,end,:][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,end,:][:]))
-                end
-                dim = 3
-                for n = 1:nneighbors_per_dim
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    else
-                        GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                        GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                    end
-                end
-                n = 1
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:]))
-                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,1][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,1][:]))
-                end
-                n = 2
-                GG.iread_recvbufs!(n, dim, P, 1);
-                GG.iread_recvbufs!(n, dim, A, 2);
-                GG.wait_iread(n, P, 1);
-                GG.wait_iread(n, A, 2);
-                if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:]))
-                    @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:]))
-                else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end][:]))
-                end
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            if (nprocs==1)
-                @testset "sendrecv_halo_local ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                    P = zeros(nx,  ny,  nz  );
-                    A = zeros(nx-1,ny+2,nz+1);
-                    GG.allocate_bufs(P, A);
-                    dim = 1
-                    for n = 1:nneighbors_per_dim
-                        if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                            GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        else
-                            GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        end
-                    end
-                    for n = 1:nneighbors_per_dim
-                        GG.sendrecv_halo_local(n, dim, P, 1);
-                        GG.sendrecv_halo_local(n, dim, A, 2);
-                    end
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
-                        @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
-                    else
-                        @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
-                        @test all(GG.recvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
-                        @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
-                        @test all(GG.recvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
-                    end
-                    dim = 2
-                    for n = 1:nneighbors_per_dim
-                        if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                            GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        else
-                            GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        end
-                    end
-                    for n = 1:nneighbors_per_dim
-                        GG.sendrecv_halo_local(n, dim, P, 1);
-                        GG.sendrecv_halo_local(n, dim, A, 2);
-                    end
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
-                        @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
-                    else
-                        @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
-                        @test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
-                        @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
-                        @test all(GG.recvbuf_flat(2,dim,2,A) .== GG.sendbuf_flat(1,dim,2,A));
-                    end
-                    dim = 3
-                    for n = 1:nneighbors_per_dim
-                        if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                            GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        else
-                            GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
-                            GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
-                        end
-                    end
-                    for n = 1:nneighbors_per_dim
-                        GG.sendrecv_halo_local(n, dim, P, 1);
-                        GG.sendrecv_halo_local(n, dim, A, 2);
-                    end
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
-                        @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
-                        @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
-                    else
-                        @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
-                        @test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
-                        @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
-                        @test all(GG.recvbuf_flat(2,dim,2,A) .== GG.sendbuf_flat(1,dim,2,A));
-                    end
-                    finalize_global_grid(finalize_MPI=false);
-                end
-            end
-        end;
-        if (nprocs>1)
-            @testset "irecv_halo! / isend_halo ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, quiet=true, init_MPI=false, device_type=device_type);
-                P   = zeros(nx,ny,nz);
-                A   = zeros(nx,ny,nz);
-                dim = 1;
-                GG.allocate_bufs(P, A);
-                for n = 1:nneighbors_per_dim
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        GG.gpusendbuf(n,dim,1,P) .= 9.0;
-                        GG.gpurecvbuf(n,dim,1,P) .= 0;
-                        GG.gpusendbuf(n,dim,2,A) .= 9.0;
-                        GG.gpurecvbuf(n,dim,2,A) .= 0;
-                    else
-                        GG.sendbuf(n,dim,1,P) .= 9.0;
-                        GG.recvbuf(n,dim,1,P) .= 0;
-                        GG.sendbuf(n,dim,2,A) .= 9.0;
-                        GG.recvbuf(n,dim,2,A) .= 0;
-                    end
-                end
-                reqs  = fill(MPI.REQUEST_NULL, 2, nneighbors_per_dim, 2);
-                for n = 1:nneighbors_per_dim
-                    reqs[1,n,1] = GG.irecv_halo!(n, dim, P, 1);
-                    reqs[2,n,1] = GG.irecv_halo!(n, dim, A, 2);
-                    reqs[1,n,2] = GG.isend_halo(n, dim, P, 1);
-                    reqs[2,n,2] = GG.isend_halo(n, dim, A, 2);
-                end
-                @test all(reqs .!= [MPI.REQUEST_NULL])
-                MPI.Waitall!(reqs[:]);
-                for n = 1:nneighbors_per_dim
-                    if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                        @test all(GG.gpurecvbuf(n,dim,1,P) .== 9.0)
-                        @test all(GG.gpurecvbuf(n,dim,2,A) .== 9.0)
-                    else
-                        @test all(GG.recvbuf(n,dim,1,P) .== 9.0)
-                        @test all(GG.recvbuf(n,dim,2,A) .== 9.0)
-                    end
-                end
-                finalize_global_grid(finalize_MPI=false);
-            end;
-        end
-    end;
+    # @testset "3. data transfer components" begin
+    #     @testset "iwrite_sendbufs! / iread_recvbufs!" begin
+    #         @testset "sendranges / recvranges ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #             P   = zeros(nx,  ny,  nz  );
+    #             A   = zeros(nx-1,ny+2,nz+1);
+    #             @test GG.sendranges(1, 1, P) == [                    2:2,             1:size(P,2),             1:size(P,3)]
+    #             @test GG.sendranges(2, 1, P) == [size(P,1)-1:size(P,1)-1,             1:size(P,2),             1:size(P,3)]
+    #             @test GG.sendranges(1, 2, P) == [            1:size(P,1),                     2:2,             1:size(P,3)]
+    #             @test GG.sendranges(2, 2, P) == [            1:size(P,1), size(P,2)-1:size(P,2)-1,             1:size(P,3)]
+    #             @test GG.sendranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     3:3]
+    #             @test GG.sendranges(2, 3, P) == [            1:size(P,1),             1:size(P,2), size(P,3)-2:size(P,3)-2]
+    #             @test GG.recvranges(1, 1, P) == [                    1:1,             1:size(P,2),             1:size(P,3)]
+    #             @test GG.recvranges(2, 1, P) == [    size(P,1):size(P,1),             1:size(P,2),             1:size(P,3)]
+    #             @test GG.recvranges(1, 2, P) == [            1:size(P,1),                     1:1,             1:size(P,3)]
+    #             @test GG.recvranges(2, 2, P) == [            1:size(P,1),     size(P,2):size(P,2),             1:size(P,3)]
+    #             @test GG.recvranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     1:1]
+    #             @test GG.recvranges(2, 3, P) == [            1:size(P,1),             1:size(P,2),     size(P,3):size(P,3)]
+    #             @test_throws ErrorException  GG.sendranges(1, 1, A)
+    #             @test_throws ErrorException  GG.sendranges(2, 1, A)
+    #             @test GG.sendranges(1, 2, A) == [            1:size(A,1),                     4:4,             1:size(A,3)]
+    #             @test GG.sendranges(2, 2, A) == [            1:size(A,1), size(A,2)-3:size(A,2)-3,             1:size(A,3)]
+    #             @test GG.sendranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     4:4]
+    #             @test GG.sendranges(2, 3, A) == [            1:size(A,1),             1:size(A,2), size(A,3)-3:size(A,3)-3]
+    #             @test_throws ErrorException  GG.recvranges(1, 1, A)
+    #             @test_throws ErrorException  GG.recvranges(2, 1, A)
+    #             @test GG.recvranges(1, 2, A) == [            1:size(A,1),                     1:1,             1:size(A,3)]
+    #             @test GG.recvranges(2, 2, A) == [            1:size(A,1),     size(A,2):size(A,2),             1:size(A,3)]
+    #             @test GG.recvranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     1:1]
+    #             @test GG.recvranges(2, 3, A) == [            1:size(A,1),             1:size(A,2),     size(A,3):size(A,3)]
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "write_h2h! / read_h2h!" begin
+    #             init_global_grid(nx, ny, nz; quiet=true, init_MPI=false);
+    #             P  = zeros(nx,  ny,  nz  );
+    #             P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+    #             P2 = zeros(size(P));
+    #             # (dim=1)
+    #             buf = zeros(size(P,2), size(P,3));
+    #             ranges = [2:2, 1:size(P,2), 1:size(P,3)];
+    #             GG.write_h2h!(buf, P, ranges, 1);
+    #             @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+    #             GG.read_h2h!(buf, P2, ranges, 1);
+    #             @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+    #             # (dim=2)
+    #             buf = zeros(size(P,1), size(P,3));
+    #             ranges = [1:size(P,1), 3:3, 1:size(P,3)];
+    #             GG.write_h2h!(buf, P, ranges, 2);
+    #             @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+    #             GG.read_h2h!(buf, P2, ranges, 2);
+    #             @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+    #             # (dim=3)
+    #             buf = zeros(size(P,1), size(P,2));
+    #             ranges = [1:size(P,1), 1:size(P,2), 4:4];
+    #             GG.write_h2h!(buf, P, ranges, 3);
+    #             @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+    #             GG.read_h2h!(buf, P2, ranges, 3);
+    #             @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @static if test_cuda || test_amdgpu
+    #             @testset "write_d2x! / write_d2h_async! / read_x2d! / read_h2d_async! ($array_type arrays)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
+    #                 init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
+    #                 P  = zeros(nx,  ny,  nz  );
+    #                 P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+    #                 P  = GPUArray(P);
+    #                 if array_type == "CUDA"
+    #                     # (dim=1)
+    #                     dim = 1;
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,2), size(P,3));
+    #                     buf_d, buf_h = GG.register(CuArray,buf);
+    #                     ranges = [2:2, 1:size(P,2), 1:size(P,3)];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     buf .= 0.0;
+    #                     P2  .= 0.0;
+    #                     custream = stream();
+    #                     GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     CUDA.Mem.unregister(buf_h);
+    #                     # (dim=2)
+    #                     dim = 2;
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,1), size(P,3));
+    #                     buf_d, buf_h = GG.register(CuArray,buf);
+    #                     ranges = [1:size(P,1), 3:3, 1:size(P,3)];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     buf .= 0.0;
+    #                     P2  .= 0.0;
+    #                     custream = stream();
+    #                     GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     CUDA.Mem.unregister(buf_h);
+    #                     # (dim=3)
+    #                     dim = 3
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,1), size(P,2));
+    #                     buf_d, buf_h = GG.register(CuArray,buf);
+    #                     ranges = [1:size(P,1), 1:size(P,2), 4:4];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @cuda blocks=nblocks threads=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @cuda blocks=nblocks threads=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     buf .= 0.0;
+    #                     P2  .= 0.0;
+    #                     custream = stream();
+    #                     GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     CUDA.Mem.unregister(buf_h);
+    #                 elseif array_type == "AMDGPU"
+    #                     @info "hi"
+    #                     # (dim=1)
+    #                     dim = 1;
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,2), size(P,3));
+    #                     buf_d, buf_h = GG.register(ROCArray,buf);
+    #                     ranges = [2:2, 1:size(P,2), 1:size(P,3)];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # buf .= 0.0;
+    #                     # P2  .= 0.0;
+    #                     # rocstream = AMDGPU.HIPStream();
+    #                     # GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # AMDGPU.Mem.unlock(buf_h);
+    #                     # (dim=2)
+    #                     dim = 2;
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,1), size(P,3));
+    #                     buf_d, buf_h = GG.register(CuArray,buf);
+    #                     ranges = [1:size(P,1), 3:3, 1:size(P,3)];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # buf .= 0.0;
+    #                     # P2  .= 0.0;
+    #                     # rocstream = AMDGPU.HIPStream();
+    #                     # GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # AMDGPU.Mem.unlock(buf_h);
+    #                     # (dim=3)
+    #                     dim = 3
+    #                     P2  = gpuzeros(eltype(P),size(P));
+    #                     buf = zeros(size(P,1), size(P,2));
+    #                     buf_d, buf_h = GG.register(CuArray,buf);
+    #                     ranges = [1:size(P,1), 1:size(P,2), 4:4];
+    #                     nthreads = (1, 1, 1);
+    #                     halosize = [r[end] - r[1] + 1 for r in ranges];
+    #                     nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+    #                     @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # buf .= 0.0;
+    #                     # P2  .= 0.0;
+    #                     # rocstream = AMDGPU.HIPStream();
+    #                     # GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+    #                     # @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+    #                     # AMDGPU.Mem.unlock(buf_h);
+    #                 end
+    #                 finalize_global_grid(finalize_MPI=false);
+    #             end;
+    #         end
+    #         @testset "iwrite_sendbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #             P = zeros(nx,  ny,  nz  );
+    #             A = zeros(nx-1,ny+2,nz+1);
+    #             P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
+    #             A .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)]);
+    #             GG.allocate_bufs(P, A);
+    #             if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
+    #             elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
+    #             else                            GG.allocate_tasks(P, A);
+    #             end
+    #             dim = 1
+    #             n = 1
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[2,:,:][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[2,:,:][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
+    #             end
+    #             n = 2
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[end-1,:,:][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0)
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[end-1,:,:][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
+    #             end
+    #             dim = 2
+    #             n = 1
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,2,:][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,4,:][:]))
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,2,:][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,4,:][:]))
+    #             end
+    #             n = 2
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,end-1,:][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,end-3,:][:]))
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,end-1,:][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,end-3,:][:]))
+    #             end
+    #             dim = 3
+    #             n = 1
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,3][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,4][:]))
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,3][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,4][:]))
+    #             end
+    #             n = 2
+    #             GG.iwrite_sendbufs!(n, dim, P, 1);
+    #             GG.iwrite_sendbufs!(n, dim, A, 2);
+    #             GG.wait_iwrite(n, P, 1);
+    #             GG.wait_iwrite(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,end-2][:]))
+    #                 @test all(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,end-3][:]))
+    #             else
+    #                 @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end-2][:]))
+    #                 @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end-3][:]))
+    #             end
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #             P = zeros(nx,  ny,  nz  );
+    #             A = zeros(nx-1,ny+2,nz+1);
+    #             GG.allocate_bufs(P, A);
+    #             if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
+    #             elseif (array_type == "AMDGPU") GG.allocate_rocqueues(P, A);
+    #             else                            GG.allocate_tasks(P, A);
+    #             end
+    #             dim = 1
+    #             for n = 1:nneighbors_per_dim
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 else
+    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 end
+    #             end
+    #             n = 1
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:]))
+    #                 @test all(                          0.0 .== Array(A[1,:,:][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[1,:,:][:]))
+    #                 @test all(                       0.0 .== CPUArray(A[1,:,:][:]))
+    #             end
+    #             n = 2
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:]))
+    #                 @test all(                          0.0 .== Array(A[end,:,:][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[end,:,:][:]))
+    #                 @test all(                       0.0 .== CPUArray(A[end,:,:][:]))
+    #             end
+    #             dim = 2
+    #             for n = 1:nneighbors_per_dim
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 else
+    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 end
+    #             end
+    #             n = 1
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:]))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,1,:][:]))
+    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,1,:][:]))
+    #             end
+    #             n = 2
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:]))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,end,:][:]))
+    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,end,:][:]))
+    #             end
+    #             dim = 3
+    #             for n = 1:nneighbors_per_dim
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     GG.gpurecvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.gpurecvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 else
+    #                     GG.recvbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                     GG.recvbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                 end
+    #             end
+    #             n = 1
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:]))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,1][:]))
+    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,1][:]))
+    #             end
+    #             n = 2
+    #             GG.iread_recvbufs!(n, dim, P, 1);
+    #             GG.iread_recvbufs!(n, dim, A, 2);
+    #             GG.wait_iread(n, P, 1);
+    #             GG.wait_iread(n, A, 2);
+    #             if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:]))
+    #                 @test all(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:]))
+    #             else
+    #                 @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end][:]))
+    #                 @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end][:]))
+    #             end
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         if (nprocs==1)
+    #             @testset "sendrecv_halo_local ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
+    #                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #                 P = zeros(nx,  ny,  nz  );
+    #                 A = zeros(nx-1,ny+2,nz+1);
+    #                 GG.allocate_bufs(P, A);
+    #                 dim = 1
+    #                 for n = 1:nneighbors_per_dim
+    #                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                         GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     else
+    #                         GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     end
+    #                 end
+    #                 for n = 1:nneighbors_per_dim
+    #                     GG.sendrecv_halo_local(n, dim, P, 1);
+    #                     GG.sendrecv_halo_local(n, dim, A, 2);
+    #                 end
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+    #                 else
+    #                     @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(1,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+    #                     @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(2,dim,2,A) .== 0.0);  # There is no halo (ol(dim,A) < 2).
+    #                 end
+    #                 dim = 2
+    #                 for n = 1:nneighbors_per_dim
+    #                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                         GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     else
+    #                         GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     end
+    #                 end
+    #                 for n = 1:nneighbors_per_dim
+    #                     GG.sendrecv_halo_local(n, dim, P, 1);
+    #                     GG.sendrecv_halo_local(n, dim, A, 2);
+    #                 end
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
+    #                 else
+    #                     @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
+    #                     @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(2,dim,2,A) .== GG.sendbuf_flat(1,dim,2,A));
+    #                 end
+    #                 dim = 3
+    #                 for n = 1:nneighbors_per_dim
+    #                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                         GG.gpusendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.gpusendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     else
+    #                         GG.sendbuf_flat(n,dim,1,P) .= dim*1e2 + n*1e1 + 1;
+    #                         GG.sendbuf_flat(n,dim,2,A) .= dim*1e2 + n*1e1 + 2;
+    #                     end
+    #                 end
+    #                 for n = 1:nneighbors_per_dim
+    #                     GG.sendrecv_halo_local(n, dim, P, 1);
+    #                     GG.sendrecv_halo_local(n, dim, A, 2);
+    #                 end
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,1,P) .== GG.gpusendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(1,dim,2,A) .== GG.gpusendbuf_flat(2,dim,2,A));
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,1,P) .== GG.gpusendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.gpurecvbuf_flat(2,dim,2,A) .== GG.gpusendbuf_flat(1,dim,2,A));
+    #                 else
+    #                     @test all(GG.recvbuf_flat(1,dim,1,P) .== GG.sendbuf_flat(2,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(1,dim,2,A) .== GG.sendbuf_flat(2,dim,2,A));
+    #                     @test all(GG.recvbuf_flat(2,dim,1,P) .== GG.sendbuf_flat(1,dim,1,P));
+    #                     @test all(GG.recvbuf_flat(2,dim,2,A) .== GG.sendbuf_flat(1,dim,2,A));
+    #                 end
+    #                 finalize_global_grid(finalize_MPI=false);
+    #             end
+    #         end
+    #     end;
+    #     if (nprocs>1)
+    #         @testset "irecv_halo! / isend_halo ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
+    #             me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             P   = zeros(nx,ny,nz);
+    #             A   = zeros(nx,ny,nz);
+    #             dim = 1;
+    #             GG.allocate_bufs(P, A);
+    #             for n = 1:nneighbors_per_dim
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     GG.gpusendbuf(n,dim,1,P) .= 9.0;
+    #                     GG.gpurecvbuf(n,dim,1,P) .= 0;
+    #                     GG.gpusendbuf(n,dim,2,A) .= 9.0;
+    #                     GG.gpurecvbuf(n,dim,2,A) .= 0;
+    #                 else
+    #                     GG.sendbuf(n,dim,1,P) .= 9.0;
+    #                     GG.recvbuf(n,dim,1,P) .= 0;
+    #                     GG.sendbuf(n,dim,2,A) .= 9.0;
+    #                     GG.recvbuf(n,dim,2,A) .= 0;
+    #                 end
+    #             end
+    #             reqs  = fill(MPI.REQUEST_NULL, 2, nneighbors_per_dim, 2);
+    #             for n = 1:nneighbors_per_dim
+    #                 reqs[1,n,1] = GG.irecv_halo!(n, dim, P, 1);
+    #                 reqs[2,n,1] = GG.irecv_halo!(n, dim, A, 2);
+    #                 reqs[1,n,2] = GG.isend_halo(n, dim, P, 1);
+    #                 reqs[2,n,2] = GG.isend_halo(n, dim, A, 2);
+    #             end
+    #             @test all(reqs .!= [MPI.REQUEST_NULL])
+    #             MPI.Waitall!(reqs[:]);
+    #             for n = 1:nneighbors_per_dim
+    #                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+    #                     @test all(GG.gpurecvbuf(n,dim,1,P) .== 9.0)
+    #                     @test all(GG.gpurecvbuf(n,dim,2,A) .== 9.0)
+    #                 else
+    #                     @test all(GG.recvbuf(n,dim,1,P) .== 9.0)
+    #                     @test all(GG.recvbuf(n,dim,2,A) .== 9.0)
+    #                 end
+    #             end
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #     end
+    # end;
 
     # (Backup field filled with encoded coordinates and set boundary to zeros; then update halo and compare with backuped field; it should be the same again, except for the boundaries that are not halos)
-    @testset "4. halo update ($array_type arrays)" for (array_type, device_type, Array) in zip(array_types, device_types, ArrayConstructors)
-        @testset "basic grid (default: periodic)" begin
-            @testset "1D" begin
-                init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
-                P     = zeros(nx);
-                P    .= [x_g(ix,dx,P) for ix=1:size(P,1)];
-                P_ref = copy(P);
-                P[[1, end]] .= 0.0;
-                P     = Array(P);
-                P_ref = Array(P_ref);
-                @require !all(CPUArray(P .== P_ref)) # DEBUG: CPUArray needed here and onwards as mapreduce! is failing on AMDGPU (see https://github.com/JuliaGPU/AMDGPU.jl/issues/210)
-                update_halo!(P);
-                @test all(CPUArray(P .== P_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "2D" begin
-                init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
-                P     = zeros(nx, ny);
-                P    .= [y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2)];
-                P_ref = copy(P);
-                P[[1, end],       :] .= 0.0;
-                P[       :,[1, end]] .= 0.0;
-                P     = Array(P);
-                P_ref = Array(P_ref);
-                @require !all(CPUArray(P .== P_ref))
-                update_halo!(P);
-                @test all(CPUArray(P .== P_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-                P     = zeros(nx, ny, nz);
-                P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
-                P_ref = copy(P);
-                P[[1, end],       :,       :] .= 0.0;
-                P[       :,[1, end],       :] .= 0.0;
-                P[       :,       :,[1, end]] .= 0.0;
-                P     = Array(P);
-                P_ref = Array(P_ref);
-                @require !all(CPUArray(P .== P_ref))
-                update_halo!(P);
-                @test all(CPUArray(P .== P_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=4, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                P     = zeros(nx, ny, nz);
-                P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
-                P_ref = copy(P);
-                P[[1, end],       :,       :] .= 0.0;
-                P[       :,[1, end],       :] .= 0.0;
-                P[       :,       :,[1, end]] .= 0.0;
-                P     = Array(P);
-                P_ref = Array(P_ref);
-                @require !all(CPUArray(P .== P_ref))
-                update_halo!(P);
-                @test all(CPUArray(P .== P_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (not periodic)" begin
-                me, dims, nprocs, coords = init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
-                P     = zeros(nx, ny, nz);
-                P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
-                P_ref = copy(P);
-                P[[1, end],       :,       :] .= 0.0;
-                P[       :,[1, end],       :] .= 0.0;
-                P[       :,       :,[1, end]] .= 0.0;
-                P     = Array(P);
-                P_ref = Array(P_ref);
-                @require !all(CPUArray(P .== P_ref))
-                update_halo!(P);
-                @test all(CPUArray(P[2:end-1,2:end-1,2:end-1] .== P_ref[2:end-1,2:end-1,2:end-1]))
-                if (coords[1] ==         0) @test all(CPUArray(P[  1,  :,  :] .== 0.0)); else @test all(CPUArray(P[      1,2:end-1,2:end-1] .== P_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
-                if (coords[1] == dims[1]-1) @test all(CPUArray(P[end,  :,  :] .== 0.0)); else @test all(CPUArray(P[    end,2:end-1,2:end-1] .== P_ref[    end,2:end-1,2:end-1])); end
-                if (coords[2] ==         0) @test all(CPUArray(P[  :,  1,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,      1,2:end-1] .== P_ref[2:end-1,      1,2:end-1])); end
-                if (coords[2] == dims[2]-1) @test all(CPUArray(P[  :,end,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,    end,2:end-1] .== P_ref[2:end-1,    end,2:end-1])); end
-                if (coords[3] ==         0) @test all(CPUArray(P[  :,  :,  1] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,      1] .== P_ref[2:end-1,2:end-1,      1])); end
-                if (coords[3] == dims[3]-1) @test all(CPUArray(P[  :,  :,end] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,    end] .== P_ref[2:end-1,2:end-1,    end])); end
-                finalize_global_grid(finalize_MPI=false);
-            end;
-        end;
-        @testset "staggered grid (default: periodic)" begin
-            @testset "1D" begin
-                init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
-                Vx     = zeros(nx+1);
-                Vx    .= [x_g(ix,dx,Vx) for ix=1:size(Vx,1)];
-                Vx_ref = copy(Vx);
-                Vx[[1, end]] .= 0.0;
-                Vx     = Array(Vx);
-                Vx_ref = Array(Vx_ref);
-                @require !all(CPUArray(Vx .== Vx_ref))
-                update_halo!(Vx);
-                @test all(CPUArray(Vx .== Vx_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "2D" begin
-                init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
-                Vy     = zeros(nx,ny+1);
-                Vy    .= [y_g(iy,dy,Vy)*1e1 + x_g(ix,dx,Vy) for ix=1:size(Vy,1), iy=1:size(Vy,2)];
-                Vy_ref = copy(Vy);
-                Vy[[1, end],       :] .= 0.0;
-                Vy[       :,[1, end]] .= 0.0;
-                Vy     = Array(Vy);
-                Vy_ref = Array(Vy_ref);
-                @require !all(CPUArray(Vy .== Vy_ref))
-                update_halo!(Vy);
-                @test all(CPUArray(Vy .== Vy_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-                Vz     = zeros(nx,ny,nz+1);
-                Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-                Vz_ref = copy(Vz);
-                Vz[[1, end],       :,       :] .= 0.0;
-                Vz[       :,[1, end],       :] .= 0.0;
-                Vz[       :,       :,[1, end]] .= 0.0;
-                Vz     = Array(Vz);
-                Vz_ref = Array(Vz_ref);
-                @require !all(CPUArray(Vz .== Vz_ref))
-                update_halo!(Vz);
-                @test all(CPUArray(Vz .== Vz_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=3, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
-                Vx     = zeros(nx+1,ny,nz);
-                Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-                Vx_ref = copy(Vx);
-                Vx[[1, end],       :,       :] .= 0.0;
-                Vx[       :,[1, end],       :] .= 0.0;
-                Vx[       :,       :,[1, end]] .= 0.0;
-                Vx     = Array(Vx);
-                Vx_ref = Array(Vx_ref);
-                @require !all(CPUArray(Vx .== Vx_ref))
-                update_halo!(Vx);
-                @test all(CPUArray(Vx .== Vx_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (not periodic)" begin
-                me, dims, nprocs, coords = init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
-                Vz     = zeros(nx,ny,nz+1);
-                Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-                Vz_ref = copy(Vz);
-                Vz[[1, end],       :,       :] .= 0.0;
-                Vz[       :,[1, end],       :] .= 0.0;
-                Vz[       :,       :,[1, end]] .= 0.0;
-                Vz     = Array(Vz);
-                Vz_ref = Array(Vz_ref);
-                @require !all(CPUArray(Vz .== Vz_ref))
-                update_halo!(Vz);
-                @test all(CPUArray(Vz[2:end-1,2:end-1,2:end-1] .== Vz_ref[2:end-1,2:end-1,2:end-1]))
-                if (coords[1] ==         0) @test all(CPUArray(Vz[  1,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[      1,2:end-1,2:end-1] .== Vz_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
-                if (coords[1] == dims[1]-1) @test all(CPUArray(Vz[end,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[    end,2:end-1,2:end-1] .== Vz_ref[    end,2:end-1,2:end-1])); end
-                if (coords[2] ==         0) @test all(CPUArray(Vz[  :,  1,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,      1,2:end-1] .== Vz_ref[2:end-1,      1,2:end-1])); end
-                if (coords[2] == dims[2]-1) @test all(CPUArray(Vz[  :,end,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,    end,2:end-1] .== Vz_ref[2:end-1,    end,2:end-1])); end
-                if (coords[3] ==         0) @test all(CPUArray(Vz[  :,  :,  1] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,      1] .== Vz_ref[2:end-1,2:end-1,      1])); end
-                if (coords[3] == dims[3]-1) @test all(CPUArray(Vz[  :,  :,end] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,    end] .== Vz_ref[2:end-1,2:end-1,    end])); end
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "2D (no halo in one dim)" begin
-                init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
-                A     = zeros(nx-1,ny+2);
-                A    .= [y_g(iy,dy,A)*1e1 + x_g(ix,dx,A) for ix=1:size(A,1), iy=1:size(A,2)];
-                A_ref = copy(A);
-                A[[1, end],       :] .= 0.0;
-                A[       :,[1, end]] .= 0.0;
-                A     = Array(A);
-                A_ref = Array(A_ref);
-                @require !all(CPUArray(A .== A_ref))
-                update_halo!(A);
-                @test all(CPUArray(A[2:end-1,:] .== A_ref[2:end-1,:]))
-                @test all(CPUArray(A[[1, end],:] .== 0.0))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (no halo in one dim)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-                A     = zeros(nx+2,ny-1,nz+1);
-                A    .= [z_g(iz,dz,A)*1e2 + y_g(iy,dy,A)*1e1 + x_g(ix,dx,A) for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)];
-                A_ref = copy(A);
-                A[[1, end],       :,       :] .= 0.0;
-                A[       :,[1, end],       :] .= 0.0;
-                A[       :,       :,[1, end]] .= 0.0;
-                A     = Array(A);
-                A_ref = Array(A_ref);
-                @require !all(CPUArray(A .== A_ref))
-                update_halo!(A);
-                @test all(CPUArray(A[:,2:end-1,:] .== A_ref[:,2:end-1,:]))
-                @test all(CPUArray(A[:,[1, end],:] .== 0.0))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            @testset "3D (Complex)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-                Vz     = zeros(ComplexF16,nx,ny,nz+1);
-                Vz    .= [(1+im)*(z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz)) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-                Vz_ref = copy(Vz);
-                Vz[[1, end],       :,       :] .= 0.0;
-                Vz[       :,[1, end],       :] .= 0.0;
-                Vz[       :,       :,[1, end]] .= 0.0;
-                Vz     = Array(Vz);
-                Vz_ref = Array(Vz_ref);
-                @require !all(CPUArray(Vz .== Vz_ref))
-                update_halo!(Vz);
-                @test all(CPUArray(Vz .== Vz_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-            # @testset "3D (changing datatype)" begin
-            #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-            #     Vz_ref = copy(Vz);
-            #     Vx     = zeros(Float32,nx+1,ny,nz);
-            #     Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-            #     Vx_ref = copy(Vx);
-            #     Vz[[1, end],       :,       :] .= 0.0;
-            #     Vz[       :,[1, end],       :] .= 0.0;
-            #     Vz[       :,       :,[1, end]] .= 0.0;
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     Vx[[1, end],       :,       :] .= 0.0;
-            #     Vx[       :,[1, end],       :] .= 0.0;
-            #     Vx[       :,       :,[1, end]] .= 0.0;
-            #     Vx     = Array(Vx);
-            #     Vx_ref = Array(Vx_ref);
-            #     @require !all(Vx .== Vx_ref)
-            #     update_halo!(Vx);
-            #     @test all(Vx .== Vx_ref)
-            #     #TODO: added for GPU - quick fix:
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-            #     Vz_ref = copy(Vz);
-            #     Vz[[1, end],       :,       :] .= 0.0;
-            #     Vz[       :,[1, end],       :] .= 0.0;
-            #     Vz[       :,       :,[1, end]] .= 0.0;
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
-            # @testset "3D (changing datatype) (Complex)" begin
-            #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-            #     Vz_ref = copy(Vz);
-            #     Vx     = zeros(ComplexF64,nx+1,ny,nz);
-            #     Vx    .= [(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-            #     Vx_ref = copy(Vx);
-            #     Vz[[1, end],       :,       :] .= 0.0;
-            #     Vz[       :,[1, end],       :] .= 0.0;
-            #     Vz[       :,       :,[1, end]] .= 0.0;
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     Vx[[1, end],       :,       :] .= 0.0;
-            #     Vx[       :,[1, end],       :] .= 0.0;
-            #     Vx[       :,       :,[1, end]] .= 0.0;
-            #     Vx     = Array(Vx);
-            #     Vx_ref = Array(Vx_ref);
-            #     @require !all(Vx .== Vx_ref)
-            #     update_halo!(Vx);
-            #     @test all(Vx .== Vx_ref)
-            #     #TODO: added for GPU - quick fix:
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-            #     Vz_ref = copy(Vz);
-            #     Vz[[1, end],       :,       :] .= 0.0;
-            #     Vz[       :,[1, end],       :] .= 0.0;
-            #     Vz[       :,       :,[1, end]] .= 0.0;
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
-            @testset "3D (two fields simultaneously)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-                Vz     = zeros(nx,ny,nz+1);
-                Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
-                Vz_ref = copy(Vz);
-                Vx     = zeros(nx+1,ny,nz);
-                Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
-                Vx_ref = copy(Vx);
-                Vz[[1, end],       :,       :] .= 0.0;
-                Vz[       :,[1, end],       :] .= 0.0;
-                Vz[       :,       :,[1, end]] .= 0.0;
-                Vx[[1, end],       :,       :] .= 0.0;
-                Vx[       :,[1, end],       :] .= 0.0;
-                Vx[       :,       :,[1, end]] .= 0.0;
-                Vz     = Array(Vz);
-                Vz_ref = Array(Vz_ref);
-                Vx     = Array(Vx);
-                Vx_ref = Array(Vx_ref);
-                @require !all(CPUArray(Vz .== Vz_ref))
-                @require !all(CPUArray(Vx .== Vx_ref))
-                update_halo!(Vz, Vx);
-                @test all(CPUArray(Vz .== Vz_ref))
-                @test all(CPUArray(Vx .== Vx_ref))
-                finalize_global_grid(finalize_MPI=false);
-            end;
-        end;
-    end;
+    # @testset "4. halo update ($array_type arrays)" for (array_type, device_type, Array) in zip(array_types, device_types, ArrayConstructors)
+    #     @testset "basic grid (default: periodic)" begin
+    #         @testset "1D" begin
+    #             init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             P     = zeros(nx);
+    #             P    .= [x_g(ix,dx,P) for ix=1:size(P,1)];
+    #             P_ref = copy(P);
+    #             P[[1, end]] .= 0.0;
+    #             P     = Array(P);
+    #             P_ref = Array(P_ref);
+    #             @require !all(CPUArray(P .== P_ref)) # DEBUG: CPUArray needed here and onwards as mapreduce! is failing on AMDGPU (see https://github.com/JuliaGPU/AMDGPU.jl/issues/210)
+    #             update_halo!(P);
+    #             @test all(CPUArray(P .== P_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "2D" begin
+    #             init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             P     = zeros(nx, ny);
+    #             P    .= [y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2)];
+    #             P_ref = copy(P);
+    #             P[[1, end],       :] .= 0.0;
+    #             P[       :,[1, end]] .= 0.0;
+    #             P     = Array(P);
+    #             P_ref = Array(P_ref);
+    #             @require !all(CPUArray(P .== P_ref))
+    #             update_halo!(P);
+    #             @test all(CPUArray(P .== P_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             P     = zeros(nx, ny, nz);
+    #             P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+    #             P_ref = copy(P);
+    #             P[[1, end],       :,       :] .= 0.0;
+    #             P[       :,[1, end],       :] .= 0.0;
+    #             P[       :,       :,[1, end]] .= 0.0;
+    #             P     = Array(P);
+    #             P_ref = Array(P_ref);
+    #             @require !all(CPUArray(P .== P_ref))
+    #             update_halo!(P);
+    #             @test all(CPUArray(P .== P_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (non-default overlap)" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=4, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #             P     = zeros(nx, ny, nz);
+    #             P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+    #             P_ref = copy(P);
+    #             P[[1, end],       :,       :] .= 0.0;
+    #             P[       :,[1, end],       :] .= 0.0;
+    #             P[       :,       :,[1, end]] .= 0.0;
+    #             P     = Array(P);
+    #             P_ref = Array(P_ref);
+    #             @require !all(CPUArray(P .== P_ref))
+    #             update_halo!(P);
+    #             @test all(CPUArray(P .== P_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (not periodic)" begin
+    #             me, dims, nprocs, coords = init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
+    #             P     = zeros(nx, ny, nz);
+    #             P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+    #             P_ref = copy(P);
+    #             P[[1, end],       :,       :] .= 0.0;
+    #             P[       :,[1, end],       :] .= 0.0;
+    #             P[       :,       :,[1, end]] .= 0.0;
+    #             P     = Array(P);
+    #             P_ref = Array(P_ref);
+    #             @require !all(CPUArray(P .== P_ref))
+    #             update_halo!(P);
+    #             @test all(CPUArray(P[2:end-1,2:end-1,2:end-1] .== P_ref[2:end-1,2:end-1,2:end-1]))
+    #             if (coords[1] ==         0) @test all(CPUArray(P[  1,  :,  :] .== 0.0)); else @test all(CPUArray(P[      1,2:end-1,2:end-1] .== P_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
+    #             if (coords[1] == dims[1]-1) @test all(CPUArray(P[end,  :,  :] .== 0.0)); else @test all(CPUArray(P[    end,2:end-1,2:end-1] .== P_ref[    end,2:end-1,2:end-1])); end
+    #             if (coords[2] ==         0) @test all(CPUArray(P[  :,  1,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,      1,2:end-1] .== P_ref[2:end-1,      1,2:end-1])); end
+    #             if (coords[2] == dims[2]-1) @test all(CPUArray(P[  :,end,  :] .== 0.0)); else @test all(CPUArray(P[2:end-1,    end,2:end-1] .== P_ref[2:end-1,    end,2:end-1])); end
+    #             if (coords[3] ==         0) @test all(CPUArray(P[  :,  :,  1] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,      1] .== P_ref[2:end-1,2:end-1,      1])); end
+    #             if (coords[3] == dims[3]-1) @test all(CPUArray(P[  :,  :,end] .== 0.0)); else @test all(CPUArray(P[2:end-1,2:end-1,    end] .== P_ref[2:end-1,2:end-1,    end])); end
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #     end;
+    #     @testset "staggered grid (default: periodic)" begin
+    #         @testset "1D" begin
+    #             init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vx     = zeros(nx+1);
+    #             Vx    .= [x_g(ix,dx,Vx) for ix=1:size(Vx,1)];
+    #             Vx_ref = copy(Vx);
+    #             Vx[[1, end]] .= 0.0;
+    #             Vx     = Array(Vx);
+    #             Vx_ref = Array(Vx_ref);
+    #             @require !all(CPUArray(Vx .== Vx_ref))
+    #             update_halo!(Vx);
+    #             @test all(CPUArray(Vx .== Vx_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "2D" begin
+    #             init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vy     = zeros(nx,ny+1);
+    #             Vy    .= [y_g(iy,dy,Vy)*1e1 + x_g(ix,dx,Vy) for ix=1:size(Vy,1), iy=1:size(Vy,2)];
+    #             Vy_ref = copy(Vy);
+    #             Vy[[1, end],       :] .= 0.0;
+    #             Vy[       :,[1, end]] .= 0.0;
+    #             Vy     = Array(Vy);
+    #             Vy_ref = Array(Vy_ref);
+    #             @require !all(CPUArray(Vy .== Vy_ref))
+    #             update_halo!(Vy);
+    #             @test all(CPUArray(Vy .== Vy_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vz     = zeros(nx,ny,nz+1);
+    #             Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #             Vz_ref = copy(Vz);
+    #             Vz[[1, end],       :,       :] .= 0.0;
+    #             Vz[       :,[1, end],       :] .= 0.0;
+    #             Vz[       :,       :,[1, end]] .= 0.0;
+    #             Vz     = Array(Vz);
+    #             Vz_ref = Array(Vz_ref);
+    #             @require !all(CPUArray(Vz .== Vz_ref))
+    #             update_halo!(Vz);
+    #             @test all(CPUArray(Vz .== Vz_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (non-default overlap)" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=3, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vx     = zeros(nx+1,ny,nz);
+    #             Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+    #             Vx_ref = copy(Vx);
+    #             Vx[[1, end],       :,       :] .= 0.0;
+    #             Vx[       :,[1, end],       :] .= 0.0;
+    #             Vx[       :,       :,[1, end]] .= 0.0;
+    #             Vx     = Array(Vx);
+    #             Vx_ref = Array(Vx_ref);
+    #             @require !all(CPUArray(Vx .== Vx_ref))
+    #             update_halo!(Vx);
+    #             @test all(CPUArray(Vx .== Vx_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (not periodic)" begin
+    #             me, dims, nprocs, coords = init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
+    #             Vz     = zeros(nx,ny,nz+1);
+    #             Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #             Vz_ref = copy(Vz);
+    #             Vz[[1, end],       :,       :] .= 0.0;
+    #             Vz[       :,[1, end],       :] .= 0.0;
+    #             Vz[       :,       :,[1, end]] .= 0.0;
+    #             Vz     = Array(Vz);
+    #             Vz_ref = Array(Vz_ref);
+    #             @require !all(CPUArray(Vz .== Vz_ref))
+    #             update_halo!(Vz);
+    #             @test all(CPUArray(Vz[2:end-1,2:end-1,2:end-1] .== Vz_ref[2:end-1,2:end-1,2:end-1]))
+    #             if (coords[1] ==         0) @test all(CPUArray(Vz[  1,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[      1,2:end-1,2:end-1] .== Vz_ref[      1,2:end-1,2:end-1])); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
+    #             if (coords[1] == dims[1]-1) @test all(CPUArray(Vz[end,  :,  :] .== 0.0)); else @test all(CPUArray(Vz[    end,2:end-1,2:end-1] .== Vz_ref[    end,2:end-1,2:end-1])); end
+    #             if (coords[2] ==         0) @test all(CPUArray(Vz[  :,  1,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,      1,2:end-1] .== Vz_ref[2:end-1,      1,2:end-1])); end
+    #             if (coords[2] == dims[2]-1) @test all(CPUArray(Vz[  :,end,  :] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,    end,2:end-1] .== Vz_ref[2:end-1,    end,2:end-1])); end
+    #             if (coords[3] ==         0) @test all(CPUArray(Vz[  :,  :,  1] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,      1] .== Vz_ref[2:end-1,2:end-1,      1])); end
+    #             if (coords[3] == dims[3]-1) @test all(CPUArray(Vz[  :,  :,end] .== 0.0)); else @test all(CPUArray(Vz[2:end-1,2:end-1,    end] .== Vz_ref[2:end-1,2:end-1,    end])); end
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "2D (no halo in one dim)" begin
+    #             init_global_grid(nx, ny, 1; periodx=1, periody=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             A     = zeros(nx-1,ny+2);
+    #             A    .= [y_g(iy,dy,A)*1e1 + x_g(ix,dx,A) for ix=1:size(A,1), iy=1:size(A,2)];
+    #             A_ref = copy(A);
+    #             A[[1, end],       :] .= 0.0;
+    #             A[       :,[1, end]] .= 0.0;
+    #             A     = Array(A);
+    #             A_ref = Array(A_ref);
+    #             @require !all(CPUArray(A .== A_ref))
+    #             update_halo!(A);
+    #             @test all(CPUArray(A[2:end-1,:] .== A_ref[2:end-1,:]))
+    #             @test all(CPUArray(A[[1, end],:] .== 0.0))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (no halo in one dim)" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             A     = zeros(nx+2,ny-1,nz+1);
+    #             A    .= [z_g(iz,dz,A)*1e2 + y_g(iy,dy,A)*1e1 + x_g(ix,dx,A) for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)];
+    #             A_ref = copy(A);
+    #             A[[1, end],       :,       :] .= 0.0;
+    #             A[       :,[1, end],       :] .= 0.0;
+    #             A[       :,       :,[1, end]] .= 0.0;
+    #             A     = Array(A);
+    #             A_ref = Array(A_ref);
+    #             @require !all(CPUArray(A .== A_ref))
+    #             update_halo!(A);
+    #             @test all(CPUArray(A[:,2:end-1,:] .== A_ref[:,2:end-1,:]))
+    #             @test all(CPUArray(A[:,[1, end],:] .== 0.0))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         @testset "3D (Complex)" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vz     = zeros(ComplexF16,nx,ny,nz+1);
+    #             Vz    .= [(1+im)*(z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz)) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #             Vz_ref = copy(Vz);
+    #             Vz[[1, end],       :,       :] .= 0.0;
+    #             Vz[       :,[1, end],       :] .= 0.0;
+    #             Vz[       :,       :,[1, end]] .= 0.0;
+    #             Vz     = Array(Vz);
+    #             Vz_ref = Array(Vz_ref);
+    #             @require !all(CPUArray(Vz .== Vz_ref))
+    #             update_halo!(Vz);
+    #             @test all(CPUArray(Vz .== Vz_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #         # @testset "3D (changing datatype)" begin
+    #         #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #         #     Vz     = zeros(nx,ny,nz+1);
+    #         #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #         #     Vz_ref = copy(Vz);
+    #         #     Vx     = zeros(Float32,nx+1,ny,nz);
+    #         #     Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+    #         #     Vx_ref = copy(Vx);
+    #         #     Vz[[1, end],       :,       :] .= 0.0;
+    #         #     Vz[       :,[1, end],       :] .= 0.0;
+    #         #     Vz[       :,       :,[1, end]] .= 0.0;
+    #         #     Vz     = Array(Vz);
+    #         #     Vz_ref = Array(Vz_ref);
+    #         #     @require !all(Vz .== Vz_ref)
+    #         #     update_halo!(Vz);
+    #         #     @test all(Vz .== Vz_ref)
+    #         #     Vx[[1, end],       :,       :] .= 0.0;
+    #         #     Vx[       :,[1, end],       :] .= 0.0;
+    #         #     Vx[       :,       :,[1, end]] .= 0.0;
+    #         #     Vx     = Array(Vx);
+    #         #     Vx_ref = Array(Vx_ref);
+    #         #     @require !all(Vx .== Vx_ref)
+    #         #     update_halo!(Vx);
+    #         #     @test all(Vx .== Vx_ref)
+    #         #     #TODO: added for GPU - quick fix:
+    #         #     Vz     = zeros(nx,ny,nz+1);
+    #         #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #         #     Vz_ref = copy(Vz);
+    #         #     Vz[[1, end],       :,       :] .= 0.0;
+    #         #     Vz[       :,[1, end],       :] .= 0.0;
+    #         #     Vz[       :,       :,[1, end]] .= 0.0;
+    #         #     Vz     = Array(Vz);
+    #         #     Vz_ref = Array(Vz_ref);
+    #         #     @require !all(Vz .== Vz_ref)
+    #         #     update_halo!(Vz);
+    #         #     @test all(Vz .== Vz_ref)
+    #         #     finalize_global_grid(finalize_MPI=false);
+    #         # end;
+    #         # @testset "3D (changing datatype) (Complex)" begin
+    #         #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #         #     Vz     = zeros(nx,ny,nz+1);
+    #         #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #         #     Vz_ref = copy(Vz);
+    #         #     Vx     = zeros(ComplexF64,nx+1,ny,nz);
+    #         #     Vx    .= [(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+    #         #     Vx_ref = copy(Vx);
+    #         #     Vz[[1, end],       :,       :] .= 0.0;
+    #         #     Vz[       :,[1, end],       :] .= 0.0;
+    #         #     Vz[       :,       :,[1, end]] .= 0.0;
+    #         #     Vz     = Array(Vz);
+    #         #     Vz_ref = Array(Vz_ref);
+    #         #     @require !all(Vz .== Vz_ref)
+    #         #     update_halo!(Vz);
+    #         #     @test all(Vz .== Vz_ref)
+    #         #     Vx[[1, end],       :,       :] .= 0.0;
+    #         #     Vx[       :,[1, end],       :] .= 0.0;
+    #         #     Vx[       :,       :,[1, end]] .= 0.0;
+    #         #     Vx     = Array(Vx);
+    #         #     Vx_ref = Array(Vx_ref);
+    #         #     @require !all(Vx .== Vx_ref)
+    #         #     update_halo!(Vx);
+    #         #     @test all(Vx .== Vx_ref)
+    #         #     #TODO: added for GPU - quick fix:
+    #         #     Vz     = zeros(nx,ny,nz+1);
+    #         #     Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #         #     Vz_ref = copy(Vz);
+    #         #     Vz[[1, end],       :,       :] .= 0.0;
+    #         #     Vz[       :,[1, end],       :] .= 0.0;
+    #         #     Vz[       :,       :,[1, end]] .= 0.0;
+    #         #     Vz     = Array(Vz);
+    #         #     Vz_ref = Array(Vz_ref);
+    #         #     @require !all(Vz .== Vz_ref)
+    #         #     update_halo!(Vz);
+    #         #     @test all(Vz .== Vz_ref)
+    #         #     finalize_global_grid(finalize_MPI=false);
+    #         # end;
+    #         @testset "3D (two fields simultaneously)" begin
+    #             init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+    #             Vz     = zeros(nx,ny,nz+1);
+    #             Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+    #             Vz_ref = copy(Vz);
+    #             Vx     = zeros(nx+1,ny,nz);
+    #             Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+    #             Vx_ref = copy(Vx);
+    #             Vz[[1, end],       :,       :] .= 0.0;
+    #             Vz[       :,[1, end],       :] .= 0.0;
+    #             Vz[       :,       :,[1, end]] .= 0.0;
+    #             Vx[[1, end],       :,       :] .= 0.0;
+    #             Vx[       :,[1, end],       :] .= 0.0;
+    #             Vx[       :,       :,[1, end]] .= 0.0;
+    #             Vz     = Array(Vz);
+    #             Vz_ref = Array(Vz_ref);
+    #             Vx     = Array(Vx);
+    #             Vx_ref = Array(Vx_ref);
+    #             @require !all(CPUArray(Vz .== Vz_ref))
+    #             @require !all(CPUArray(Vx .== Vx_ref))
+    #             update_halo!(Vz, Vx);
+    #             @test all(CPUArray(Vz .== Vz_ref))
+    #             @test all(CPUArray(Vx .== Vx_ref))
+    #             finalize_global_grid(finalize_MPI=false);
+    #         end;
+    #     end;
+    # end;
 end;
 
 ## Test tear down

@@ -91,18 +91,18 @@ let
     curecvbufs_raw_h = nothing
     rocsendbufs_raw = nothing
     rocrecvbufs_raw = nothing
-    rocsendbufs_raw_h = nothing
-    rocrecvbufs_raw_h = nothing
+    # rocsendbufs_raw_h = nothing
+    # rocrecvbufs_raw_h = nothing
 
     function free_update_halo_buffers()
         if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(cusendbufs_raw) end
         if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(curecvbufs_raw) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(cusendbufs_raw_h) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(curecvbufs_raw_h) end
-        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
-        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
-        if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocsendbufs_raw_h) end
-        if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocrecvbufs_raw_h) end
+        # if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
+        # if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
+        # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocsendbufs_raw_h) end
+        # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocrecvbufs_raw_h) end
         sendbufs_raw = nothing
         recvbufs_raw = nothing
         cusendbufs_raw = nothing
@@ -111,8 +111,8 @@ let
         curecvbufs_raw_h = nothing
         rocsendbufs_raw = nothing
         rocrecvbufs_raw = nothing
-        rocsendbufs_raw_h = nothing
-        rocrecvbufs_raw_h = nothing
+        # rocsendbufs_raw_h = nothing
+        # rocrecvbufs_raw_h = nothing
         GC.gc()
     end
 
@@ -124,7 +124,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
-                    if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
+                    # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
                 end
             end
         end
@@ -135,7 +135,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    if (isa(bufs[i][n],AMDGPU.Mem.Buffer))   AMDGPU.Mem.unlock(bufs[i][n]); bufs[i][n] = []; end
+                    # if (isa(bufs[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
@@ -170,12 +170,12 @@ let
             end
             if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
-                    if (is_cuarray(A) &&  any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                    if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
                 end
             end
             if (!isnothing(rocsendbufs_raw) && length(rocsendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
-                    if (is_rocarray(A) &&  any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                    if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
                 end
             end
         end
@@ -244,15 +244,15 @@ let
     function init_rocbufs_arrays()
         rocsendbufs_raw = Array{Array{Any,1},1}();
         rocrecvbufs_raw = Array{Array{Any,1},1}();
-        rocsendbufs_raw_h = Array{Array{Any,1},1}();
-        rocrecvbufs_raw_h = Array{Array{Any,1},1}();
+        # rocsendbufs_raw_h = Array{Array{Any,1},1}();
+        # rocrecvbufs_raw_h = Array{Array{Any,1},1}();
     end
 
     function init_rocbufs(T::DataType, fields::GGArray...)
         while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
-        while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [[], []]); end
-        while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [[], []]); end
+        # while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [[], []]); end
+        # while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [[], []]); end
     end
 
     function reinterpret_rocbufs(T::DataType, i::Integer, n::Integer)
@@ -266,10 +266,12 @@ let
     end
 
     function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
-        if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
-        if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.Buffer)) AMDGPU.Mem.unlock(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
-        rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]);
-        rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]);
+        # if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
+        # if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
+        # rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]);
+        # rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]);
+        rocsendbufs_raw[i][n] = register(ROCArray,sendbufs_raw[i][n]);
+        rocrecvbufs_raw[i][n] = register(ROCArray,recvbufs_raw[i][n]);
     end
 
 

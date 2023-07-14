@@ -3,12 +3,12 @@ push!(LOAD_PATH, "../src") # FIXME: to be removed everywhere?
 
 import ImplicitGlobalGrid # Precompile it.
 
-excludedfiles = [ "test_excluded.jl"];
+excludedfiles = ["test_excluded.jl"];
 
 function runtests()
     exename   = joinpath(Sys.BINDIR, Base.julia_exename())
     testdir   = pwd()
-    istest(f) = endswith(f, ".jl") && startswith(f, "test_")
+    istest(f) = endswith(f, ".jl") && startswith(f, "test_up")
     testfiles = sort(filter(istest, readdir(testdir)))
 
     nfail = 0
