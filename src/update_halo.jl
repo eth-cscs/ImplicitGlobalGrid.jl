@@ -27,7 +27,7 @@ function _update_halo!(fields::GGArray...)
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
     if any_cuarray(fields...) allocate_custreams(fields...); end
-    if any_rocarray(fields...) allocate_rocqueues(fields...); end
+    if any_rocarray(fields...) allocate_rocstreams(fields...); end
 
     for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
@@ -99,8 +99,8 @@ let
         if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(curecvbufs_raw) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(cusendbufs_raw_h) end
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(curecvbufs_raw_h) end
-        # if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
-        # if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
+        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
+        if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
         # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocsendbufs_raw_h) end
         # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocrecvbufs_raw_h) end
         sendbufs_raw = nothing
@@ -124,7 +124,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if is_cuarray(bufs[i][n])  CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
-                    # if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
+                    if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
                 end
             end
         end
@@ -417,7 +417,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]);
+    wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
 
     function allocate_custreams_iwrite(fields::GGArray...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
@@ -445,7 +445,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = synchronize(custreams[n,i]);
+    wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
 
     function allocate_custreams_iread(fields::GGArray...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
@@ -481,7 +481,7 @@ let
 
     rocstreams = Array{AMDGPU.HIPStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = synchronize(rocstreams[n,i]);
+    wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocstreams[n,i]);
 
     function allocate_rocstreams_iwrite(fields::GGArray...)
         if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
@@ -492,15 +492,15 @@ let
     function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
-            if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-            else
-                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
-            end
+            # else
+            #     write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
+            # end
         end
     end
 end
@@ -510,7 +510,7 @@ let
 
     rocstreams = Array{AMDGPU.HIPStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = synchronize(rocstreams[n,i]);
+    wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocstreams[n,i]);
 
     function allocate_rocstreams_iread(fields::GGArray...)
         if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
@@ -521,15 +521,15 @@ let
     function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
-            if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-            else
-                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
-            end
+            # else
+            #     read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
+            # end
         end
     end
 
@@ -688,11 +688,6 @@ end
 #     )
 #     return nothing
 # end
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
-    AMDGPU.stream!(rocstream)
-    AMDGPU.Base.copyto!(sendbuf, 1, A, 1, sendranges; async=true)
-    return nothing
-end
 
 # # Read from the receive buffer on the host and store on the array on the device (h2d).
 # function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
@@ -707,11 +702,6 @@ end
 #     )
 #     return nothing
 # end
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
-    AMDGPU.stream!(rocstream)
-    AMDGPU.Base.copyto!(recvbuf, 1, A, 1, recvranges)
-    return nothing
-end
 
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
