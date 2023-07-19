@@ -715,6 +715,12 @@ dz = 1.0
                         GG.recvbuf(n,dim,2,A) .= 0;
                     end
                 end
+                # DEBUG: Filling arrays is async (at least on AMDGPU); sync is needed.
+                if (array_type=="CUDA" && GG.cudaaware_MPI(dim))
+                    CUDA.synchronize()
+                elseif (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
+                    AMDGPU.synchronize()
+                end
                 reqs  = fill(MPI.REQUEST_NULL, 2, nneighbors_per_dim, 2);
                 for n = 1:nneighbors_per_dim
                     reqs[1,n,1] = GG.irecv_halo!(n, dim, P, 1);
