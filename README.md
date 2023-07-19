@@ -1,16 +1,17 @@
-<h1> <img src="docs/logo/logo_ImplicitGlobalGrid.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
+<h1> <img src="docs/src/assets/logo.png" alt="ImplicitGlobalGrid.jl" width="50"> ImplicitGlobalGrid.jl </h1>
 
-[![Build Status](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/workflows/CI/badge.svg)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions)
+[![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/workflows/CI/badge.svg?branch=master)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/omlins/ImplicitGlobalGrid.jl)
 
 ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University (Dr. Ludovic Räss) and the Swiss Geocomputing Centre (Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs \[[1][JuliaCon19], [2][PASC19], [3][JuliaCon20a]\]:
 
-![Weak scaling Piz Daint](docs/images/fig_parEff_HM3D_Julia_CUDA_all_Daint_extrapol.png)
+![Weak scaling Piz Daint](docs/src/assets/images/fig_parEff_HM3D_Julia_CUDA_all_Daint_extrapol.png)
 
 ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl]) to perform halo updates close to hardware limit and leverages CUDA-aware or ROCm-aware MPI for GPU-applications. The communication can straightforwardly be hidden behind computation \[[1][JuliaCon19], [3][JuliaCon20a]\] (how this can be done automatically when using ParallelStencil.jl is shown in \[[3][JuliaCon20a]\]; a general approach particularly suited for CUDA C applications is explained in \[[4][GTC19]\]).
 
 A particularity of ImplicitGlobalGrid is the automatic *implicit creation of the global computational grid* based on the number of processes the application is run with (and based on the process topology, which can be explicitly chosen by the user or automatically defined). As a consequence, the user only needs to write a code to solve his problem on one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform a single GPU/CPU application into a massively scaling Multi-GPU/CPU application**. See the [example](#multi-gpu-with-three-functions) below. 1-D, 2-D and 3-D grids are supported. Here is a sketch of the global grid that results from running a 2-D solver with 4 processes (P1-P4) (a 2x2 process topology is created by default in this case):
 
-![Implicit global grid](docs/images/implicit_global_grid.png)
+![Implicit global grid](docs/src/assets/images/implicit_global_grid.png)
 
 ## Contents
 * [Multi-GPU with three functions](#multi-gpu-with-three-functions)
@@ -157,10 +158,10 @@ diffusion3D()
 
 Here is the resulting movie when running the application on 8 GPUs, solving 3-D heat diffusion with heterogeneous heat capacity (two Gaussian anomalies) on a global computational grid of size 510x510x510 grid points. It shows the x-z-dimension plane in the middle of the dimension y:
 
-![Implicit global grid](docs/movies/diffusion3D_8gpus.gif)
+![Implicit global grid](docs/src/assets/videos/diffusion3D_8gpus.gif)
 
 The simulation producing this movie - *including the in-situ visualization* - took 29 minutes on 8 NVIDIA® Tesla® P100 GPUs on Piz Daint (an optimized solution using [CUDA.jl]'s native kernel programming capabilities can be more than 10 times faster).
-The complete example can be found [here](docs/examples/diffusion3D_multigpu_CuArrays.jl). A corresponding basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu.jl) (no usage of multi-threading) and a movie of a simulation with 254x254x254 grid points which it produced within 34 minutes using 8 Intel® Xeon® E5-2690 v3 is found [here](docs/movies/diffusion3D_8cpus.gif) (with 8 processes, no multi-threading).
+The complete example can be found [here](docs/examples/diffusion3D_multigpu_CuArrays.jl). A corresponding basic cpu-only example is available [here](docs/examples/diffusion3D_multicpu.jl) (no usage of multi-threading) and a movie of a simulation with 254x254x254 grid points which it produced within 34 minutes using 8 Intel® Xeon® E5-2690 v3 is found [here](docs/src/assets/videos/diffusion3D_8cpus.gif) (with 8 processes, no multi-threading).
 
 ## Seamless interoperability with MPI.jl
 ImplicitGlobalGrid is seamlessly interoperable with [MPI.jl]. The Cartesian MPI communicator it uses is created by default when calling `init_global_grid` and can then be obtained as follows (variable `comm_cart`):

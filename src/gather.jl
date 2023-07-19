@@ -7,7 +7,7 @@ export gather!
 Gather a CPU-array `A` from each member of the Cartesian grid of MPI processes into a one large CPU-array `A_global` on the root process (default: `0`).
 
 !!! note "Memory usage note"
-    `gather!` allocates at first call an internal buffer of the size of `A_global` and keeps it alive until `finalize_global_grid` is called. A (re-)allocation occurs only if `gather!` is called with a larger `A_global` than in any previous call since the call to `init_global_grid`. This is an optimisation to minimize (re-)allocation, which is very important as `gather!` is typically called in the main loop of a simulation and its performance is critical for the overall application performance.
+    `gather!` allocates at first call an internal buffer of the size of `A_global` and keeps it alive until [`finalize_global_grid`](@ref) is called. A (re-)allocation occurs only if `gather!` is called with a larger `A_global` than in any previous call since the call to [`init_global_grid`](@ref). This is an optimisation to minimize (re-)allocation, which is very important as `gather!` is typically called in the main loop of a simulation and its performance is critical for the overall application performance.
 """
 gather!
 
