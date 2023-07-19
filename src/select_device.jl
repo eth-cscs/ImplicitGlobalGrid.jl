@@ -27,7 +27,7 @@ function select_device()
         me_l      = MPI.Comm_rank(comm_l)
         device_id = amdgpu_enabled() ? me_l+1 : me_l
         if     cuda_enabled()   CUDA.device!(device_id)
-        elseif amdgpu_enabled() AMDGPU.device!(device_id)
+        elseif amdgpu_enabled() AMDGPU.device_id!(device_id)
         end
         return device_id
     else
