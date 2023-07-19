@@ -20,9 +20,9 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.7' # Minimum required Julia version (due to dependency of AMDGPU.jl)
+          - '1.8' # Minimum required Julia version (due to dependency of AMDGPU.jl)
           - '1'   # Latest stable 1.x release of Julia
-          # - 'nightly'
+          - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
