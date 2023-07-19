@@ -8,7 +8,7 @@ excludedfiles = ["test_excluded.jl"];
 function runtests()
     exename   = joinpath(Sys.BINDIR, Base.julia_exename())
     testdir   = pwd()
-    istest(f) = endswith(f, ".jl") && startswith(f, "test_up")
+    istest(f) = endswith(f, ".jl") && startswith(f, "test_")
     testfiles = sort(filter(istest, readdir(testdir)))
 
     nfail = 0
