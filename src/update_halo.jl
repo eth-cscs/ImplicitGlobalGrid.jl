@@ -99,8 +99,7 @@ let
     curecvbufs_raw_h = nothing
     rocsendbufs_raw = nothing
     rocrecvbufs_raw = nothing
-    # rocsendbufs_raw_h = nothing
-    # rocrecvbufs_raw_h = nothing
+    # INFO: no need for roc host buffers
 
     function free_update_halo_buffers()
         if (cuda_enabled() && any(cudaaware_MPI())) free_gpubufs(cusendbufs_raw) end
@@ -109,8 +108,7 @@ let
         if (cuda_enabled() && none(cudaaware_MPI())) unregister_gpubufs(curecvbufs_raw_h) end
         if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocsendbufs_raw) end
         if (amdgpu_enabled() && any(amdgpuaware_MPI())) free_gpubufs(rocrecvbufs_raw) end
-        # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocsendbufs_raw_h) end
-        # if (amdgpu_enabled() && none(amdgpuaware_MPI())) unregister_gpubufs(rocrecvbufs_raw_h) end
+        # INFO: no need to unregister roc host buffers
         sendbufs_raw = nothing
         recvbufs_raw = nothing
         cusendbufs_raw = nothing
@@ -119,8 +117,7 @@ let
         curecvbufs_raw_h = nothing
         rocsendbufs_raw = nothing
         rocrecvbufs_raw = nothing
-        # rocsendbufs_raw_h = nothing
-        # rocrecvbufs_raw_h = nothing
+        # INFO: no need for roc host buffers
         GC.gc()
     end
 
@@ -143,7 +140,7 @@ let
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
                     if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
-                    # if (isa(bufs[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(bufs[i][n]); bufs[i][n] = []; end
+                    # INFO: no need for roc host buffers
                 end
             end
         end
@@ -252,15 +249,13 @@ let
     function init_rocbufs_arrays()
         rocsendbufs_raw = Array{Array{Any,1},1}();
         rocrecvbufs_raw = Array{Array{Any,1},1}();
-        # rocsendbufs_raw_h = Array{Array{Any,1},1}();
-        # rocrecvbufs_raw_h = Array{Array{Any,1},1}();
+        # INFO: no need for roc host buffers
     end
 
     function init_rocbufs(T::DataType, fields::GGArray...)
         while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
-        # while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [[], []]); end
-        # while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [[], []]); end
+        # INFO: no need for roc host buffers
     end
 
     function reinterpret_rocbufs(T::DataType, i::Integer, n::Integer)
@@ -274,10 +269,7 @@ let
     end
 
     function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
-        # if (isa(rocsendbufs_raw_h[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = []; end
-        # if (isa(rocrecvbufs_raw_h[i][n],AMDGPU.Mem.HostBuffer)) AMDGPU.HIP.hipHostUnregister(rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = []; end
-        # rocsendbufs_raw[i][n], rocsendbufs_raw_h[i][n] = register(ROCArray,sendbufs_raw[i][n]);
-        # rocrecvbufs_raw[i][n], rocrecvbufs_raw_h[i][n] = register(ROCArray,recvbufs_raw[i][n]);
+        # INFO: no need for roc host buffers
         rocsendbufs_raw[i][n] = register(ROCArray,sendbufs_raw[i][n]);
         rocrecvbufs_raw[i][n] = register(ROCArray,recvbufs_raw[i][n]);
     end
@@ -500,15 +492,15 @@ let
     function iwrite_sendbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
-            # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-            # else
-            #     write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
-            # end
+            else
+                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
+            end
         end
     end
 end
@@ -529,15 +521,15 @@ let
     function iread_recvbufs!(n::Integer, dim::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber
         if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
             # DEBUG: the follow section needs perf testing
-            # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, A);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
-            # else
-            #     read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
-            # end
+            else
+                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
+            end
         end
     end
 
@@ -683,33 +675,35 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
     return nothing
 end
 
-# # Write to the send buffer on the host from the array on the device (d2h).
-# function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-#     locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(sendbuf),sizeof(sendbuf),get_default_agent()))
-#     AMDGPU.Mem.unsafe_copy3d!(
-#         locked_ptr, pointer(A),
-#         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
-#         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
-#         srcPitch=sizeof(T)*size(A,1), srcSlice=sizeof(T)*size(A,1)*size(A,2),
-#         dstPitch=sizeof(T)*length(sendranges[1]), dstSlice=sizeof(T)*length(sendranges[1])*length(sendranges[2]),
-#         async=true, signal=signal
-#     )
-#     return nothing
-# end
+# Write to the send buffer on the host from the array on the device (d2h).
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    buf_view = reshape(sendbuf, Tuple(length.(sendranges)))
+    AMDGPU.Mem.unsafe_copy3d!(
+        pointer(sendbuf), AMDGPU.Mem.HostBuffer,
+        pointer(A), typeof(A.buf),
+        length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
+        srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
+        dstPitch=sizeof(T) * size(buf_view, 1), dstHeight=size(buf_view, 2),
+        srcPitch=sizeof(T) * size(A, 1), srcHeight=size(A, 2),
+        async=true, stream=rocstream
+    )
+    return nothing
+end
 
-# # Read from the receive buffer on the host and store on the array on the device (h2d).
-# function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, signal::HSASignal) where T <: GGNumber where T2 <: Integer
-#     locked_ptr = convert(Ptr{T}, AMDGPU.Mem.lock(pointer(recvbuf),sizeof(recvbuf),get_default_agent()))
-#     AMDGPU.Mem.unsafe_copy3d!(
-#         pointer(A), locked_ptr,
-#         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
-#         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
-#         srcPitch=sizeof(T)*length(recvranges[1]), srcSlice=sizeof(T)*length(recvranges[1])*length(recvranges[2]),
-#         dstPitch=sizeof(T)*size(A,1), dstSlice=sizeof(T)*size(A,1)size(A,2),
-#         async=true, signal=signal
-#     )
-#     return nothing
-# end
+# Read from the receive buffer on the host and store on the array on the device (h2d).
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    buf_view = reshape(recvbuf, Tuple(length.(recvranges)))
+    AMDGPU.Mem.unsafe_copy3d!(
+        pointer(A), typeof(A.buf),
+        pointer(recvbuf), AMDGPU.Mem.HostBuffer,
+        length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
+        dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
+        dstPitch=sizeof(T) * size(A,1), dstHeight=size(A, 2),
+        srcPitch=sizeof(T) * size(buf_view, 1), srcHeight=size(buf_view, 2),
+        async=true, stream=rocstream
+    )
+    return nothing
+end
 
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
