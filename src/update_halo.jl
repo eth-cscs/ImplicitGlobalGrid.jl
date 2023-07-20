@@ -698,7 +698,7 @@ function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::
         pointer(recvbuf), AMDGPU.Mem.HostBuffer,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
-        dstPitch=sizeof(T) * size(A,1), dstHeight=size(A, 2),
+        dstPitch=sizeof(T) * size(A, 1), dstHeight=size(A, 2),
         srcPitch=sizeof(T) * size(buf_view, 1), srcHeight=size(buf_view, 2),
         async=true, stream=rocstream
     )
