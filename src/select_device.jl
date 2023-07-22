@@ -20,14 +20,14 @@ function select_device()
             nb_devices = length(CUDA.devices())
         elseif amdgpu_enabled()
             @assert AMDGPU.functional()
-            nb_devices = length(AMDGPU.get_agents(:gpu))
+            nb_devices = length(AMDGPU.devices())
         end
-        comm_l = MPI.Comm_split_type(comm(), MPI.MPI_COMM_TYPE_SHARED, me())
+        comm_l = MPI.Comm_split_type(comm(), MPI.COMM_TYPE_SHARED, me())
         if (MPI.Comm_size(comm_l) > nb_devices) error("More processes have been launched per node than there are GPUs available."); end
         me_l      = MPI.Comm_rank(comm_l)
         device_id = amdgpu_enabled() ? me_l+1 : me_l
         if     cuda_enabled()   CUDA.device!(device_id)
-        elseif amdgpu_enabled() AMDGPU.device!(device_id)
+        elseif amdgpu_enabled() AMDGPU.device_id!(device_id)
         end
         return device_id
     else

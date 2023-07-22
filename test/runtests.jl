@@ -3,7 +3,7 @@ push!(LOAD_PATH, "../src") # FIXME: to be removed everywhere?
 
 import ImplicitGlobalGrid # Precompile it.
 
-excludedfiles = [ "test_excluded.jl"];
+excludedfiles = ["test_excluded.jl"];
 
 function runtests()
     exename   = joinpath(Sys.BINDIR, Base.julia_exename())

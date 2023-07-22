@@ -102,7 +102,7 @@ amdgpuaware_MPI()                      = global_grid().amdgpuaware_MPI
 amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
 loopvectorization()                    = global_grid().loopvectorization
 loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
-has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.MPI_PROC_NULL
+has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
 any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
 any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
 any_rocarray(fields::GGArray...)       = any([is_rocarray(A) for A in fields])
@@ -125,5 +125,5 @@ end
 ## AMDGPU functions
 
 function register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
-    return unsafe_wrap(ROCArray,pointer(buf),size(buf)), pointer(buf);
+    return unsafe_wrap(ROCArray, pointer(buf), size(buf))
 end
