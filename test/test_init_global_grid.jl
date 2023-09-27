@@ -100,6 +100,7 @@ nz = 1;
         @test_throws ErrorException init_global_grid(nx, ny, 1, dimz=3, quiet=true, init_MPI=false);                 # Error: dimz>1 while nz==1.
         @test_throws ErrorException init_global_grid(nx, ny, 1, periodz=1, quiet=true, init_MPI=false);              # Error: periodz==1 while nz==1.
         @test_throws ErrorException init_global_grid(nx, ny, nz, periody=1, overlaps=(2,3,2), quiet=true, init_MPI=false); # Error: periody==1 while ny<2*overlaps[2]-1 (4<5).
+        @test_throws ErrorException init_global_grid(nx, ny, nz, overlaps=(4,3,2), halowidths=(2,2,1), quiet=true, init_MPI=false); # Error: halowidths[2]==2 while overlaps[2]==3.
         @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true);                                        # Error: MPI already initialized
         @testset "already initialized exception" begin
             init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
