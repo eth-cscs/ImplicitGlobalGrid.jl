@@ -213,7 +213,7 @@ dz = 1.0
     @testset "3. data transfer components" begin
         @testset "iwrite_sendbufs! / iread_recvbufs!" begin
             @testset "sendranges / recvranges ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P   = zeros(nx,  ny,  nz  );
                 A   = zeros(nx-1,ny+2,nz+1);
                 @test GG.sendranges(1, 1, P) == [                    2:2,             1:size(P,2),             1:size(P,3)]
@@ -409,7 +409,7 @@ dz = 1.0
                 end;
             end
             @testset "iwrite_sendbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
                 P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
@@ -497,7 +497,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
                 GG.allocate_bufs(P, A);
@@ -611,7 +611,7 @@ dz = 1.0
             end;
             if (nprocs==1)
                 @testset "sendrecv_halo_local ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                     P = zeros(nx,  ny,  nz  );
                     A = zeros(nx-1,ny+2,nz+1);
                     GG.allocate_bufs(P, A);
@@ -789,7 +789,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=4, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P     = zeros(nx, ny, nz);
                 P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
                 P_ref = copy(P);
@@ -869,7 +869,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlapx=3, overlapz=3, quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(3,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 Vx     = zeros(nx+1,ny,nz);
                 Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
                 Vx_ref = copy(Vx);
