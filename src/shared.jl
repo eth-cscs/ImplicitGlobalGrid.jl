@@ -41,6 +41,7 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 const GGInt        = Cint
 const GGNumber     = Number
 const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGField{T,N} = NamedTuple{(:A, :halowidths), Tuple{GGArray{T,N}, Tuple{Int,Int,Int}}}
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -48,6 +49,7 @@ struct GlobalGrid
     nxyz::Vector{GGInt}
     dims::Vector{GGInt}
     overlaps::Vector{GGInt}
+    halowidths::Vector{GGInt}
     nprocs::GGInt
     me::GGInt
     coords::Vector{GGInt}
@@ -63,7 +65,7 @@ struct GlobalGrid
     loopvectorization::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
