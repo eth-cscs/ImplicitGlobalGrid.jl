@@ -35,7 +35,7 @@ dz = 1.0
 
     @testset "2. gather!" begin
         @testset "1D" begin
-            me, dims = init_global_grid(nx, 1, 1, overlapx=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, 1, 1, overlaps=(0,0,0), quiet=true, init_MPI=false);
             P   = zeros(nx);
             P_g = zeros(nx*dims[1]);
             P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
@@ -46,7 +46,7 @@ dz = 1.0
             finalize_global_grid(finalize_MPI=false);
         end;
         @testset "2D" begin
-            me, dims = init_global_grid(nx, ny, 1, overlapx=0, overlapy=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, ny, 1, overlaps=(0,0,0), quiet=true, init_MPI=false);
             P   = zeros(nx, ny);
             P_g = zeros(nx*dims[1], ny*dims[2]);
             P  .= [y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2)];
@@ -57,7 +57,7 @@ dz = 1.0
             finalize_global_grid(finalize_MPI=false);
         end;
         @testset "3D" begin
-            me, dims = init_global_grid(nx, ny, nz, overlapx=0, overlapy=0, overlapz=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, ny, nz, overlaps=(0,0,0), quiet=true, init_MPI=false);
             P   = zeros(nx, ny, nz);
             P_g = zeros(nx*dims[1], ny*dims[2], nz*dims[3]);
             P  .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
@@ -68,7 +68,7 @@ dz = 1.0
             finalize_global_grid(finalize_MPI=false);
         end;
         @testset "1D, then larger 3D, then smaller 2D" begin
-            me, dims = init_global_grid(nx, ny, nz, overlapx=0, overlapy=0, overlapz=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, ny, nz, overlaps=(0,0,0), quiet=true, init_MPI=false);
             # (1D)
             P   = zeros(nx);
             P_g = zeros(nx*dims[1], dims[2], dims[3]);
@@ -96,7 +96,7 @@ dz = 1.0
             finalize_global_grid(finalize_MPI=false);
         end;
         @testset "Float32, then Float64, then Int16" begin
-            me, dims = init_global_grid(nx, ny, nz, overlapx=0, overlapy=0, overlapz=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, ny, nz, overlaps=(0,0,0), quiet=true, init_MPI=false);
             # Float32 (1D)
             P   = zeros(Float32, nx);
             P_g = zeros(Float32, nx*dims[1], dims[2], dims[3]);
@@ -136,7 +136,7 @@ dz = 1.0
             end;
         end
         @testset "nothing on non-root" begin
-            me, dims = init_global_grid(nx, 1, 1, overlapx=0, quiet=true, init_MPI=false);
+            me, dims = init_global_grid(nx, 1, 1, overlaps=(0,0,0), quiet=true, init_MPI=false);
             P   = zeros(nx);
             P_g = (me == 0) ? zeros(nx*dims[1]) : nothing
             P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
