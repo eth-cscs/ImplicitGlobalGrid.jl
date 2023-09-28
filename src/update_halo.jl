@@ -22,9 +22,15 @@ Update the halo of the given GPU/CPU-array(s).
     shell> export IGG_ROCMAWARE_MPI=1
     ```
 """
-function update_halo!(A::GGArray...)
+function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...)
     check_initialized();
-    check_fields(A...);
+    fields = map(A) do A_i
+        if     isa(A_i, GGField)            return A_i
+        elseif isa(A_i, GGFieldConvertible) return GGField(A_i)
+        elseif isa(A_i, GGArray)            return GGField{eltype(A_i), ndims(A_i)}((A_i, (hw_default()...,)))
+        end
+    end
+    check_fields(fields...);
     _update_halo!(A...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
@@ -801,12 +807,13 @@ end
 ##-------------------------------------------
 ## FUNCTIONS FOR CHECKING THE INPUT ARGUMENTS
 
-function check_fields(fields::GGArray...)
-    # Raise an error if any of the given fields does not have a halo.
+# NOTE: no comparison must be done between the field-local halowidths and field-local overlaps because any combination is valid: the rational is that a field has simply no halo but only computation overlap in a given dimension if the corresponding local overlap is less than 2 times the local halowidth. This allows to determine whether a halo update needs to be done in a certain dimension or not.
+function check_fields(fields::GGField...)
+    # Raise an error if any of the given fields has no halo at all (in any dimension) - in this case there is no halo update to do and including the field in the call is inconsistent.
     no_halo = Int[];
     for i = 1:length(fields)
-        A = fields[i];
-        if all([ol(dim, A) < 2 for dim = 1:ndims(A)]) # There is no halo if the overlap is less than 2...
+        A, halowidths = fields[i]
+        if all([halowidths[dim]==0 || (ol(dim, A) < 2*halowidths[dim]) for dim = 1:ndims(A)]) # There is no halo if the overlap is less than 2 times the halowidth (only computation overlap in this case)...
             push!(no_halo, i);
         end
     end
@@ -817,7 +824,7 @@ function check_fields(fields::GGArray...)
     end
 
     # Raise an error if any of the given fields contains any duplicates.
-    duplicates = [[i,j] for i=1:length(fields) for j=i+1:length(fields) if fields[i]===fields[j]];
+    duplicates = [[i,j] for i=1:length(fields) for j=i+1:length(fields) if fields[i].A===fields[j].A];
     if length(duplicates) > 2
         error("The pairs of fields with the positions $(join(duplicates,", "," and ")) are the same; remove any duplicates from the call.")
     elseif length(duplicates) > 0
@@ -825,7 +832,7 @@ function check_fields(fields::GGArray...)
     end
 
     # Raise an error if not all fields are of the same datatype (restriction comes from buffer handling).
-    different_types = [i for i=2:length(fields) if typeof(fields[i])!=typeof(fields[1])];
+    different_types = [i for i=2:length(fields) if typeof(fields[i].A)!=typeof(fields[1].A)];
     if length(different_types) > 1
         error("The fields at positions $(join(different_types,", "," and ")) are of different type than the first field; make sure that in a same call all fields are of the same type.")
     elseif length(different_types) == 1
