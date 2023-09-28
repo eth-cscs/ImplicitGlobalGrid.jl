@@ -38,10 +38,12 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 ##------
 ## TYPES
 
-const GGInt        = Cint
-const GGNumber     = Number
-const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
-const GGField{T,N} = NamedTuple{(:A, :halowidths), Tuple{GGArray{T,N}, Tuple{Int,Int,Int}}}
+const GGInt                    = Cint
+const GGNumber                 = Number
+const GGArray{T,N}             = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGField{T,N}             = NamedTuple{(:A, :halowidths), Tuple{GGArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
+const GGFieldConvertible{T,N}  = NamedTuple{(:A, :halowidths), <:Tuple{GGArray{T,N}, Tuple{T2,T2,T2}}} where {T2<:Integer}
+const GGField{}(t::NamedTuple) = GGField{eltype(t.A),ndims(t.A)}((t.A, GGInt.(t.halowidths)))
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -94,6 +96,8 @@ me()                                   = global_grid().me
 comm()                                 = global_grid().comm
 ol(dim::Integer)                       = global_grid().overlaps[dim]
 ol(dim::Integer, A::GGArray)           = global_grid().overlaps[dim] + (size(A,dim) - global_grid().nxyz[dim])
+ol(A::GGArray)                         = (ol(dim, A) for dim in 1:ndims(A))
+hw_default()                           = global_grid().halowidths
 neighbors(dim::Integer)                = global_grid().neighbors[:,dim]
 neighbor(n::Integer, dim::Integer)     = global_grid().neighbors[n,dim]
 cuda_enabled()                         = global_grid().cuda_enabled
