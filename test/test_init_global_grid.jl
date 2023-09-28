@@ -36,6 +36,7 @@ nz = 1;
             @test GG.global_grid().nxyz      == [nx, ny, nz]
             @test GG.global_grid().dims      == dims
             @test GG.global_grid().overlaps  == [2, 2, 2]
+            @test GG.global_grid().halowidths== [1, 1, 1]
             @test GG.global_grid().nprocs    == nprocs
             @test GG.global_grid().me        == me
             @test GG.global_grid().coords    == coords
