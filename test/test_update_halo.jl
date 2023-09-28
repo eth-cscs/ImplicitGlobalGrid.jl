@@ -66,14 +66,16 @@ dz = 1.0
         A2  = A;
         Z   = zeros(ComplexF64, nx-1,ny+2,nz+1);
         Z2  = Z;
-        @test_throws ErrorException update_halo!(P, Sxz, A)       # Error: Sxz has no halo.
-        @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)  # Error: Sxz and Sxz have no halo.
-        @test_throws ErrorException update_halo!(P, A, A)         # Error: A is given twice.
-        @test_throws ErrorException update_halo!(P, A, A2)        # Error: A2 is duplicate of A (an alias; it points to the same memory).
-        @test_throws ErrorException update_halo!(P, A, A, A2)     # Error: the second A and A2 are duplicates of the first A.
-        @test_throws ErrorException update_halo!(Z, Z2)           # Error: Z2 is duplicate of Z (an alias; it points to the same memory).
-        @test_throws ErrorException update_halo!(Z, P)            # Error: P is of different type than Z.
-        @test_throws ErrorException update_halo!(Z, P, A)         # Error: P and A are of different type than Z.
+        @test_throws ErrorException update_halo!(P, Sxz, A)                     # Error: Sxz has no halo.
+        @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)                # Error: Sxz and Sxz have no halo.
+        @test_throws ErrorException update_halo!(A, (A=P, halowidths=(2,2,2)))  # Error: P has no halo.
+        @test_throws ErrorException update_halo!((A=A, halowidths=(0,3,2)), (A=P, halowidths=(2,2,2)))  # Error: A and P have no halo.
+        @test_throws ErrorException update_halo!(P, A, A)                       # Error: A is given twice.
+        @test_throws ErrorException update_halo!(P, A, A2)                      # Error: A2 is duplicate of A (an alias; it points to the same memory).
+        @test_throws ErrorException update_halo!(P, A, A, A2)                   # Error: the second A and A2 are duplicates of the first A.
+        @test_throws ErrorException update_halo!(Z, Z2)                         # Error: Z2 is duplicate of Z (an alias; it points to the same memory).
+        @test_throws ErrorException update_halo!(Z, P)                          # Error: P is of different type than Z.
+        @test_throws ErrorException update_halo!(Z, P, A)                       # Error: P and A are of different type than Z.
         finalize_global_grid(finalize_MPI=false);
     end;
 
