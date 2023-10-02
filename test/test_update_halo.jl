@@ -90,7 +90,7 @@ dz = 1.0
         @testset "free buffers" begin
             @require GG.get_sendbufs_raw() === nothing
             @require GG.get_recvbufs_raw() === nothing
-            GG.allocate_bufs(P);
+            GG.allocate_bufs(GG.wrap_field(P));
             @require GG.get_sendbufs_raw() !== nothing
             @require GG.get_recvbufs_raw() !== nothing
             GG.free_update_halo_buffers();
@@ -99,7 +99,7 @@ dz = 1.0
         end;
         @testset "allocate single" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(P);
+            GG.allocate_bufs(GG.wrap_field(P));
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 1                                    # 1 array
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -110,7 +110,7 @@ dz = 1.0
         end;
         @testset "allocate single (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(Z);
+            GG.allocate_bufs(GG.wrap_field(Z));
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 1                                    # 1 array
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -121,8 +121,8 @@ dz = 1.0
         end;
         @testset "keep 1st, allocate 2nd" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(P);
-            GG.allocate_bufs(A, P);
+            GG.allocate_bufs(GG.wrap_field(P));
+            GG.allocate_bufs(GG.wrap_field.((A, P))...);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # 2 arrays
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -135,8 +135,8 @@ dz = 1.0
         end;
         @testset "keep 1st, allocate 2nd (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(Z);
-            GG.allocate_bufs(Y, Z);
+            GG.allocate_bufs(GG.wrap_field(Z));
+            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # 2 arrays
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -149,8 +149,8 @@ dz = 1.0
         end;
         @testset "reinterpret (no allocation)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(A, P);
-            GG.allocate_bufs(B, C);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
+            GG.allocate_bufs(GG.wrap_field.((A, P))...);
+            GG.allocate_bufs(GG.wrap_field.((B, C))...);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # Still 2 arrays: B, C (even though they are different then before: was A and P)
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -164,8 +164,8 @@ dz = 1.0
         end;
         @testset "reinterpret (no allocation) (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(A, P);
-            GG.allocate_bufs(Y, Z);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
+            GG.allocate_bufs(GG.wrap_field.((A, P))...);
+            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # Still 2 arrays: B, C (even though they are different then before: was A and P)
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -183,7 +183,7 @@ dz = 1.0
                 sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
             end
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(A, P);
+            GG.allocate_bufs(GG.wrap_field.((A, P))...);
             for dim = 1:ndims(A), n = 1:nneighbors_per_dim
                 @test all(size(sendbuf(n,dim,1,A)) .== size(A)[1:ndims(A).!=dim])
                 @test all(size(recvbuf(n,dim,1,A)) .== size(A)[1:ndims(A).!=dim])
@@ -199,7 +199,7 @@ dz = 1.0
                 sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
             end
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(Y, Z);
+            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);
             for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
                 @test all(size(sendbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
                 @test all(size(recvbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
@@ -416,7 +416,7 @@ dz = 1.0
                 A = zeros(nx-1,ny+2,nz+1);
                 P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
                 A .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)]);
-                GG.allocate_bufs(P, A);
+                GG.allocate_bufs(GG.wrap_field.((P, A))...);
                 if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
                 elseif (array_type == "AMDGPU") GG.allocate_rocstreams(P, A);
                 else                            GG.allocate_tasks(P, A);
@@ -502,7 +502,7 @@ dz = 1.0
                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
-                GG.allocate_bufs(P, A);
+                GG.allocate_bufs(GG.wrap_field.((P, A))...);
                 if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
                 elseif (array_type == "AMDGPU") GG.allocate_rocstreams(P, A);
                 else                            GG.allocate_tasks(P, A);
@@ -616,7 +616,7 @@ dz = 1.0
                     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                     P = zeros(nx,  ny,  nz  );
                     A = zeros(nx-1,ny+2,nz+1);
-                    GG.allocate_bufs(P, A);
+                    GG.allocate_bufs(GG.wrap_field.((P, A))...);
                     dim = 1
                     for n = 1:nneighbors_per_dim
                         if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
@@ -702,7 +702,7 @@ dz = 1.0
                 P   = zeros(nx,ny,nz);
                 A   = zeros(nx,ny,nz);
                 dim = 1;
-                GG.allocate_bufs(P, A);
+                GG.allocate_bufs(GG.wrap_field.((P, A))...);
                 for n = 1:nneighbors_per_dim
                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
                         GG.gpusendbuf(n,dim,1,P) .= 9.0;
