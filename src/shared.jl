@@ -109,9 +109,9 @@ amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
 loopvectorization()                    = global_grid().loopvectorization
 loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
-any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
-any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
-any_rocarray(fields::GGArray...)       = any([is_rocarray(A) for A in fields])
+any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
+any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
+any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
