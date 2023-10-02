@@ -31,51 +31,51 @@ function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...)
         end
     end
     check_fields(fields...);
-    _update_halo!(A...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
+    _update_halo!(A, fields...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
 
-function _update_halo!(fields::GGArray...)
+function _update_halo!(arrays, fields::GGField...)
     if (any_cuarray(fields...) && !cuda_enabled())    error("CUDA is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end    #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
     if (any_rocarray(fields...) && !amdgpu_enabled()) error("AMDGPU is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end  #NOTE: in the following, it is only required to check for `amdgpu_enabled()` when the context does not imply `any_rocarray(fields...)` or `is_rocarray(A)`.
-    allocate_bufs(fields...);
-    if any_array(fields...) allocate_tasks(fields...); end
-    if any_cuarray(fields...) allocate_custreams(fields...); end
-    if any_rocarray(fields...) allocate_rocstreams(fields...); end
+    allocate_bufs(arrays...);
+    if any_array(fields...) allocate_tasks(arrays...); end
+    if any_cuarray(fields...) allocate_custreams(arrays...); end
+    if any_rocarray(fields...) allocate_rocstreams(arrays...); end
 
     for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
-            if has_neighbor(ns, dim) iwrite_sendbufs!(ns, dim, fields[i], i); end
+            if has_neighbor(ns, dim) iwrite_sendbufs!(ns, dim, arrays[i], i); end
         end
         # Send / receive if the neighbors are other processes (usual case).
         reqs = fill(MPI.REQUEST_NULL, length(fields), NNEIGHBORS_PER_DIM, 2);
         if all(neighbors(dim) .!= me())  # Note: handling of send/recv to itself requires special configurations for some MPI implementations (e.g. self BTL must be activated with OpenMPI); so we handle this case without MPI to avoid this complication.
             for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields) # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
-                if has_neighbor(nr, dim) reqs[i,nr,1] = irecv_halo!(nr, dim, fields[i], i); end
+                if has_neighbor(nr, dim) reqs[i,nr,1] = irecv_halo!(nr, dim, arrays[i], i); end
             end
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
                 if has_neighbor(ns, dim)
-                    wait_iwrite(ns, fields[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
-                    reqs[i,ns,2] = isend_halo(ns, dim, fields[i], i);
+                    wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
+                    reqs[i,ns,2] = isend_halo(ns, dim, arrays[i], i);
                 end
             end
         # Copy if I am my own neighbors (when periodic boundary and only one process in this dimension).
         elseif all(neighbors(dim) .== me())
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
-                wait_iwrite(ns, fields[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
-                sendrecv_halo_local(ns, dim, fields[i], i);
+                wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
+                sendrecv_halo_local(ns, dim, arrays[i], i);
                 nr = NNEIGHBORS_PER_DIM - ns + 1;
-                iread_recvbufs!(nr, dim, fields[i], i);
+                iread_recvbufs!(nr, dim, arrays[i], i);
             end
         else
             error("Incoherent neighbors in dimension $dim: either all neighbors must equal to me, or none.")
         end
         for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields)  # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
             if (reqs[i,nr,1]!=MPI.REQUEST_NULL) MPI.Wait!(reqs[i,nr,1]); end
-            if (has_neighbor(nr, dim) && neighbor(nr, dim)!=me()) iread_recvbufs!(nr, dim, fields[i], i); end  # Note: if neighbor(nr,dim) != me() is done directly in the sendrecv_halo_local loop above for better performance (thanks to pipelining)
+            if (has_neighbor(nr, dim) && neighbor(nr, dim)!=me()) iread_recvbufs!(nr, dim, arrays[i], i); end  # Note: if neighbor(nr,dim) != me() is done directly in the sendrecv_halo_local loop above for better performance (thanks to pipelining)
         end
         for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields) # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
-            if has_neighbor(nr, dim) wait_iread(nr, fields[i], i); end
+            if has_neighbor(nr, dim) wait_iread(nr, arrays[i], i); end
         end
         for ns = 1:NNEIGHBORS_PER_DIM
             if (any(reqs[:,ns,2].!=[MPI.REQUEST_NULL])) MPI.Waitall!(reqs[:,ns,2]); end
