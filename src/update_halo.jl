@@ -24,12 +24,7 @@ Update the halo of the given GPU/CPU-array(s).
 """
 function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...)
     check_initialized();
-    fields = map(A) do A_i
-        if     isa(A_i, GGField)            return A_i
-        elseif isa(A_i, GGFieldConvertible) return GGField(A_i)
-        elseif isa(A_i, GGArray)            return GGField{eltype(A_i), ndims(A_i)}((A_i, (hw_default()...,)))
-        end
-    end
+    fields = wrap_field.(A);
     check_fields(fields...);
     _update_halo!(A, fields...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
@@ -38,7 +33,7 @@ end
 function _update_halo!(arrays, fields::GGField...)
     if (any_cuarray(fields...) && !cuda_enabled())    error("CUDA is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end    #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
     if (any_rocarray(fields...) && !amdgpu_enabled()) error("AMDGPU is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end  #NOTE: in the following, it is only required to check for `amdgpu_enabled()` when the context does not imply `any_rocarray(fields...)` or `is_rocarray(A)`.
-    allocate_bufs(arrays...);
+    allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(arrays...); end
     if any_cuarray(fields...) allocate_custreams(arrays...); end
     if any_rocarray(fields...) allocate_rocstreams(arrays...); end
@@ -153,7 +148,7 @@ let
     end
 
     # Allocate for each field two send and recv buffers (one for the left and one for the right neighbour of a dimension). The required length of the buffer is given by the maximal number of halo elements in any of the dimensions. Note that buffers are not allocated separately for each dimension, as the updates are performed one dimension at a time (required for correctness).
-    function allocate_bufs(fields::GGArray{T}...) where T <: GGNumber
+    function allocate_bufs(fields::GGField{T}...) where T <: GGNumber
         if (isnothing(sendbufs_raw) || isnothing(recvbufs_raw))
             free_update_halo_buffers();
             init_bufs_arrays();
@@ -164,13 +159,13 @@ let
         if cuda_enabled() init_cubufs(T, fields...); end
         if amdgpu_enabled() init_rocbufs(T, fields...); end
         for i = 1:length(fields)
-            A = fields[i];
+            A, halowidths = fields[i];
             for n = 1:NNEIGHBORS_PER_DIM # Ensure that the buffers are interpreted to contain elements of the same type as the array.
                 reinterpret_bufs(T, i, n);
                 if cuda_enabled() reinterpret_cubufs(T, i, n); end
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
-            max_halo_elems = (ndims(A) > 1) ? prod(sort([size(A)...])[2:end]) : 1;
+            max_halo_elems = (ndims(A) > 1) ? maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1])) : halowidths[1];
             if (length(sendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     reallocate_bufs(T, i, n, max_halo_elems);
@@ -200,7 +195,7 @@ let
         recvbufs_raw = Array{Array{Any,1},1}();
     end
 
-    function init_bufs(T::DataType, fields::GGArray...)
+    function init_bufs(T::DataType, fields::GGField...)
         while (length(sendbufs_raw) < length(fields)) push!(sendbufs_raw, [zeros(T,0), zeros(T,0)]); end
         while (length(recvbufs_raw) < length(fields)) push!(recvbufs_raw, [zeros(T,0), zeros(T,0)]); end
     end
@@ -225,7 +220,7 @@ let
         curecvbufs_raw_h = Array{Array{Any,1},1}();
     end
 
-    function init_cubufs(T::DataType, fields::GGArray...)
+    function init_cubufs(T::DataType, fields::GGField...)
         while (length(cusendbufs_raw) < length(fields)) push!(cusendbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
         while (length(curecvbufs_raw) < length(fields)) push!(curecvbufs_raw, [CuArray{T}(undef,0), CuArray{T}(undef,0)]); end
         while (length(cusendbufs_raw_h) < length(fields)) push!(cusendbufs_raw_h, [[], []]); end
@@ -258,7 +253,7 @@ let
         # INFO: no need for roc host buffers
     end
 
-    function init_rocbufs(T::DataType, fields::GGArray...)
+    function init_rocbufs(T::DataType, fields::GGField...)
         while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         # INFO: no need for roc host buffers
@@ -804,8 +799,17 @@ function gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
 end
 
 
-##-------------------------------------------
-## FUNCTIONS FOR CHECKING THE INPUT ARGUMENTS
+##--------------------------------------------------------
+## FUNCTIONS FOR WRAPPING AND CHECKING THE INPUT ARGUMENTS
+
+
+# Wrap the input argument into a GGField.
+wrap_field(A::GGField)                 = A
+wrap_field(A::GGFieldConvertible)      = GGField(A)
+wrap_field(A::GGArray, hw::Tuple)      = GGField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
+wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
+
 
 # NOTE: no comparison must be done between the field-local halowidths and field-local overlaps because any combination is valid: the rational is that a field has simply no halo but only computation overlap in a given dimension if the corresponding local overlap is less than 2 times the local halowidth. This allows to determine whether a halo update needs to be done in a certain dimension or not.
 function check_fields(fields::GGField...)
