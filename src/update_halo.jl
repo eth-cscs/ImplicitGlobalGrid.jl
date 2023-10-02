@@ -34,9 +34,9 @@ function _update_halo!(arrays, fields::GGField...)
     if (any_cuarray(fields...) && !cuda_enabled())    error("CUDA is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end    #NOTE: in the following, it is only required to check for `cuda_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)`.
     if (any_rocarray(fields...) && !amdgpu_enabled()) error("AMDGPU is not enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded)."); end  #NOTE: in the following, it is only required to check for `amdgpu_enabled()` when the context does not imply `any_rocarray(fields...)` or `is_rocarray(A)`.
     allocate_bufs(fields...);
-    if any_array(fields...) allocate_tasks(arrays...); end
-    if any_cuarray(fields...) allocate_custreams(arrays...); end
-    if any_rocarray(fields...) allocate_rocstreams(arrays...); end
+    if any_array(fields...) allocate_tasks(fields...); end
+    if any_cuarray(fields...) allocate_custreams(fields...); end
+    if any_rocarray(fields...) allocate_rocstreams(fields...); end
 
     for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
@@ -348,7 +348,7 @@ end
 
 # (CPU functions)
 
-function allocate_tasks(fields::GGArray...)
+function allocate_tasks(fields::GGField...)
     allocate_tasks_iwrite(fields...);
     allocate_tasks_iread(fields...);
 end
@@ -360,7 +360,7 @@ let
 
     wait_iwrite(n::Integer, A::Array{T}, i::Integer) where T <: GGNumber = (schedule(tasks[n,i]); wait(tasks[n,i]);) # The argument A is used for multiple dispatch. #NOTE: The current implementation only starts a task when it is waited for, in order to make sure that only one task is run at a time and that they are run in the desired order (best for performance as the tasks are mapped only to one thread via context switching).
 
-    function allocate_tasks_iwrite(fields::GGArray...)
+    function allocate_tasks_iwrite(fields::GGField...)
         if length(fields) > size(tasks,2)  # Note: for simplicity, we create a tasks for every field even if it is not an Array
             tasks = [tasks Array{Task}(undef, NNEIGHBORS_PER_DIM, length(fields)-size(tasks,2))];  # Create (additional) emtpy tasks.
         end
@@ -386,7 +386,7 @@ let
 
     wait_iread(n::Integer, A::Array{T}, i::Integer) where T <: GGNumber = (schedule(tasks[n,i]); wait(tasks[n,i]);) #NOTE: The current implementation only starts a task when it is waited for, in order to make sure that only one task is run at a time and that they are run in the desired order (best for performance currently as the tasks are mapped only to one thread via context switching).
 
-    function allocate_tasks_iread(fields::GGArray...)
+    function allocate_tasks_iread(fields::GGField...)
         if length(fields) > size(tasks,2)  # Note: for simplicity, we create a tasks for every field even if it is not an Array
             tasks = [tasks Array{Task}(undef, NNEIGHBORS_PER_DIM, length(fields)-size(tasks,2))];  # Create (additional) emtpy tasks.
         end
@@ -408,7 +408,7 @@ end
 
 # (CUDA functions)
 
-function allocate_custreams(fields::GGArray...)
+function allocate_custreams(fields::GGField...)
     allocate_custreams_iwrite(fields...);
     allocate_custreams_iread(fields...);
 end
@@ -420,7 +420,7 @@ let
 
     wait_iwrite(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
 
-    function allocate_custreams_iwrite(fields::GGArray...)
+    function allocate_custreams_iwrite(fields::GGField...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
             custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
@@ -448,7 +448,7 @@ let
 
     wait_iread(n::Integer, A::CuArray{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
 
-    function allocate_custreams_iread(fields::GGArray...)
+    function allocate_custreams_iread(fields::GGField...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuArray
             custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
@@ -472,7 +472,7 @@ end
 
 # (AMDGPU functions)
 
-function allocate_rocstreams(fields::GGArray...)
+function allocate_rocstreams(fields::GGField...)
     allocate_rocstreams_iwrite(fields...);
     allocate_rocstreams_iread(fields...);
 end
@@ -484,7 +484,7 @@ let
 
     wait_iwrite(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocstreams[n,i]);
 
-    function allocate_rocstreams_iwrite(fields::GGArray...)
+    function allocate_rocstreams_iwrite(fields::GGField...)
         if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
             rocstreams = [rocstreams [AMDGPU.HIPStream(:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocstreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
@@ -514,7 +514,7 @@ let
 
     wait_iread(n::Integer, A::ROCArray{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocstreams[n,i]);
 
-    function allocate_rocstreams_iread(fields::GGArray...)
+    function allocate_rocstreams_iread(fields::GGField...)
         if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCArray
             rocstreams = [rocstreams [AMDGPU.HIPStream(:high) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(rocstreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
         end
