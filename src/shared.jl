@@ -44,6 +44,9 @@ const GGArray{T,N}             = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
 const GGField{T,N}             = NamedTuple{(:A, :halowidths), Tuple{GGArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
 const GGFieldConvertible{T,N}  = NamedTuple{(:A, :halowidths), <:Tuple{GGArray{T,N}, Tuple{T2,T2,T2}}} where {T2<:Integer}
 const GGField{}(t::NamedTuple) = GGField{eltype(t.A),ndims(t.A)}((t.A, GGInt.(t.halowidths)))
+const CPUField{T,N}            = NamedTuple{(:A, :halowidths), Tuple{Array{T,N}, Tuple{GGInt,GGInt,GGInt}}}
+const CuField{T,N}             = NamedTuple{(:A, :halowidths), Tuple{CuArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
+const ROCField{T,N}            = NamedTuple{(:A, :halowidths), Tuple{ROCArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
