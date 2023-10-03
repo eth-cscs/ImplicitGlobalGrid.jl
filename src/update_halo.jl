@@ -50,14 +50,14 @@ function _update_halo!(arrays, fields::GGField...)
             end
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
                 if has_neighbor(ns, dim)
-                    wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
+                    wait_iwrite(ns, fields[i].A, i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
                     reqs[i,ns,2] = isend_halo(ns, dim, fields[i], i);
                 end
             end
         # Copy if I am my own neighbors (when periodic boundary and only one process in this dimension).
         elseif all(neighbors(dim) .== me())
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
-                wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
+                wait_iwrite(ns, fields[i].A, i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
                 sendrecv_halo_local(ns, dim, fields[i], i);
                 nr = NNEIGHBORS_PER_DIM - ns + 1;
                 iread_recvbufs!(nr, dim, arrays[i], i);
@@ -70,7 +70,7 @@ function _update_halo!(arrays, fields::GGField...)
             if (has_neighbor(nr, dim) && neighbor(nr, dim)!=me()) iread_recvbufs!(nr, dim, arrays[i], i); end  # Note: if neighbor(nr,dim) != me() is done directly in the sendrecv_halo_local loop above for better performance (thanks to pipelining)
         end
         for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields) # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
-            if has_neighbor(nr, dim) wait_iread(nr, arrays[i], i); end
+            if has_neighbor(nr, dim) wait_iread(nr, fields[i].A, i); end
         end
         for ns = 1:NNEIGHBORS_PER_DIM
             if (any(reqs[:,ns,2].!=[MPI.REQUEST_NULL])) MPI.Waitall!(reqs[:,ns,2]); end
