@@ -46,19 +46,19 @@ function _update_halo!(arrays, fields::GGField...)
         reqs = fill(MPI.REQUEST_NULL, length(fields), NNEIGHBORS_PER_DIM, 2);
         if all(neighbors(dim) .!= me())  # Note: handling of send/recv to itself requires special configurations for some MPI implementations (e.g. self BTL must be activated with OpenMPI); so we handle this case without MPI to avoid this complication.
             for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields) # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
-                if has_neighbor(nr, dim) reqs[i,nr,1] = irecv_halo!(nr, dim, arrays[i], i); end
+                if has_neighbor(nr, dim) reqs[i,nr,1] = irecv_halo!(nr, dim, fields[i], i); end
             end
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
                 if has_neighbor(ns, dim)
                     wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
-                    reqs[i,ns,2] = isend_halo(ns, dim, arrays[i], i);
+                    reqs[i,ns,2] = isend_halo(ns, dim, fields[i], i);
                 end
             end
         # Copy if I am my own neighbors (when periodic boundary and only one process in this dimension).
         elseif all(neighbors(dim) .== me())
             for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
                 wait_iwrite(ns, arrays[i], i);  # Right before starting to send, make sure that the data of neighbor ns and field i has finished writing to the sendbuffer.
-                sendrecv_halo_local(ns, dim, arrays[i], i);
+                sendrecv_halo_local(ns, dim, fields[i], i);
                 nr = NNEIGHBORS_PER_DIM - ns + 1;
                 iread_recvbufs!(nr, dim, arrays[i], i);
             end
@@ -711,9 +711,10 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function irecv_halo!(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integer=0)
+function irecv_halo!(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
-    if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+    A, halowidths = F.A, F.halowidths;
+    if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
@@ -723,9 +724,10 @@ function irecv_halo!(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Inte
     return req
 end
 
-function isend_halo(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integer=0)
+function isend_halo(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
-    if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+    A, halowidths = F.A, F.halowidths;
+    if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             req = MPI.Isend(gpusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
         else
@@ -735,8 +737,9 @@ function isend_halo(n::Integer, dim::Integer, A::GGArray, i::Integer; tag::Integ
     return req
 end
 
-function sendrecv_halo_local(n::Integer, dim::Integer, A::GGArray, i::Integer)
-    if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+function sendrecv_halo_local(n::Integer, dim::Integer, F::GGField, i::Integer)
+    A, halowidths = F.A, F.halowidths;
+    if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             if n == 1
                 gpumemcopy!(gpurecvbuf_flat(2,dim,i,A), gpusendbuf_flat(1,dim,i,A));
