@@ -87,10 +87,11 @@ dz = 1.0
         C = zeros(Float32,    nx+1, ny+1, nz+1);
         Z = zeros(ComplexF16, nx,   ny,   nz  );
         Y = zeros(ComplexF16, nx-1, ny+2, nz+1);
+        P, A, B, C, Z, Y = GG.wrap_field.((P, A, B, C, Z, Y));
         @testset "free buffers" begin
             @require GG.get_sendbufs_raw() === nothing
             @require GG.get_recvbufs_raw() === nothing
-            GG.allocate_bufs(GG.wrap_field(P));
+            GG.allocate_bufs(P);
             @require GG.get_sendbufs_raw() !== nothing
             @require GG.get_recvbufs_raw() !== nothing
             GG.free_update_halo_buffers();
@@ -99,7 +100,7 @@ dz = 1.0
         end;
         @testset "allocate single" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field(P));
+            GG.allocate_bufs(P);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 1                                    # 1 array
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -110,7 +111,7 @@ dz = 1.0
         end;
         @testset "allocate single (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field(Z));
+            GG.allocate_bufs(Z);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 1                                    # 1 array
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -121,8 +122,8 @@ dz = 1.0
         end;
         @testset "keep 1st, allocate 2nd" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field(P));
-            GG.allocate_bufs(GG.wrap_field.((A, P))...);
+            GG.allocate_bufs(P);
+            GG.allocate_bufs(A, P);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # 2 arrays
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -135,8 +136,8 @@ dz = 1.0
         end;
         @testset "keep 1st, allocate 2nd (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field(Z));
-            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);
+            GG.allocate_bufs(Z);
+            GG.allocate_bufs(Y, Z);
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # 2 arrays
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -149,8 +150,8 @@ dz = 1.0
         end;
         @testset "reinterpret (no allocation)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field.((A, P))...);
-            GG.allocate_bufs(GG.wrap_field.((B, C))...);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
+            GG.allocate_bufs(A, P);
+            GG.allocate_bufs(B, C);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # Still 2 arrays: B, C (even though they are different then before: was A and P)
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -164,8 +165,8 @@ dz = 1.0
         end;
         @testset "reinterpret (no allocation) (Complex)" begin
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field.((A, P))...);
-            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
+            GG.allocate_bufs(A, P);
+            GG.allocate_bufs(Y, Z);                                                  # The new arrays contain Float32 (A, and P were Float64); B and C have a halo with more elements than A and P had, but they require less space in memory
             for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
                 @test length(bufs_raw)       == 2                                    # Still 2 arrays: B, C (even though they are different then before: was A and P)
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
@@ -183,14 +184,14 @@ dz = 1.0
                 sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
             end
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field.((A, P))...);
+            GG.allocate_bufs(A, P);
             for dim = 1:ndims(A), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,1,A)) .== size(A)[1:ndims(A).!=dim])
-                @test all(size(recvbuf(n,dim,1,A)) .== size(A)[1:ndims(A).!=dim])
+                @test all(length(sendbuf(n,dim,1,A)) .== prod(size(A)[1:ndims(A).!=dim]))
+                @test all(length(recvbuf(n,dim,1,A)) .== prod(size(A)[1:ndims(A).!=dim]))
             end
             for dim = 1:ndims(P), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,2,P)) .== size(P)[1:ndims(P).!=dim])
-                @test all(size(recvbuf(n,dim,2,P)) .== size(P)[1:ndims(P).!=dim])
+                @test all(length(sendbuf(n,dim,2,P)) .== prod(size(P)[1:ndims(P).!=dim]))
+                @test all(length(recvbuf(n,dim,2,P)) .== prod(size(P)[1:ndims(P).!=dim]))
             end
         end;
         @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (Complex)" begin
@@ -199,14 +200,14 @@ dz = 1.0
                 sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
             end
             GG.free_update_halo_buffers();
-            GG.allocate_bufs(GG.wrap_field.((Y, Z))...);
+            GG.allocate_bufs(Y, Z);
             for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
-                @test all(size(recvbuf(n,dim,1,Y)) .== size(Y)[1:ndims(Y).!=dim])
+                @test all(length(sendbuf(n,dim,1,Y)) .== prod(size(Y)[1:ndims(Y).!=dim]))
+                @test all(length(recvbuf(n,dim,1,Y)) .== prod(size(Y)[1:ndims(Y).!=dim]))
             end
             for dim = 1:ndims(Z), n = 1:nneighbors_per_dim
-                @test all(size(sendbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
-                @test all(size(recvbuf(n,dim,2,Z)) .== size(Z)[1:ndims(Z).!=dim])
+                @test all(length(sendbuf(n,dim,2,Z)) .== prod(size(Z)[1:ndims(Z).!=dim]))
+                @test all(length(recvbuf(n,dim,2,Z)) .== prod(size(Z)[1:ndims(Z).!=dim]))
             end
         end;
         finalize_global_grid(finalize_MPI=false);
@@ -218,6 +219,7 @@ dz = 1.0
                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P   = zeros(nx,  ny,  nz  );
                 A   = zeros(nx-1,ny+2,nz+1);
+                P, A = GG.wrap_field.((P, A));
                 @test GG.sendranges(1, 1, P) == [                    2:2,             1:size(P,2),             1:size(P,3)]
                 @test GG.sendranges(2, 1, P) == [size(P,1)-1:size(P,1)-1,             1:size(P,2),             1:size(P,3)]
                 @test GG.sendranges(1, 2, P) == [            1:size(P,1),                     2:2,             1:size(P,3)]
@@ -249,22 +251,23 @@ dz = 1.0
                 P  = zeros(nx,  ny,  nz  );
                 P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
                 P2 = zeros(size(P));
+                halowidths = (1,1,1)
                 # (dim=1)
-                buf = zeros(size(P,2), size(P,3));
+                buf = zeros(halowidths[1], size(P,2), size(P,3));
                 ranges = [2:2, 1:size(P,2), 1:size(P,3)];
                 GG.write_h2h!(buf, P, ranges, 1);
                 @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
                 GG.read_h2h!(buf, P2, ranges, 1);
                 @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
                 # (dim=2)
-                buf = zeros(size(P,1), size(P,3));
+                buf = zeros(size(P,1), halowidths[2], size(P,3));
                 ranges = [1:size(P,1), 3:3, 1:size(P,3)];
                 GG.write_h2h!(buf, P, ranges, 2);
                 @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
                 GG.read_h2h!(buf, P2, ranges, 2);
                 @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
                 # (dim=3)
-                buf = zeros(size(P,1), size(P,2));
+                buf = zeros(size(P,1), size(P,2), halowidths[3]);
                 ranges = [1:size(P,1), 1:size(P,2), 4:4];
                 GG.write_h2h!(buf, P, ranges, 3);
                 @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
@@ -278,11 +281,12 @@ dz = 1.0
                     P  = zeros(nx,  ny,  nz  );
                     P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
                     P  = GPUArray(P);
+                    halowidths = (1,1,1)
                     if array_type == "CUDA"
                         # (dim=1)
                         dim = 1;
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,2), size(P,3));
+                        buf = zeros(halowidths[dim], size(P,2), size(P,3));
                         buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [2:2, 1:size(P,2), 1:size(P,3)];
                         nthreads = (1, 1, 1);
@@ -303,7 +307,7 @@ dz = 1.0
                         # (dim=2)
                         dim = 2;
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,3));
+                        buf = zeros(size(P,1), halowidths[dim], size(P,3));
                         buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 3:3, 1:size(P,3)];
                         nthreads = (1, 1, 1);
@@ -324,7 +328,7 @@ dz = 1.0
                         # (dim=3)
                         dim = 3
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,2));
+                        buf = zeros(size(P,1), size(P,2), halowidths[dim]);
                         buf_d, buf_h = GG.register(CuArray,buf);
                         ranges = [1:size(P,1), 1:size(P,2), 4:4];
                         nthreads = (1, 1, 1);
@@ -346,7 +350,7 @@ dz = 1.0
                         # (dim=1)
                         dim = 1;
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,2), size(P,3));
+                        buf = zeros(halowidths[dim], size(P,2), size(P,3));
                         buf_d = GG.register(ROCArray,buf);
                         ranges = [2:2, 1:size(P,2), 1:size(P,3)];
                         nthreads = (1, 1, 1);
@@ -367,7 +371,7 @@ dz = 1.0
                         # (dim=2)
                         dim = 2;
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,3));
+                        buf = zeros(size(P,1), halowidths[dim], size(P,3));
                         buf_d = GG.register(ROCArray,buf);
                         ranges = [1:size(P,1), 3:3, 1:size(P,3)];
                         nthreads = (1, 1, 1);
@@ -388,7 +392,7 @@ dz = 1.0
                         # (dim=3)
                         dim = 3
                         P2  = gpuzeros(eltype(P),size(P));
-                        buf = zeros(size(P,1), size(P,2));
+                        buf = zeros(size(P,1), size(P,2), halowidths[dim]);
                         buf_d = GG.register(ROCArray,buf);
                         ranges = [1:size(P,1), 1:size(P,2), 4:4];
                         nthreads = (1, 1, 1);
@@ -396,7 +400,7 @@ dz = 1.0
                         nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                         @roc gridsize=nblocks groupsize=nthreads GG.write_d2x!(buf_d, P, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
+                         @roc gridsize=nblocks groupsize=nthreads GG.read_x2d!(buf_d, P2, ranges[1], ranges[2], ranges[3], dim); AMDGPU.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         # buf .= 0.0; # DEBUG: diabling read_x2x_async! tests for now in AMDGPU backend because there is an issue most likely in HIP
                         # P2  .= 0.0;
@@ -416,7 +420,8 @@ dz = 1.0
                 A = zeros(nx-1,ny+2,nz+1);
                 P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
                 A .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(A,1), iy=1:size(A,2), iz=1:size(A,3)]);
-                GG.allocate_bufs(GG.wrap_field.((P, A))...);
+                P, A = GG.wrap_field.((P, A));
+                GG.allocate_bufs(P, A);
                 if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
                 elseif (array_type == "AMDGPU") GG.allocate_rocstreams(P, A);
                 else                            GG.allocate_tasks(P, A);
@@ -428,10 +433,10 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[2,:,:][:]))) # DEBUG: here and later, CPUArray is needed to avoid error in AMDGPU because of mapreduce
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[2,:,:][:]))) # DEBUG: here and later, CPUArray is needed to avoid error in AMDGPU because of mapreduce
                     @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[2,:,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[2,:,:][:]))
                     @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
                 end
                 n = 2
@@ -440,10 +445,10 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[end-1,:,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[end-1,:,:][:])))
                     @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[end-1,:,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[end-1,:,:][:]))
                     @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
                 end
                 dim = 2
@@ -453,11 +458,11 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,2,:][:])))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,4,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[:,2,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A.A[:,4,:][:])))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,2,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,4,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,2,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,4,:][:]))
                 end
                 n = 2
                 GG.iwrite_sendbufs!(n, dim, P, 1);
@@ -465,11 +470,11 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,end-1,:][:])))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,end-3,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[:,end-1,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A.A[:,end-3,:][:])))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,end-1,:][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,end-3,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,end-1,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,end-3,:][:]))
                 end
                 dim = 3
                 n = 1
@@ -478,11 +483,11 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,3][:])))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,4][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[:,:,3][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A.A[:,:,4][:])))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,3][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,4][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,:,3][:]))
+                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,:,4][:]))
                 end
                 n = 2
                 GG.iwrite_sendbufs!(n, dim, P, 1);
@@ -490,11 +495,11 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P[:,:,end-2][:])))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A[:,:,end-3][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[:,:,end-2][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== Array(A.A[:,:,end-3][:])))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end-2][:]))
-                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end-3][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,:,end-2][:]))
+                    @test all(GG.sendbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,:,end-3][:]))
                 end
                 finalize_global_grid(finalize_MPI=false);
             end;
@@ -502,7 +507,8 @@ dz = 1.0
                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
-                GG.allocate_bufs(GG.wrap_field.((P, A))...);
+                P, A = GG.wrap_field.((P, A));
+                GG.allocate_bufs(P, A);
                 if     (array_type == "CUDA")   GG.allocate_custreams(P, A);
                 elseif (array_type == "AMDGPU") GG.allocate_rocstreams(P, A);
                 else                            GG.allocate_tasks(P, A);
@@ -523,11 +529,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[1,:,:][:])))
-                    @test all(CPUArray(                          0.0 .== Array(A[1,:,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[1,:,:][:])))
+                    @test all(CPUArray(                          0.0 .== Array(A.A[1,:,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[1,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A[1,:,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[1,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A.A[1,:,:][:]))
                 end
                 n = 2
                 GG.iread_recvbufs!(n, dim, P, 1);
@@ -535,11 +541,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[end,:,:][:])))
-                    @test all(CPUArray(                          0.0 .== Array(A[end,:,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[end,:,:][:])))
+                    @test all(CPUArray(                          0.0 .== Array(A.A[end,:,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[end,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A[end,:,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[end,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A.A[end,:,:][:]))
                 end
                 dim = 2
                 for n = 1:nneighbors_per_dim
@@ -557,11 +563,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,1,:][:])))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,1,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[:,1,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A.A[:,1,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,1,:][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,1,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,1,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,1,:][:]))
                 end
                 n = 2
                 GG.iread_recvbufs!(n, dim, P, 1);
@@ -569,11 +575,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,end,:][:])))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,end,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[:,end,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A.A[:,end,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,end,:][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,end,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,end,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,end,:][:]))
                 end
                 dim = 3
                 for n = 1:nneighbors_per_dim
@@ -591,11 +597,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,1][:])))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,1][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[:,:,1][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A.A[:,:,1][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,1][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,1][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,:,1][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,:,1][:]))
                 end
                 n = 2
                 GG.iread_recvbufs!(n, dim, P, 1);
@@ -603,11 +609,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P[:,:,end][:])))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A[:,:,end][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[:,:,end][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,2,A) .== Array(A.A[:,:,end][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P[:,:,end][:]))
-                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A[:,:,end][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[:,:,end][:]))
+                    @test all(GG.recvbuf_flat(n,dim,2,A) .== CPUArray(A.A[:,:,end][:]))
                 end
                 finalize_global_grid(finalize_MPI=false);
             end;
@@ -616,7 +622,8 @@ dz = 1.0
                     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
                     P = zeros(nx,  ny,  nz  );
                     A = zeros(nx-1,ny+2,nz+1);
-                    GG.allocate_bufs(GG.wrap_field.((P, A))...);
+                    P, A = GG.wrap_field.((P, A));
+                    GG.allocate_bufs(P, A);
                     dim = 1
                     for n = 1:nneighbors_per_dim
                         if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
@@ -701,8 +708,9 @@ dz = 1.0
                 me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, quiet=true, init_MPI=false, device_type=device_type);
                 P   = zeros(nx,ny,nz);
                 A   = zeros(nx,ny,nz);
+                P, A = GG.wrap_field.((P, A));
                 dim = 1;
-                GG.allocate_bufs(GG.wrap_field.((P, A))...);
+                GG.allocate_bufs(P, A);
                 for n = 1:nneighbors_per_dim
                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
                         GG.gpusendbuf(n,dim,1,P) .= 9.0;
