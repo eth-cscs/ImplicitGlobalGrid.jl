@@ -82,7 +82,7 @@ end
 ##---------------------------
 ## FUNCTIONS FOR SYNTAX SUGAR
 
-halosize(dim::Integer, A::GGArray) = (ndims(A)>1) ? size(A)[1:ndims(A).!=dim] : (1,);
+halosize(dim::Integer, A::GGField) = (dim==1) ? (A.halowidths[1], size(A,2), size(A,3)) : ((dim==2) ? (size(A,1), A.halowidths[2], size(A,3)) : (size(A,1), size(A,2), A.halowidths[3]))
 
 
 ##---------------------------------------
@@ -278,41 +278,41 @@ let
 
     # (CPU functions)
 
-    function sendbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGArray{T}) where T <: GGNumber
+    function sendbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGField{T}) where T <: GGNumber
         return view(sendbufs_raw[i][n]::AbstractVector{T},1:prod(halosize(dim,A)));
     end
 
-    function recvbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGArray{T}) where T <: GGNumber
+    function recvbuf_flat(n::Integer, dim::Integer, i::Integer, A::GGField{T}) where T <: GGNumber
         return view(recvbufs_raw[i][n]::AbstractVector{T},1:prod(halosize(dim,A)));
     end
 
-    function sendbuf(n::Integer, dim::Integer, i::Integer, A::GGArray)
+    function sendbuf(n::Integer, dim::Integer, i::Integer, A::GGField)
         return reshape(sendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function recvbuf(n::Integer, dim::Integer, i::Integer, A::GGArray)
+    function recvbuf(n::Integer, dim::Integer, i::Integer, A::GGField)
         return reshape(recvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
 
     # (CUDA functions)
 
-    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where T <: GGNumber
         return view(cusendbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
 
-    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuArray{T}) where T <: GGNumber
+    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where T <: GGNumber
         return view(curecvbufs_raw[i][n]::CuVector{T},1:prod(halosize(dim,A)));
     end
 
 
     # (AMDGPU functions)
 
-    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
+    function gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where T <: GGNumber
         return view(rocsendbufs_raw[i][n]::ROCVector{T},1:prod(halosize(dim,A)));
     end
 
-    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCArray{T}) where T <: GGNumber
+    function gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where T <: GGNumber
         return view(rocrecvbufs_raw[i][n]::ROCVector{T},1:prod(halosize(dim,A)));
     end
 
@@ -320,11 +320,11 @@ let
     # (GPU functions)
 
     #TODO: see if remove T here and in other cases for CuArray, ROCArray or Array (but then it does not verify that CuArray/ROCArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuField{T}, ROCField{T}}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuArray{T}, ROCArray{T}}) where T <: GGNumber
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::Union{CuField{T}, ROCField{T}}) where T <: GGNumber
         return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
@@ -363,14 +363,14 @@ let
     function allocate_tasks_iwrite(fields::GGField...)
         if length(fields) > size(tasks,2)  # Note: for simplicity, we create a tasks for every field even if it is not an CPUField
             tasks = [tasks Array{Task}(undef, NNEIGHBORS_PER_DIM, length(fields)-size(tasks,2))];  # Create (additional) emtpy tasks.
-        end
+        end 
     end
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, F::CPUField{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a CPUField.
         A, halowidths = F;
         tasks[n,i] = @task begin
-            if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-                write_h2h!(sendbuf(n,dim,i,A), A, sendranges(n,dim,A), dim);
+            if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
+                write_h2h!(sendbuf(n,dim,i,F), A, sendranges(n,dim,F), dim);
             end
         end
     end
@@ -396,8 +396,8 @@ let
     function iread_recvbufs!(n::Integer, dim::Integer, F::CPUField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
         tasks[n,i] = @task begin
-            if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
-                read_h2h!(recvbuf(n,dim,i,A), A, recvranges(n,dim,A), dim);
+            if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
+                read_h2h!(recvbuf(n,dim,i,F), A, recvranges(n,dim,F), dim);
             end
         end
     end
@@ -430,15 +430,15 @@ let
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
-        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = sendranges(n, dim, A);
+                ranges = sendranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), custreams[n,i]);
+                write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), custreams[n,i]);
             end
         end
     end
@@ -459,15 +459,15 @@ let
 
     function iread_recvbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
-        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = recvranges(n, dim, A);
+                ranges = recvranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), custreams[n,i]);
+                read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), custreams[n,i]);
             end
         end
     end
@@ -496,17 +496,17 @@ let
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, F::ROCField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
-        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
             # DEBUG 2: commenting read_h2d_async! for now
             # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = sendranges(n, dim, A);
+                ranges = sendranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             # else
-            #     write_d2h_async!(sendbuf_flat(n,dim,i,A), A, sendranges(n,dim,A), rocstreams[n,i]);
+            #     write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), rocstreams[n,i]);
             # end
         end
     end
@@ -527,17 +527,17 @@ let
 
     function iread_recvbufs!(n::Integer, dim::Integer, F::ROCField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
-        if ol(dim,A) >= 2  # There is only a halo and thus a halo update if the overlap is at least 2...
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
             # DEBUG 2: commenting read_h2d_async! for now
             # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
-                ranges = recvranges(n, dim, A);
+                ranges = recvranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
-                @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,A), A, ranges[1], ranges[2], ranges[3], dim);
+                @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             # else
-            #     read_h2d_async!(recvbuf_flat(n,dim,i,A), A, recvranges(n,dim,A), rocstreams[n,i]);
+            #     read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), rocstreams[n,i]);
             # end
         end
     end
@@ -548,24 +548,26 @@ end
 # (CPU/GPU functions)
 
 # Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
-function sendranges(n::Integer, dim::Integer, A::GGArray)
-    if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
+function sendranges(n::Integer, dim::Integer, F::GGField)
+    A, halowidths = F;
+    if (ol(dim, A) < 2*halowidths[dim]) error("Incoherent arguments: ol(A,dim)<2*halowidths[dim]."); end
     if     (n==2) ixyz_dim = size(A, dim) - (ol(dim, A) - 1);
-    elseif (n==1) ixyz_dim = 1            + (ol(dim, A) - 1);
+    elseif (n==1) ixyz_dim = 1            + (ol(dim, A) - halowidths[dim]);
     end
     sendranges      = [1:size(A,1), 1:size(A,2), 1:size(A,3)];  # Initialize with the ranges of A.
-    sendranges[dim] = ixyz_dim:ixyz_dim;
+    sendranges[dim] = ixyz_dim:ixyz_dim+halowidths[dim]-1;
     return sendranges
 end
 
 # Return the ranges from A to be received. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
-function recvranges(n::Integer, dim::Integer, A::GGArray)
-    if (ol(dim, A) < 2) error("Incoherent arguments: ol(A,dim)<2."); end
-    if     (n==2) ixyz_dim = size(A, dim);
+function recvranges(n::Integer, dim::Integer, F::GGField)
+    A, halowidths = F;
+    if (ol(dim, A) < 2*halowidths[dim]) error("Incoherent arguments: ol(A,dim)<2*halowidths[dim]."); end
+    if     (n==2) ixyz_dim = size(A, dim) - (halowidths[dim] - 1);
     elseif (n==1) ixyz_dim = 1;
     end
     recvranges      = [1:size(A,1), 1:size(A,2), 1:size(A,3)];  # Initialize with the ranges of A.
-    recvranges[dim] = ixyz_dim:ixyz_dim;
+    recvranges[dim] = ixyz_dim:ixyz_dim+halowidths[dim]-1;
     return recvranges
 end
 
@@ -611,10 +613,7 @@ function write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrange
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + sendrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + sendrangez[1] - 1
     if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
-    if     (dim == 1) gpusendbuf[iy,iz] = A[ix,iy,iz];
-    elseif (dim == 2) gpusendbuf[ix,iz] = A[ix,iy,iz];
-    elseif (dim == 3) gpusendbuf[ix,iy] = A[ix,iy,iz];
-    end
+    gpusendbuf[ix-(sendrangex[1]-1),iy-(sendrangey[1]-1),iz-(sendrangez[1]-1)] = A[ix,iy,iz];
     return nothing
 end
 
@@ -624,10 +623,7 @@ function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + recvrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + recvrangez[1] - 1
     if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
-    if     (dim == 1) A[ix,iy,iz] = gpurecvbuf[iy,iz];
-    elseif (dim == 2) A[ix,iy,iz] = gpurecvbuf[ix,iz];
-    elseif (dim == 3) A[ix,iy,iz] = gpurecvbuf[ix,iy];
-    end
+    A[ix,iy,iz] = gpurecvbuf[ix-(recvrangex[1]-1),iy-(recvrangey[1]-1),iz-(recvrangez[1]-1)];
     return nothing
 end
 
@@ -664,10 +660,7 @@ function write_d2x!(gpusendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendran
     iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + sendrangey[1] - 1
     iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + sendrangez[1] - 1
     if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
-    if     (dim == 1) gpusendbuf[iy,iz] = A[ix,iy,iz];
-    elseif (dim == 2) gpusendbuf[ix,iz] = A[ix,iy,iz];
-    elseif (dim == 3) gpusendbuf[ix,iy] = A[ix,iy,iz];
-    end
+    gpusendbuf[ix-(sendrangex[1]-1),iy-(sendrangey[1]-1),iz-(sendrangez[1]-1)] = A[ix,iy,iz];
     return nothing
 end
 
@@ -677,10 +670,7 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
     iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + recvrangey[1] - 1
     iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + recvrangez[1] - 1
     if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
-    if     (dim == 1) A[ix,iy,iz] = gpurecvbuf[iy,iz];
-    elseif (dim == 2) A[ix,iy,iz] = gpurecvbuf[ix,iz];
-    elseif (dim == 3) A[ix,iy,iz] = gpurecvbuf[ix,iy];
-    end
+    A[ix,iy,iz] = gpurecvbuf[ix-(recvrangex[1]-1),iy-(recvrangey[1]-1),iz-(recvrangez[1]-1)];
     return nothing
 end
 
@@ -719,12 +709,12 @@ end
 
 function irecv_halo!(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
-    A, halowidths = F.A, F.halowidths;
+    A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
-            req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         else
-            req = MPI.Irecv!(recvbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Irecv!(recvbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         end
     end
     return req
@@ -732,31 +722,31 @@ end
 
 function isend_halo(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Integer=0)
     req = MPI.REQUEST_NULL;
-    A, halowidths = F.A, F.halowidths;
+    A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
-            req = MPI.Isend(gpusendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Isend(gpusendbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         else
-            req = MPI.Isend(sendbuf_flat(n,dim,i,A), neighbor(n,dim), tag, comm());
+            req = MPI.Isend(sendbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         end
     end
     return req
 end
 
 function sendrecv_halo_local(n::Integer, dim::Integer, F::GGField, i::Integer)
-    A, halowidths = F.A, F.halowidths;
+    A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             if n == 1
-                gpumemcopy!(gpurecvbuf_flat(2,dim,i,A), gpusendbuf_flat(1,dim,i,A));
+                gpumemcopy!(gpurecvbuf_flat(2,dim,i,F), gpusendbuf_flat(1,dim,i,F));
             elseif n == 2
-                gpumemcopy!(gpurecvbuf_flat(1,dim,i,A), gpusendbuf_flat(2,dim,i,A));
+                gpumemcopy!(gpurecvbuf_flat(1,dim,i,F), gpusendbuf_flat(2,dim,i,F));
             end
         else
             if n == 1
-                memcopy!(recvbuf_flat(2,dim,i,A), sendbuf_flat(1,dim,i,A), loopvectorization(dim));
+                memcopy!(recvbuf_flat(2,dim,i,F), sendbuf_flat(1,dim,i,F), loopvectorization(dim));
             elseif n == 2
-                memcopy!(recvbuf_flat(1,dim,i,A), sendbuf_flat(2,dim,i,A), loopvectorization(dim));
+                memcopy!(recvbuf_flat(1,dim,i,F), sendbuf_flat(2,dim,i,F), loopvectorization(dim));
             end
         end
     end
@@ -812,10 +802,12 @@ end
 ## FUNCTIONS FOR WRAPPING AND CHECKING THE INPUT ARGUMENTS
 
 
-# Wrap the input argument into a GGField.
+# Wrap the input argument into a GGField/CPUField/CuField/ROCField.
 wrap_field(A::GGField)                 = A
 wrap_field(A::GGFieldConvertible)      = GGField(A)
-wrap_field(A::GGArray, hw::Tuple)      = GGField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::CuArray, hw::Tuple)      = CuField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::ROCArray, hw::Tuple)     = ROCField{eltype(A), ndims(A)}((A, hw))
 wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
 wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
 
