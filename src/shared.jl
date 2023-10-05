@@ -38,15 +38,22 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 ##------
 ## TYPES
 
-const GGInt                    = Cint
-const GGNumber                 = Number
-const GGArray{T,N}             = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
-const GGField{T,N}             = NamedTuple{(:A, :halowidths), Tuple{GGArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
-const GGFieldConvertible{T,N}  = NamedTuple{(:A, :halowidths), <:Tuple{GGArray{T,N}, Tuple{T2,T2,T2}}} where {T2<:Integer}
-const GGField{}(t::NamedTuple) = GGField{eltype(t.A),ndims(t.A)}((t.A, GGInt.(t.halowidths)))
-const CPUField{T,N}            = NamedTuple{(:A, :halowidths), Tuple{Array{T,N}, Tuple{GGInt,GGInt,GGInt}}}
-const CuField{T,N}             = NamedTuple{(:A, :halowidths), Tuple{CuArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
-const ROCField{T,N}            = NamedTuple{(:A, :halowidths), Tuple{ROCArray{T,N}, Tuple{GGInt,GGInt,GGInt}}}
+const GGInt                           = Cint
+const GGNumber                        = Number
+const GGArray{T,N}                    = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGField{T,N,T_array}            = NamedTuple{(:A, :halowidths), Tuple{T_array, Tuple{GGInt,GGInt,GGInt}}} where {T_array<:GGArray{T,N}}
+const GGFieldConvertible{T,N,T_array} = NamedTuple{(:A, :halowidths), <:Tuple{T_array, Tuple{T2,T2,T2}}} where {T_array<:GGArray{T,N}, T2<:Integer}
+const GGField{}(t::NamedTuple)        = GGField{eltype(t.A),ndims(t.A),typeof(t.A)}((t.A, GGInt.(t.halowidths)))
+const CPUField{T,N}                   = GGField{T,N,Array{T,N}}
+const CuField{T,N}                    = GGField{T,N,CuArray{T,N}}
+const ROCField{T,N}                   = GGField{T,N,ROCArray{T,N}}
+
+Base.size(A::Union{GGField, CPUField, CuField, ROCField})          = Base.size(A.A)
+Base.size(A::Union{GGField, CPUField, CuField, ROCField}, args...) = Base.size(A.A, args...)
+Base.length(A::Union{GGField, CPUField, CuField, ROCField})        = Base.length(A.A)
+Base.ndims(A::Union{GGField, CPUField, CuField, ROCField})         = Base.ndims(A.A)
+Base.eltype(A::Union{GGField, CPUField, CuField, ROCField})        = Base.eltype(A.A)
+
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
