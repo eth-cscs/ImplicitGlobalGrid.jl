@@ -395,7 +395,7 @@ dz = 1.0
                     P  = zeros(nx,  ny,  nz  );
                     P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
                     P  = GPUArray(P);
-                    halowidths = (1,1,1)
+                    halowidths = (1,3,1)
                     if array_type == "CUDA"
                         # (dim=1)
                         dim = 1;
@@ -423,7 +423,7 @@ dz = 1.0
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), halowidths[dim], size(P,3));
                         buf_d, buf_h = GG.register(CuArray,buf);
-                        ranges = [1:size(P,1), 3:3, 1:size(P,3)];
+                        ranges = [1:size(P,1), 4:6, 1:size(P,3)];
                         nthreads = (1, 1, 1);
                         halosize = [r[end] - r[1] + 1 for r in ranges];
                         nblocks  = Tuple(ceil.(Int, halosize./nthreads));
@@ -487,7 +487,7 @@ dz = 1.0
                         P2  = gpuzeros(eltype(P),size(P));
                         buf = zeros(size(P,1), halowidths[dim], size(P,3));
                         buf_d = GG.register(ROCArray,buf);
-                        ranges = [1:size(P,1), 3:3, 1:size(P,3)];
+                        ranges = [1:size(P,1), 4:6, 1:size(P,3)];
                         nthreads = (1, 1, 1);
                         halosize = [r[end] - r[1] + 1 for r in ranges];
                         nblocks  = Tuple(ceil.(Int, halosize./nthreads));
