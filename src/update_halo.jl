@@ -802,19 +802,8 @@ function gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
 end
 
 
-##--------------------------------------------------------
-## FUNCTIONS FOR WRAPPING AND CHECKING THE INPUT ARGUMENTS
-
-
-# Wrap the input argument into a GGField/CPUField/CuField/ROCField.
-wrap_field(A::GGField)                 = A
-wrap_field(A::GGFieldConvertible)      = GGField(A)
-wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
-wrap_field(A::CuArray, hw::Tuple)      = CuField{eltype(A), ndims(A)}((A, hw))
-wrap_field(A::ROCArray, hw::Tuple)     = ROCField{eltype(A), ndims(A)}((A, hw))
-wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
-wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
-
+##-------------------------------------------
+## FUNCTIONS FOR CHECKING THE INPUT ARGUMENTS
 
 # NOTE: no comparison must be done between the field-local halowidths and field-local overlaps because any combination is valid: the rational is that a field has simply no halo but only computation overlap in a given dimension if the corresponding local overlap is less than 2 times the local halowidth. This allows to determine whether a halo update needs to be done in a certain dimension or not.
 function check_fields(fields::GGField...)
