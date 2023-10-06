@@ -360,6 +360,35 @@ dz = 1.0
                 @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
                 finalize_global_grid(finalize_MPI=false);
             end;
+            @testset "write_h2h! / read_h2h! (halowidth > 1)" begin
+                init_global_grid(nx, ny, nz; quiet=true, init_MPI=false);
+                P  = zeros(nx,  ny,  nz  );
+                P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
+                P2 = zeros(size(P));
+                halowidths = (3,1,2);
+                # (dim=1)
+                buf = zeros(halowidths[1], size(P,2), size(P,3));
+                ranges = [4:6, 1:size(P,2), 1:size(P,3)];
+                GG.write_h2h!(buf, P, ranges, 1);
+                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+                GG.read_h2h!(buf, P2, ranges, 1);
+                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+                # (dim=2)
+                buf = zeros(size(P,1), halowidths[2], size(P,3));
+                ranges = [1:size(P,1), 4:4, 1:size(P,3)];
+                GG.write_h2h!(buf, P, ranges, 2);
+                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+                GG.read_h2h!(buf, P2, ranges, 2);
+                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+                # (dim=3)
+                buf = zeros(size(P,1), size(P,2), halowidths[3]);
+                ranges = [1:size(P,1), 1:size(P,2), 3:4];
+                GG.write_h2h!(buf, P, ranges, 3);
+                @test all(buf[:] .== P[ranges[1],ranges[2],ranges[3]][:])
+                GG.read_h2h!(buf, P2, ranges, 3);
+                @test all(buf[:] .== P2[ranges[1],ranges[2],ranges[3]][:])
+                finalize_global_grid(finalize_MPI=false);
+            end;
             @static if test_cuda || test_amdgpu
                 @testset "write_d2x! / write_d2h_async! / read_x2d! / read_h2d_async! ($array_type arrays)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
                     init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
