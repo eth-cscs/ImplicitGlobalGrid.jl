@@ -68,6 +68,7 @@ dz = 1.0
         Z2  = Z;
         @test_throws ErrorException update_halo!(P, Sxz, A)                     # Error: Sxz has no halo.
         @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)                # Error: Sxz and Sxz have no halo.
+        @test_throws ErrorException update_halo!(A, (A=P, halowidths=(1,0,1)))  # Error: P has an invalid halowidth (less than 1).
         @test_throws ErrorException update_halo!(A, (A=P, halowidths=(2,2,2)))  # Error: P has no halo.
         @test_throws ErrorException update_halo!((A=A, halowidths=(0,3,2)), (A=P, halowidths=(2,2,2)))  # Error: A and P have no halo.
         @test_throws ErrorException update_halo!(P, A, A)                       # Error: A is given twice.
