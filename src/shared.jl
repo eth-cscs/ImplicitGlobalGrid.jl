@@ -48,13 +48,6 @@ const CPUField{T,N}                   = GGField{T,N,Array{T,N}}
 const CuField{T,N}                    = GGField{T,N,CuArray{T,N}}
 const ROCField{T,N}                   = GGField{T,N,ROCArray{T,N}}
 
-Base.size(A::Union{GGField, CPUField, CuField, ROCField})          = Base.size(A.A)
-Base.size(A::Union{GGField, CPUField, CuField, ROCField}, args...) = Base.size(A.A, args...)
-Base.length(A::Union{GGField, CPUField, CuField, ROCField})        = Base.length(A.A)
-Base.ndims(A::Union{GGField, CPUField, CuField, ROCField})         = Base.ndims(A.A)
-Base.eltype(A::Union{GGField, CPUField, CuField, ROCField})        = Base.eltype(A.A)
-
-
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
     nxyz_g::Vector{GGInt}
@@ -125,6 +118,24 @@ any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+
+
+##--------------------------------------------------------------------------------
+## FUNCTIONS FOR WRAPPING ARRAYS AND FIELDS AND DEFINE ARRAY PROPERTY BASE METHODS
+
+wrap_field(A::GGField)                 = A
+wrap_field(A::GGFieldConvertible)      = GGField(A)
+wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::CuArray, hw::Tuple)      = CuField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::ROCArray, hw::Tuple)     = ROCField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
+wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
+
+Base.size(A::Union{GGField, CPUField, CuField, ROCField})          = Base.size(A.A)
+Base.size(A::Union{GGField, CPUField, CuField, ROCField}, args...) = Base.size(A.A, args...)
+Base.length(A::Union{GGField, CPUField, CuField, ROCField})        = Base.length(A.A)
+Base.ndims(A::Union{GGField, CPUField, CuField, ROCField})         = Base.ndims(A.A)
+Base.eltype(A::Union{GGField, CPUField, CuField, ROCField})        = Base.eltype(A.A)
 
 
 ##---------------
