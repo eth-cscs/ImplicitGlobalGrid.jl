@@ -13,7 +13,7 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 - `quiet::Bool=false`: whether to suppress printing information like the size of the global grid (`true`) or not (`false`).
 !!! note "Advanced keyword arguments"
     - `overlaps::Tuple{Int,Int,Int}=(2,2,2)`: the number of elements adjacent local grids overlap in dimension x, y and z. By default (value `(2,2,2)`), an array `A` of size (`nx`, `ny`, `nz`) on process 1 (`A_1`) overlaps the corresponding array `A` on process 2 (`A_2`) by `2` indices if the two processes are adjacent. E.g., if `overlaps[1]=2` and process 2 is the right neighbor of process 1 in dimension x, then `A_1[end-1:end,:,:]` overlaps `A_2[1:2,:,:]`. That means, after every call `update_halo!(A)`, we have `all(A_1[end-1:end,:,:] .== A_2[1:2,:,:])` (`A_1[end,:,:]` is the halo of process 1 and `A_2[1,:,:]` is the halo of process 2). The analog applies for the dimensions y and z.
-    - `halowidths::Tuple{Int,Int,Int}=overlaps.÷2`: the default width of an array's halo in dimension x, y and z. The default can be overwritten per array in the function [`update_halo`](@ref).
+    - `halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2)`: the default width of an array's halo in dimension x, y and z (must be greater than 1). The default can be overwritten per array in the function [`update_halo`](@ref).
     - `disp::Integer=1`:  the displacement argument to `MPI.Cart_shift` in order to determine the neighbors.
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
@@ -38,7 +38,7 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 
 See also: [`finalize_global_grid`](@ref), [`select_device`](@ref)
 """
-function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlaps::Tuple{Int,Int,Int}=(2,2,2), halowidths::Tuple{Int,Int,Int}=overlaps.÷2, disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
+function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlaps::Tuple{Int,Int,Int}=(2,2,2), halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2), disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
     if grid_is_initialized() error("The global grid has already been initialized.") end
     nxyz              = [nx, ny, nz];
     dims              = [dimx, dimy, dimz];
@@ -72,11 +72,15 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
     if (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) cuda_enabled   = cuda_functional()   end # NOTE: cuda could be enabled/disabled depending on some additional criteria.
     if (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_functional() end # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+    if (any(nxyz .< 1)) error("Invalid arguments: nx, ny, and nz cannot be less than 1."); end
+    if (any(dims .< 0)) error("Invalid arguments: dimx, dimy, and dimz cannot be negative."); end
+    if (any(periods .∉ ((0,1),))) error("Invalid arguments: periodx, periody, and periodz must be either 0 or 1."); end
+    if (any(halowidths .< 1)) error("Invalid arguments: halowidths cannot be less than 1."); end
     if (nx==1) error("Invalid arguments: nx can never be 1.") end
     if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
     if (any((nxyz .== 1) .& (dims .>1 ))) error("Incoherent arguments: if nx, ny, or nz is 1, then the corresponding dimx, dimy or dimz must not be set (or set 0 or 1)."); end
     if (any((nxyz .< 2 .* overlaps .- 1) .& (periods .> 0))) error("Incoherent arguments: if nx, ny, or nz is smaller than 2*overlaps[1]-1, 2*overlaps[2]-1 or 2*overlaps[3]-1, respectively, then the corresponding periodx, periody or periodz must not be set (or set 0)."); end
-    if (any(halowidths .> overlaps.÷2)) error("Incoherent arguments: halowidths cannot be greater than overlaps in each dimension."); end
+    if (any((overlaps .> 0) .& (halowidths .> overlaps.÷2))) error("Incoherent arguments: if overlap is greater than 0, then halowidth cannot be greater than overlap÷2, in each dimension."); end
     dims[(nxyz.==1).&(dims.==0)] .= 1;   # Setting any of nxyz to 1, means that the corresponding dimension must also be 1 in the global grid. Thus, the corresponding dims entry must be 1.
     if (init_MPI)  # NOTE: init MPI only, once the input arguments have been checked.
         if (MPI.Initialized()) error("MPI is already initialized. Set the argument 'init_MPI=false'."); end
