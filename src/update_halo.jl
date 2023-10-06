@@ -4,11 +4,15 @@ export update_halo!
     update_halo!(A)
     update_halo!(A...)
 
+!!! note "Advanced"
+        update_halo!(A, B, (A=C, halowidths=..., (A=D, halowidths=...), ...)
+
 Update the halo of the given GPU/CPU-array(s).
 
 # Typical use cases:
-    update_halo!(A)        # Update the halo of the array A.
-    update_halo!(A, B, C)  # Update the halos of the arrays A, B and C.
+    update_halo!(A)                                # Update the halo of the array A.
+    update_halo!(A, B, C)                          # Update the halos of the arrays A, B and C.
+    update_halo!(A, B, (A=C, halowidths=(2,2,2)))  # Update the halos of the arrays A, B, C, defining non default halowidth for C.
 
 !!! note "Performance note"
     Group subsequent calls to `update_halo!` in a single call for better performance (enables additional pipelining).
@@ -814,11 +818,19 @@ wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
 
 # NOTE: no comparison must be done between the field-local halowidths and field-local overlaps because any combination is valid: the rational is that a field has simply no halo but only computation overlap in a given dimension if the corresponding local overlap is less than 2 times the local halowidth. This allows to determine whether a halo update needs to be done in a certain dimension or not.
 function check_fields(fields::GGField...)
+    # Raise an error if any of the given fields has a halowidth less than 1.
+    invalid_halowidths = [i for i=1:length(fields) if any([fields[i].halowidths[dim]<1 for dim=1:ndims(fields[i])])];
+    if length(invalid_halowidths) > 1
+        error("The fields at positions $(join(invalid_halowidths,", "," and ")) have a halowidth less than 1.")
+    elseif length(invalid_halowidths) > 0
+        error("The field at position $(invalid_halowidths[1]) has a halowidth less than 1.")
+    end
+    
     # Raise an error if any of the given fields has no halo at all (in any dimension) - in this case there is no halo update to do and including the field in the call is inconsistent.
     no_halo = Int[];
     for i = 1:length(fields)
         A, halowidths = fields[i]
-        if all([halowidths[dim]==0 || (ol(dim, A) < 2*halowidths[dim]) for dim = 1:ndims(A)]) # There is no halo if the overlap is less than 2 times the halowidth (only computation overlap in this case)...
+        if all([(ol(dim, A) < 2*halowidths[dim]) for dim = 1:ndims(A)]) # There is no halo if the overlap is less than 2 times the halowidth (only computation overlap in this case)...
             push!(no_halo, i);
         end
     end
