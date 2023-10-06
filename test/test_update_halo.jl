@@ -89,6 +89,8 @@ dz = 1.0
         Z = zeros(ComplexF16, nx,   ny,   nz  );
         Y = zeros(ComplexF16, nx-1, ny+2, nz+1);
         P, A, B, C, Z, Y = GG.wrap_field.((P, A, B, C, Z, Y));
+        halowidths = (3,1,2);
+        A_hw, Z_hw = GG.wrap_field(A.A, halowidths), GG.wrap_field(Z.A, halowidths);
         @testset "free buffers" begin
             @require GG.get_sendbufs_raw() === nothing
             @require GG.get_recvbufs_raw() === nothing
@@ -118,6 +120,18 @@ dz = 1.0
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
                 for n = 1:nneighbors_per_dim
                     @test length(bufs_raw[1][n]) >= prod(sort([size(Z)...])[2:end])  # required length: max halo elements in any of the dimensions
+                end
+            end
+        end;
+        @testset "allocate single (halowidth > 1)" begin
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(A_hw);
+            max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
+            for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+                @test length(bufs_raw)       == 1                                    # 1 array
+                @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+                for n = 1:nneighbors_per_dim
+                    @test length(bufs_raw[1][n]) >= max_halo_elems                   # required length: max halo elements in any of the dimensions
                 end
             end
         end;
@@ -187,12 +201,16 @@ dz = 1.0
             GG.free_update_halo_buffers();
             GG.allocate_bufs(A, P);
             for dim = 1:ndims(A), n = 1:nneighbors_per_dim
-                @test all(length(sendbuf(n,dim,1,A)) .== prod(size(A)[1:ndims(A).!=dim]))
-                @test all(length(recvbuf(n,dim,1,A)) .== prod(size(A)[1:ndims(A).!=dim]))
+                @test all(length(sendbuf(n,dim,1,A))    .== prod(size(A)[1:ndims(A).!=dim]))
+                @test all(length(recvbuf(n,dim,1,A))    .== prod(size(A)[1:ndims(A).!=dim]))
+                @test all(size(sendbuf(n,dim,1,A))[dim] .== A.halowidths[dim])
+                @test all(size(recvbuf(n,dim,1,A))[dim] .== A.halowidths[dim])
             end
             for dim = 1:ndims(P), n = 1:nneighbors_per_dim
-                @test all(length(sendbuf(n,dim,2,P)) .== prod(size(P)[1:ndims(P).!=dim]))
-                @test all(length(recvbuf(n,dim,2,P)) .== prod(size(P)[1:ndims(P).!=dim]))
+                @test all(length(sendbuf(n,dim,2,P))    .== prod(size(P)[1:ndims(P).!=dim]))
+                @test all(length(recvbuf(n,dim,2,P))    .== prod(size(P)[1:ndims(P).!=dim]))
+                @test all(size(sendbuf(n,dim,2,P))[dim] .== P.halowidths[dim])
+                @test all(size(recvbuf(n,dim,2,P))[dim] .== P.halowidths[dim])
             end
         end;
         @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (Complex)" begin
@@ -203,12 +221,44 @@ dz = 1.0
             GG.free_update_halo_buffers();
             GG.allocate_bufs(Y, Z);
             for dim = 1:ndims(Y), n = 1:nneighbors_per_dim
-                @test all(length(sendbuf(n,dim,1,Y)) .== prod(size(Y)[1:ndims(Y).!=dim]))
-                @test all(length(recvbuf(n,dim,1,Y)) .== prod(size(Y)[1:ndims(Y).!=dim]))
+                @test all(length(sendbuf(n,dim,1,Y))    .== prod(size(Y)[1:ndims(Y).!=dim]))
+                @test all(length(recvbuf(n,dim,1,Y))    .== prod(size(Y)[1:ndims(Y).!=dim]))
+                @test all(size(sendbuf(n,dim,1,Y))[dim] .== Y.halowidths[dim])
+                @test all(size(recvbuf(n,dim,1,Y))[dim] .== Y.halowidths[dim])
             end
             for dim = 1:ndims(Z), n = 1:nneighbors_per_dim
-                @test all(length(sendbuf(n,dim,2,Z)) .== prod(size(Z)[1:ndims(Z).!=dim]))
-                @test all(length(recvbuf(n,dim,2,Z)) .== prod(size(Z)[1:ndims(Z).!=dim]))
+                @test all(length(sendbuf(n,dim,2,Z))    .== prod(size(Z)[1:ndims(Z).!=dim]))
+                @test all(length(recvbuf(n,dim,2,Z))    .== prod(size(Z)[1:ndims(Z).!=dim]))
+                @test all(size(sendbuf(n,dim,2,Z))[dim] .== Z.halowidths[dim])
+                @test all(size(recvbuf(n,dim,2,Z))[dim] .== Z.halowidths[dim])
+            end
+        end;
+        @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (halowidth > 1)" begin
+            sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
+            if array_type in ["CUDA", "AMDGPU"]
+                sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
+            end
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(A_hw);
+            for dim = 1:ndims(A_hw), n = 1:nneighbors_per_dim
+                @test all(length(sendbuf(n,dim,1,A_hw))    .== prod(size(A_hw)[1:ndims(A_hw).!=dim])*A_hw.halowidths[dim])
+                @test all(length(recvbuf(n,dim,1,A_hw))    .== prod(size(A_hw)[1:ndims(A_hw).!=dim])*A_hw.halowidths[dim])
+                @test all(size(sendbuf(n,dim,1,A_hw))[dim] .== A_hw.halowidths[dim])
+                @test all(size(recvbuf(n,dim,1,A_hw))[dim] .== A_hw.halowidths[dim])
+            end
+        end;
+        @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (halowidth > 1, Complex)" begin
+            sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
+            if array_type in ["CUDA", "AMDGPU"]
+                sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
+            end
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(Z_hw);
+            for dim = 1:ndims(Z_hw), n = 1:nneighbors_per_dim
+                @test all(length(sendbuf(n,dim,1,Z_hw))    .== prod(size(Z_hw)[1:ndims(Z_hw).!=dim])*Z_hw.halowidths[dim])
+                @test all(length(recvbuf(n,dim,1,Z_hw))    .== prod(size(Z_hw)[1:ndims(Z_hw).!=dim])*Z_hw.halowidths[dim])
+                @test all(size(sendbuf(n,dim,1,Z_hw))[dim] .== Z_hw.halowidths[dim])
+                @test all(size(recvbuf(n,dim,1,Z_hw))[dim] .== Z_hw.halowidths[dim])
             end
         end;
         finalize_global_grid(finalize_MPI=false);
@@ -245,6 +295,40 @@ dz = 1.0
                 @test GG.recvranges(2, 2, A) == [            1:size(A,1),     size(A,2):size(A,2),             1:size(A,3)]
                 @test GG.recvranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     1:1]
                 @test GG.recvranges(2, 3, A) == [            1:size(A,1),             1:size(A,2),     size(A,3):size(A,3)]
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "sendranges / recvranges (halowidth > 1, $array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
+                nx = 13;
+                ny = 9;
+                nz = 9;
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(6,4,4), halowidths=(3,1,2), quiet=true, init_MPI=false, device_type=device_type);
+                P   = zeros(nx,  ny,  nz  );
+                A   = zeros(nx-1,ny+2,nz+1);
+                P, A = GG.wrap_field.((P, A));
+                @test GG.sendranges(1, 1, P) == [                    4:6,             1:size(P,2),             1:size(P,3)]
+                @test GG.sendranges(2, 1, P) == [size(P,1)-5:size(P,1)-3,             1:size(P,2),             1:size(P,3)]
+                @test GG.sendranges(1, 2, P) == [            1:size(P,1),                     4:4,             1:size(P,3)]
+                @test GG.sendranges(2, 2, P) == [            1:size(P,1), size(P,2)-3:size(P,2)-3,             1:size(P,3)]
+                @test GG.sendranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     3:4]
+                @test GG.sendranges(2, 3, P) == [            1:size(P,1),             1:size(P,2), size(P,3)-3:size(P,3)-2]
+                @test GG.recvranges(1, 1, P) == [                    1:3,             1:size(P,2),             1:size(P,3)]
+                @test GG.recvranges(2, 1, P) == [  size(P,1)-2:size(P,1),             1:size(P,2),             1:size(P,3)]
+                @test GG.recvranges(1, 2, P) == [            1:size(P,1),                     1:1,             1:size(P,3)]
+                @test GG.recvranges(2, 2, P) == [            1:size(P,1),     size(P,2):size(P,2),             1:size(P,3)]
+                @test GG.recvranges(1, 3, P) == [            1:size(P,1),             1:size(P,2),                     1:2]
+                @test GG.recvranges(2, 3, P) == [            1:size(P,1),             1:size(P,2),   size(P,3)-1:size(P,3)]
+                @test_throws ErrorException  GG.sendranges(1, 1, A)
+                @test_throws ErrorException  GG.sendranges(2, 1, A)
+                @test GG.sendranges(1, 2, A) == [            1:size(A,1),                     6:6,             1:size(A,3)]
+                @test GG.sendranges(2, 2, A) == [            1:size(A,1), size(A,2)-5:size(A,2)-5,             1:size(A,3)]
+                @test GG.sendranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     4:5]
+                @test GG.sendranges(2, 3, A) == [            1:size(A,1),             1:size(A,2), size(A,3)-4:size(A,3)-3]
+                @test_throws ErrorException  GG.recvranges(1, 1, A)
+                @test_throws ErrorException  GG.recvranges(2, 1, A)
+                @test GG.recvranges(1, 2, A) == [            1:size(A,1),                     1:1,             1:size(A,3)]
+                @test GG.recvranges(2, 2, A) == [            1:size(A,1),     size(A,2):size(A,2),             1:size(A,3)]
+                @test GG.recvranges(1, 3, A) == [            1:size(A,1),             1:size(A,2),                     1:2]
+                @test GG.recvranges(2, 3, A) == [            1:size(A,1),             1:size(A,2),   size(A,3)-1:size(A,3)]
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "write_h2h! / read_h2h!" begin
