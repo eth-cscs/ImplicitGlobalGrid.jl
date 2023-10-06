@@ -169,7 +169,7 @@ let
                 if cuda_enabled() reinterpret_cubufs(T, i, n); end
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
-            max_halo_elems = (ndims(A) > 1) ? maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1])) : halowidths[1];
+            max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
             if (length(sendbufs_raw[i][1]) < max_halo_elems)
                 for n = 1:NNEIGHBORS_PER_DIM
                     reallocate_bufs(T, i, n, max_halo_elems);
