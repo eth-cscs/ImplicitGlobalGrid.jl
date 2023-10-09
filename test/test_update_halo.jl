@@ -529,7 +529,7 @@ dz = 1.0
                 end;
             end
             @testset "iwrite_sendbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
                 P .= Array([iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
@@ -547,10 +547,10 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[2,:,:][:]))) # DEBUG: here and later, CPUArray is needed to avoid error in AMDGPU because of mapreduce
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[3:4,:,:][:]))) # DEBUG: here and later, CPUArray is needed to avoid error in AMDGPU because of mapreduce
                     @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[2,:,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[3:4,:,:][:]))
                     @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
                 end
                 n = 2
@@ -559,10 +559,10 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[end-1,:,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[end-2:end-3,:,:][:])))
                     @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0))
                 else
-                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[end-1,:,:][:]))
+                    @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[end-3:end-2,:,:][:]))
                     @test all(GG.sendbuf_flat(n,dim,2,A) .== 0.0)
                 end
                 dim = 2
@@ -618,7 +618,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "iread_recvbufs! ($array_type arrays)" for (array_type, device_type, zeros, Array) in zip(array_types, device_types, allocators, ArrayConstructors)
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
                 P = zeros(nx,  ny,  nz  );
                 A = zeros(nx-1,ny+2,nz+1);
                 P, A = GG.wrap_field.((P, A));
@@ -643,11 +643,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[1,:,:][:])))
-                    @test all(CPUArray(                          0.0 .== Array(A.A[1,:,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[1:2,:,:][:])))
+                    @test all(CPUArray(                          0.0 .== Array(A.A[1:2,:,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[1,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A.A[1,:,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[1:2,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A.A[1:2,:,:][:]))
                 end
                 n = 2
                 GG.iread_recvbufs!(n, dim, P, 1);
@@ -655,11 +655,11 @@ dz = 1.0
                 GG.wait_iread(n, P, 1);
                 GG.wait_iread(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[end,:,:][:])))
-                    @test all(CPUArray(                          0.0 .== Array(A.A[end,:,:][:])))
+                    @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P) .== Array(P.A[end-1:end,:,:][:])))
+                    @test all(CPUArray(                          0.0 .== Array(A.A[end-1:end,:,:][:])))
                 else
-                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[end,:,:][:]))
-                    @test all(                       0.0 .== CPUArray(A.A[end,:,:][:]))
+                    @test all(GG.recvbuf_flat(n,dim,1,P) .== CPUArray(P.A[end-1:end,:,:][:]))
+                    @test all(                       0.0 .== CPUArray(A.A[end-1:end,:,:][:]))
                 end
                 dim = 2
                 for n = 1:nneighbors_per_dim
@@ -733,7 +733,7 @@ dz = 1.0
             end;
             if (nprocs==1)
                 @testset "sendrecv_halo_local ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
+                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
                     P = zeros(nx,  ny,  nz  );
                     A = zeros(nx-1,ny+2,nz+1);
                     P, A = GG.wrap_field.((P, A));
@@ -819,7 +819,7 @@ dz = 1.0
         end;
         if (nprocs>1)
             @testset "irecv_halo! / isend_halo ($array_type arrays)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+                me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, overlaps=(4,4,4), halowidths=(2,1,2), quiet=true, init_MPI=false, device_type=device_type);
                 P   = zeros(nx,ny,nz);
                 A   = zeros(nx,ny,nz);
                 P, A = GG.wrap_field.((P, A));
@@ -912,14 +912,14 @@ dz = 1.0
                 @test all(CPUArray(P .== P_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
-            @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), quiet=true, init_MPI=false, device_type=device_type);
+            @testset "3D (non-default overlap and halowidth)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
                 P     = zeros(nx, ny, nz);
                 P    .= [z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
                 P_ref = copy(P);
-                P[[1, end],       :,       :] .= 0.0;
-                P[       :,[1, end],       :] .= 0.0;
-                P[       :,       :,[1, end]] .= 0.0;
+                P[[1,2, end-1,end],       :,       :] .= 0.0;
+                P[               :,[1, end],       :] .= 0.0;
+                P[               :,       :,[1, end]] .= 0.0;
                 P     = Array(P);
                 P_ref = Array(P_ref);
                 @require !all(CPUArray(P .== P_ref))
@@ -992,14 +992,14 @@ dz = 1.0
                 @test all(CPUArray(Vz .== Vz_ref))
                 finalize_global_grid(finalize_MPI=false);
             end;
-            @testset "3D (non-default overlap)" begin
-                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(3,2,3), quiet=true, init_MPI=false, device_type=device_type);
+            @testset "3D (non-default overlap and halowidth)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
                 Vx     = zeros(nx+1,ny,nz);
                 Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
                 Vx_ref = copy(Vx);
-                Vx[[1, end],       :,       :] .= 0.0;
-                Vx[       :,[1, end],       :] .= 0.0;
-                Vx[       :,       :,[1, end]] .= 0.0;
+                Vx[[1,2, end-1,end],       :,       :] .= 0.0;
+                Vx[               :,[1, end],       :] .= 0.0;
+                Vx[               :,       :,[1, end]] .= 0.0;
                 Vx     = Array(Vx);
                 Vx_ref = Array(Vx_ref);
                 @require !all(CPUArray(Vx .== Vx_ref))
@@ -1164,6 +1164,31 @@ dz = 1.0
                 Vx[[1, end],       :,       :] .= 0.0;
                 Vx[       :,[1, end],       :] .= 0.0;
                 Vx[       :,       :,[1, end]] .= 0.0;
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                Vx     = Array(Vx);
+                Vx_ref = Array(Vx_ref);
+                @require !all(CPUArray(Vz .== Vz_ref))
+                @require !all(CPUArray(Vx .== Vx_ref))
+                update_halo!(Vz, Vx);
+                @test all(CPUArray(Vz .== Vz_ref))
+                @test all(CPUArray(Vx .== Vx_ref))
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "3D (two fields simultaneously, non-default overlap and halowidth)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(4,2,3), halowidths=(2,1,1), quiet=true, init_MPI=false, device_type=device_type);
+                Vz     = zeros(nx,ny,nz+1);
+                Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+                Vz_ref = copy(Vz);
+                Vx     = zeros(nx+1,ny,nz);
+                Vx    .= [z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)];
+                Vx_ref = copy(Vx);
+                Vz[[1,2, end-1,end],       :,       :] .= 0.0;
+                Vz[               :,[1, end],       :] .= 0.0;
+                Vz[               :,       :,[1, end]] .= 0.0;
+                Vx[[1,2, end-1,end],       :,       :] .= 0.0;
+                Vx[               :,[1, end],       :] .= 0.0;
+                Vx[               :,       :,[1, end]] .= 0.0;
                 Vz     = Array(Vz);
                 Vz_ref = Array(Vz_ref);
                 Vx     = Array(Vx);
