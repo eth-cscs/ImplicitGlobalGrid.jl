@@ -559,7 +559,7 @@ dz = 1.0
                 GG.wait_iwrite(n, P, 1);
                 GG.wait_iwrite(n, A, 2);
                 if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
-                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[end-2:end-3,:,:][:])))
+                    @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P) .== Array(P.A[end-3:end-2,:,:][:])))
                     @test all(CPUArray(GG.gpusendbuf_flat(n,dim,2,A) .== 0.0))
                 else
                     @test all(GG.sendbuf_flat(n,dim,1,P) .== CPUArray(P.A[end-3:end-2,:,:][:]))
