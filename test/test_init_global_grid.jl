@@ -36,6 +36,7 @@ nz = 1;
             @test GG.global_grid().nxyz      == [nx, ny, nz]
             @test GG.global_grid().dims      == dims
             @test GG.global_grid().overlaps  == [2, 2, 2]
+            @test GG.global_grid().halowidths== [1, 1, 1]
             @test GG.global_grid().nprocs    == nprocs
             @test GG.global_grid().me        == me
             @test GG.global_grid().coords    == coords
@@ -73,16 +74,19 @@ nz = 1;
     end;
 
     @testset "5. initialization with non-default overlaps and one periodic boundary" begin
-        nz  = 8;
-        olz = 3;
+        nz  = 10;
         olx = 3;
-        init_global_grid(nx, ny, nz, dimx=1, dimy=1, dimz=1, periodz=1, overlapx=olx, overlapz=olz, quiet=true, init_MPI=false);
+        oly = 0;
+        olz = 4;
+        init_global_grid(nx, ny, nz, dimx=1, dimy=1, dimz=1, periodz=1, overlaps=(olx, oly, olz), quiet=true, init_MPI=false);
         @testset "initialized" begin
             @test GG.grid_is_initialized()
         end
         @testset "values in global grid" begin # (Checks only what is different than in the basic test.)
             @test GG.global_grid().nxyz_g    == [nx, ny, nz-olz]  # Note: olx has no effect as there is only 1 process and this boundary is not periodic.
             @test GG.global_grid().nxyz      == [nx, ny, nz    ]
+            @test GG.global_grid().overlaps  == [olx, oly, olz]
+            @test GG.global_grid().halowidths== [1, 1, 2]
             @test GG.global_grid().neighbors == [p0 p0 0; p0 p0 0]
             @test GG.global_grid().periods   == [0, 0, 1]
         end;
@@ -99,7 +103,9 @@ nz = 1;
         @test_throws ErrorException init_global_grid(nx, 1, nz, quiet=true, init_MPI=false);                         # Error: ny==1, while nz>1.
         @test_throws ErrorException init_global_grid(nx, ny, 1, dimz=3, quiet=true, init_MPI=false);                 # Error: dimz>1 while nz==1.
         @test_throws ErrorException init_global_grid(nx, ny, 1, periodz=1, quiet=true, init_MPI=false);              # Error: periodz==1 while nz==1.
-        @test_throws ErrorException init_global_grid(nx, ny, nz, periody=1, overlapy=3, quiet=true, init_MPI=false); # Error: periody==1 while ny<2*overlapy-1 (4<5).
+        @test_throws ErrorException init_global_grid(nx, ny, nz, periody=1, overlaps=(2,3,2), quiet=true, init_MPI=false); # Error: periody==1 while ny<2*overlaps[2]-1 (4<5).
+        @test_throws ErrorException init_global_grid(nx, ny, nz, halowidths=(1,0,1), quiet=true, init_MPI=false);    # Error: halowidths[2]<1.
+        @test_throws ErrorException init_global_grid(nx, ny, nz, overlaps=(4,3,2), halowidths=(2,2,1), quiet=true, init_MPI=false); # Error: halowidths[2]==2 while overlaps[2]==3.
         @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true);                                        # Error: MPI already initialized
         @testset "already initialized exception" begin
             init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
