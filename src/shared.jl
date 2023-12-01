@@ -30,6 +30,7 @@ const NDIMS_MPI = 3                    # Internally, we set the number of dimens
 const NNEIGHBORS_PER_DIM = 2           # Number of neighbors per dimension (left neighbor + right neighbor).
 const GG_ALLOC_GRANULARITY = 32        # Internal buffers are allocated with a granulariy of GG_ALLOC_GRANULARITY elements in order to ensure correct reinterpretation when used for different types and to reduce amount of re-allocations.
 const GG_THREADCOPY_THRESHOLD = 32768  # When LoopVectorization is deactivated, then the GG_THREADCOPY_THRESHOLD defines the size in bytes upon which memory copy is performed with multiple threads.
+const DEVICE_TYPE_NONE = "none"
 const DEVICE_TYPE_AUTO = "auto"
 const DEVICE_TYPE_CUDA = "CUDA"
 const DEVICE_TYPE_AMDGPU = "AMDGPU"
