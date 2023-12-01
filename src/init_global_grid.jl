@@ -18,8 +18,8 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `init_MPI::Bool=true`: whether to initialize MPI (`true`) or not (`false`).
-    - `device_type::String="auto"`: the type of the device to be used if available: "CUDA", "AMDGPU" or "auto". If `device_type` is "auto" (default), it is automatically determined, depending on which of the modules used for programming the devices (CUDA.jl or AMDGPU.jl) is functional; if both are functional, an error will be given if `device_type` is set as "auto".
-    - `select_device::Bool=true`: whether to automatically select the device (GPU) (`true`) or not (`false`) if CUDA is functional. If `true`, it selects the device corresponding to the node-local MPI rank. This method of device selection suits both single and multi-device compute nodes and is recommended in general. It is also the default method of device selection of the *function* [`select_device`](@ref).
+    - `device_type::String="auto"`: the type of the device to be used if available: `"CUDA"`, `"AMDGPU"`, `"none"` or `"auto"`. Set `device_type="none"` if you want to use only CPUs on a system having also GPUs. If `device_type` is `"auto"` (default), it is automatically determined, depending on which of the modules used for programming the devices (CUDA.jl or AMDGPU.jl) is functional; if both are functional, an error will be given if `device_type` is set as `"auto"`.
+    - `select_device::Bool=true`: whether to automatically select the device (GPU) (`true`) or not (`false`) if CUDA or AMDGPU is functional and `device_type` not `"none"`. If `true`, it selects the device corresponding to the node-local MPI rank. This method of device selection suits both single and multi-device compute nodes and is recommended in general. It is also the default method of device selection of the *function* [`select_device`](@ref).
     For more information, refer to the documentation of MPI.jl / MPI.
 
 # Return values
@@ -68,10 +68,12 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMY") loopvectorization[2] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMY"]) > 0); end
         if haskey(ENV, "IGG_LOOPVECTORIZATION_DIMZ") loopvectorization[3] = (parse(Int64, ENV["IGG_LOOPVECTORIZATION_DIMZ"]) > 0); end
     end
-    if !(device_type in [DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_AUTO") end
+    if !(device_type in [DEVICE_TYPE_NONE, DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_NONE, $DEVICE_TYPE_AUTO") end
     if ((device_type == DEVICE_TYPE_AUTO) && cuda_functional() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU are functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
-    if (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) cuda_enabled   = cuda_functional()   end # NOTE: cuda could be enabled/disabled depending on some additional criteria.
-    if (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_functional() end # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+    if (device_type != DEVICE_TYPE_NONE)
+        if (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) cuda_enabled   = cuda_functional()   end # NOTE: cuda could be enabled/disabled depending on some additional criteria.
+        if (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_functional() end # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+    end
     if (any(nxyz .< 1)) error("Invalid arguments: nx, ny, and nz cannot be less than 1."); end
     if (any(dims .< 0)) error("Invalid arguments: dimx, dimy, and dimz cannot be negative."); end
     if (any(periods .∉ ((0,1),))) error("Invalid arguments: periodx, periody, and periodz must be either 0 or 1."); end
