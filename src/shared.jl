@@ -30,6 +30,7 @@ const NDIMS_MPI = 3                    # Internally, we set the number of dimens
 const NNEIGHBORS_PER_DIM = 2           # Number of neighbors per dimension (left neighbor + right neighbor).
 const GG_ALLOC_GRANULARITY = 32        # Internal buffers are allocated with a granulariy of GG_ALLOC_GRANULARITY elements in order to ensure correct reinterpretation when used for different types and to reduce amount of re-allocations.
 const GG_THREADCOPY_THRESHOLD = 32768  # When LoopVectorization is deactivated, then the GG_THREADCOPY_THRESHOLD defines the size in bytes upon which memory copy is performed with multiple threads.
+const DEVICE_TYPE_NONE = "none"
 const DEVICE_TYPE_AUTO = "auto"
 const DEVICE_TYPE_CUDA = "CUDA"
 const DEVICE_TYPE_AMDGPU = "AMDGPU"
@@ -38,9 +39,15 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 ##------
 ## TYPES
 
-const GGInt        = Cint
-const GGNumber     = Number
-const GGArray{T,N} = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGInt                           = Cint
+const GGNumber                        = Number
+const GGArray{T,N}                    = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGField{T,N,T_array}            = NamedTuple{(:A, :halowidths), Tuple{T_array, Tuple{GGInt,GGInt,GGInt}}} where {T_array<:GGArray{T,N}}
+const GGFieldConvertible{T,N,T_array} = NamedTuple{(:A, :halowidths), <:Tuple{T_array, Tuple{T2,T2,T2}}} where {T_array<:GGArray{T,N}, T2<:Integer}
+const GGField{}(t::NamedTuple)        = GGField{eltype(t.A),ndims(t.A),typeof(t.A)}((t.A, GGInt.(t.halowidths)))
+const CPUField{T,N}                   = GGField{T,N,Array{T,N}}
+const CuField{T,N}                    = GGField{T,N,CuArray{T,N}}
+const ROCField{T,N}                   = GGField{T,N,ROCArray{T,N}}
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -48,6 +55,7 @@ struct GlobalGrid
     nxyz::Vector{GGInt}
     dims::Vector{GGInt}
     overlaps::Vector{GGInt}
+    halowidths::Vector{GGInt}
     nprocs::GGInt
     me::GGInt
     coords::Vector{GGInt}
@@ -63,7 +71,7 @@ struct GlobalGrid
     loopvectorization::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
@@ -92,6 +100,8 @@ me()                                   = global_grid().me
 comm()                                 = global_grid().comm
 ol(dim::Integer)                       = global_grid().overlaps[dim]
 ol(dim::Integer, A::GGArray)           = global_grid().overlaps[dim] + (size(A,dim) - global_grid().nxyz[dim])
+ol(A::GGArray)                         = (ol(dim, A) for dim in 1:ndims(A))
+hw_default()                           = global_grid().halowidths
 neighbors(dim::Integer)                = global_grid().neighbors[:,dim]
 neighbor(n::Integer, dim::Integer)     = global_grid().neighbors[n,dim]
 cuda_enabled()                         = global_grid().cuda_enabled
@@ -103,12 +113,30 @@ amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
 loopvectorization()                    = global_grid().loopvectorization
 loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
-any_array(fields::GGArray...)          = any([is_array(A) for A in fields])
-any_cuarray(fields::GGArray...)        = any([is_cuarray(A) for A in fields])
-any_rocarray(fields::GGArray...)       = any([is_rocarray(A) for A in fields])
+any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
+any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
+any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+
+
+##--------------------------------------------------------------------------------
+## FUNCTIONS FOR WRAPPING ARRAYS AND FIELDS AND DEFINE ARRAY PROPERTY BASE METHODS
+
+wrap_field(A::GGField)                 = A
+wrap_field(A::GGFieldConvertible)      = GGField(A)
+wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::CuArray, hw::Tuple)      = CuField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::ROCArray, hw::Tuple)     = ROCField{eltype(A), ndims(A)}((A, hw))
+wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
+wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
+
+Base.size(A::Union{GGField, CPUField, CuField, ROCField})          = Base.size(A.A)
+Base.size(A::Union{GGField, CPUField, CuField, ROCField}, args...) = Base.size(A.A, args...)
+Base.length(A::Union{GGField, CPUField, CuField, ROCField})        = Base.length(A.A)
+Base.ndims(A::Union{GGField, CPUField, CuField, ROCField})         = Base.ndims(A.A)
+Base.eltype(A::Union{GGField, CPUField, CuField, ROCField})        = Base.eltype(A.A)
 
 
 ##---------------

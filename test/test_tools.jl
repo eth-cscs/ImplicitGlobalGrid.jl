@@ -77,7 +77,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
         Vz  = zeros(nx,  ny,  nz+1);
         A   = zeros(nx,  ny,  nz+2);
         Sxz = zeros(nx-2,ny-1,nz-2);
-        init_global_grid(nx, ny, nz, dimx=1, dimy=1, dimz=1, periodz=1, overlapx=3, overlapz=3, quiet=true, init_MPI=false);
+        init_global_grid(nx, ny, nz, dimx=1, dimy=1, dimz=1, periodz=1, overlaps=(3,2,3), quiet=true, init_MPI=false);
         @testset "nx_g / ny_g / nz_g" begin
             @test nx_g() == nx
             @test ny_g() == ny
