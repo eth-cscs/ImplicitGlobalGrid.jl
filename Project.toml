@@ -1,7 +1,7 @@
 authors = ["Samuel Omlin", "Ludovic Raess", "Ivan Utkin"]
 name = "ImplicitGlobalGrid"
 uuid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
-version = "0.13.1"
+version = "0.14.0"
 
 [compat]
 AMDGPU = "0.5, 0.6, 0.7, 0.8"
