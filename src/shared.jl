@@ -2,7 +2,6 @@ import MPI
 using CUDA
 using AMDGPU
 using Base.Threads
-using LoopVectorization
 
 
 ##-------------------------

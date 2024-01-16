@@ -4,6 +4,7 @@
 
 push!(LOAD_PATH, "../src")
 using Test
+import LoopVectorization
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
 using CUDA

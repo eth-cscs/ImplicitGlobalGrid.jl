@@ -34,8 +34,15 @@ To see a description of a function type `?<functionname>`.
 """
 module ImplicitGlobalGrid
 
+## Include of exception module
+include("Exceptions.jl");
+using .Exceptions
+
 ## Include of shared constant parameters, types and syntax sugar
 include("shared.jl")
+
+## Alphabetical include of defaults for extensions
+include(joinpath("LoopVectorizationExt", "memcopy_LV_default.jl"))
 
 ## Alphabetical include of files
 include("finalize_global_grid.jl")
