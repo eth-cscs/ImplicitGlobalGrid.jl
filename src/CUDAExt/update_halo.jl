@@ -109,3 +109,126 @@ let
     get_cusendbufs_raw()  = deepcopy(cusendbufs_raw)
     get_curecvbufs_raw()  = deepcopy(curecvbufs_raw)
 end
+
+
+##----------------------------------------------
+## FUNCTIONS TO WRITE AND READ SEND/RECV BUFFERS
+
+function allocate_custreams(fields::GGField...)
+    allocate_custreams_iwrite(fields...);
+    allocate_custreams_iread(fields...);
+end
+
+let
+    global iwrite_sendbufs!, allocate_custreams_iwrite, wait_iwrite
+
+    custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
+
+    wait_iwrite(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
+
+    function allocate_custreams_iwrite(fields::GGField...)
+        if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuField
+            custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+        end
+    end
+
+    function iwrite_sendbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
+        A, halowidths = F;
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
+            if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = sendranges(n, dim, F);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                halosize = [r[end] - r[1] + 1 for r in ranges];
+                nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
+            else
+                write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), custreams[n,i]);
+            end
+        end
+    end
+end
+
+let
+    global iread_recvbufs!, allocate_custreams_iread, wait_iread
+
+    custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
+
+    wait_iread(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
+
+    function allocate_custreams_iread(fields::GGField...)
+        if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuField
+            custreams = [custreams [CuStream(; flags=CUDA.STREAM_NON_BLOCKING, priority=CUDA.priority_range()[end]) for n=1:NNEIGHBORS_PER_DIM, i=1:(length(fields)-size(custreams,2))]];  # Create (additional) maximum priority nonblocking streams to enable overlap with computation kernels.
+        end
+    end
+
+    function iread_recvbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
+        A, halowidths = F;
+        if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
+            if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+                ranges = recvranges(n, dim, F);
+                nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
+                halosize = [r[end] - r[1] + 1 for r in ranges];
+                nblocks  = Tuple(ceil.(Int, halosize./nthreads));
+                @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
+            else
+                read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), custreams[n,i]);
+            end
+        end
+    end
+end
+
+
+# (CUDA functions)
+
+# Write to the send buffer on the host or device from the array on the device (d2x).
+function write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+    ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + sendrangex[1] - 1
+    iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + sendrangey[1] - 1
+    iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + sendrangez[1] - 1
+    if !(ix in sendrangex && iy in sendrangey && iz in sendrangez) return nothing; end
+    gpusendbuf[ix-(sendrangex[1]-1),iy-(sendrangey[1]-1),iz-(sendrangez[1]-1)] = A[ix,iy,iz];
+    return nothing
+end
+
+# Read from the receive buffer on the host or device and store on the array on the device (x2d).
+function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+    ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + recvrangex[1] - 1
+    iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + recvrangey[1] - 1
+    iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + recvrangez[1] - 1
+    if !(ix in recvrangex && iy in recvrangey && iz in recvrangez) return nothing; end
+    A[ix,iy,iz] = gpurecvbuf[ix-(recvrangex[1]-1),iy-(recvrangey[1]-1),iz-(recvrangez[1]-1)];
+    return nothing
+end
+
+# Write to the send buffer on the host from the array on the device (d2h).
+function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    CUDA.Mem.unsafe_copy3d!(
+        pointer(sendbuf), CUDA.Mem.Host, pointer(A), CUDA.Mem.Device,
+        length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
+        srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
+        srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
+        dstPitch=sizeof(T)*length(sendranges[1]), dstHeight=length(sendranges[2]),
+        async=true, stream=custream
+    )
+end
+
+# Read from the receive buffer on the host and store on the array on the device (h2d).
+function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    CUDA.Mem.unsafe_copy3d!(
+        pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
+        length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
+        dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
+        srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
+        dstPitch=sizeof(T)*size(A,1), dstHeight=size(A,2),
+        async=true, stream=custream
+    )
+end
+
+
+##------------------------------
+## FUNCTIONS TO SEND/RECV FIELDS
+
+function gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
+    @inbounds CUDA.copyto!(dst, src)
+end
+
