@@ -40,13 +40,11 @@ const DEVICE_TYPE_AMDGPU = "AMDGPU"
 
 const GGInt                           = Cint
 const GGNumber                        = Number
-const GGArray{T,N}                    = Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGArray{T,N}                    = DenseArray{T,N} # TODO: was Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
 const GGField{T,N,T_array}            = NamedTuple{(:A, :halowidths), Tuple{T_array, Tuple{GGInt,GGInt,GGInt}}} where {T_array<:GGArray{T,N}}
 const GGFieldConvertible{T,N,T_array} = NamedTuple{(:A, :halowidths), <:Tuple{T_array, Tuple{T2,T2,T2}}} where {T_array<:GGArray{T,N}, T2<:Integer}
 const GGField{}(t::NamedTuple)        = GGField{eltype(t.A),ndims(t.A),typeof(t.A)}((t.A, GGInt.(t.halowidths)))
 const CPUField{T,N}                   = GGField{T,N,Array{T,N}}
-const CuField{T,N}                    = GGField{T,N,CuArray{T,N}}
-const ROCField{T,N}                   = GGField{T,N,ROCArray{T,N}}
 
 "An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
@@ -116,8 +114,6 @@ any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
 any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
 any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
-is_cuarray(A::GGArray)                 = typeof(A) <: CuArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
-is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##--------------------------------------------------------------------------------
@@ -126,31 +122,16 @@ is_rocarray(A::GGArray)                = typeof(A) <: ROCArray  #NOTE: this func
 wrap_field(A::GGField)                 = A
 wrap_field(A::GGFieldConvertible)      = GGField(A)
 wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
-wrap_field(A::CuArray, hw::Tuple)      = CuField{eltype(A), ndims(A)}((A, hw))
-wrap_field(A::ROCArray, hw::Tuple)     = ROCField{eltype(A), ndims(A)}((A, hw))
 wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
 wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
 
-Base.size(A::Union{GGField, CPUField, CuField, ROCField})          = Base.size(A.A)
-Base.size(A::Union{GGField, CPUField, CuField, ROCField}, args...) = Base.size(A.A, args...)
-Base.length(A::Union{GGField, CPUField, CuField, ROCField})        = Base.length(A.A)
-Base.ndims(A::Union{GGField, CPUField, CuField, ROCField})         = Base.ndims(A.A)
-Base.eltype(A::Union{GGField, CPUField, CuField, ROCField})        = Base.eltype(A.A)
+Base.size(A::Union{GGField, CPUField})          = Base.size(A.A)
+Base.size(A::Union{GGField, CPUField}, args...) = Base.size(A.A, args...)
+Base.length(A::Union{GGField, CPUField})        = Base.length(A.A)
+Base.ndims(A::Union{GGField, CPUField})         = Base.ndims(A.A)
+Base.eltype(A::Union{GGField, CPUField})        = Base.eltype(A.A)
 
 
-##---------------
-## CUDA functions
-
-function register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
-    rbuf = CUDA.Mem.register(CUDA.Mem.Host, pointer(buf), sizeof(buf), CUDA.Mem.HOSTREGISTER_DEVICEMAP);
-    rbuf_d = convert(CuPtr{T}, rbuf);
-    return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
-end
-
-
-##---------------
-## AMDGPU functions
-
-function register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
-    return unsafe_wrap(ROCArray, pointer(buf), size(buf))
-end
+##------------------------------------------
+## CUDA AND AMDGPU COMMON EXTENSION DEFAULTS
+function register end
