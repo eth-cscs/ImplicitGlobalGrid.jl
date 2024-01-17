@@ -1,6 +1,22 @@
+import ImplicitGlobalGrid
+import ImplicitGlobalGrid: GGArray, GGField, GGNumber
+using AMDGPU
+
+
+##------
+## TYPES
+
 const ROCField{T,N} = GGField{T,N,ROCArray{T,N}}
 
+
+##-------------
+## SYNTAX SUGAR
+
 is_rocarray(A::GGArray) = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+
+
+##--------------------------------------------------------------------------------
+## FUNCTIONS FOR WRAPPING ARRAYS AND FIELDS AND DEFINE ARRAY PROPERTY BASE METHODS
 
 wrap_field(A::ROCArray, hw::Tuple) = ROCField{eltype(A), ndims(A)}((A, hw))
 
