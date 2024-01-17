@@ -13,3 +13,4 @@ function reallocate_undersized_rocbufs end
 function reregister_rocbufs end
 function get_rocsendbufs_raw end
 function get_rocrecvbufs_raw end
+function allocate_rocstreams end

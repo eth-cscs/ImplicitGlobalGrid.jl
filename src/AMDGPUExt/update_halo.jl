@@ -123,7 +123,7 @@ end
 ##----------------------------------------------
 ## FUNCTIONS TO WRITE AND READ SEND/RECV BUFFERS
 
-function allocate_rocstreams(fields::GGField...)
+function ImplicitGlobalGrid.allocate_rocstreams(fields::GGField...)
     allocate_rocstreams_iwrite(fields...);
     allocate_rocstreams_iread(fields...);
 end
@@ -195,7 +195,7 @@ end
 # (AMDGPU functions)
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
-function write_d2x!(gpusendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+function ImplicitGlobalGrid.write_d2x!(gpusendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
     ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + sendrangex[1] - 1
     iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + sendrangey[1] - 1
     iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + sendrangez[1] - 1
@@ -205,7 +205,7 @@ function write_d2x!(gpusendbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, sendran
 end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
-function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
     ix = (AMDGPU.workgroupIdx().x-1) * AMDGPU.workgroupDim().x + AMDGPU.workitemIdx().x + recvrangex[1] - 1
     iy = (AMDGPU.workgroupIdx().y-1) * AMDGPU.workgroupDim().y + AMDGPU.workitemIdx().y + recvrangey[1] - 1
     iz = (AMDGPU.workgroupIdx().z-1) * AMDGPU.workgroupDim().z + AMDGPU.workitemIdx().z + recvrangez[1] - 1
@@ -215,7 +215,7 @@ function read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDeviceArray{T}, recvrang
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
     buf_view = reshape(sendbuf, Tuple(length.(sendranges)))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(sendbuf), AMDGPU.Mem.HostBuffer,
@@ -230,7 +230,7 @@ function write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges:
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
     buf_view = reshape(recvbuf, Tuple(length.(recvranges)))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), typeof(A.buf),
@@ -248,6 +248,6 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
+function ImplicitGlobalGrid.gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
     @inbounds AMDGPU.copyto!(dst, src)
 end

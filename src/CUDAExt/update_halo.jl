@@ -135,7 +135,7 @@ end
 ##----------------------------------------------
 ## FUNCTIONS TO WRITE AND READ SEND/RECV BUFFERS
 
-function allocate_custreams(fields::GGField...)
+function ImplicitGlobalGrid.allocate_custreams(fields::GGField...)
     allocate_custreams_iwrite(fields...);
     allocate_custreams_iread(fields...);
 end
@@ -202,7 +202,7 @@ end
 # (CUDA functions)
 
 # Write to the send buffer on the host or device from the array on the device (d2x).
-function write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
+function ImplicitGlobalGrid.write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrangex::UnitRange{Int64}, sendrangey::UnitRange{Int64}, sendrangez::UnitRange{Int64},  dim::Integer) where T <: GGNumber
     ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + sendrangex[1] - 1
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + sendrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + sendrangez[1] - 1
@@ -212,7 +212,7 @@ function write_d2x!(gpusendbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, sendrange
 end
 
 # Read from the receive buffer on the host or device and store on the array on the device (x2d).
-function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
+function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex::UnitRange{Int64}, recvrangey::UnitRange{Int64}, recvrangez::UnitRange{Int64}, dim::Integer) where T <: GGNumber
     ix = (CUDA.blockIdx().x-1) * CUDA.blockDim().x + CUDA.threadIdx().x + recvrangex[1] - 1
     iy = (CUDA.blockIdx().y-1) * CUDA.blockDim().y + CUDA.threadIdx().y + recvrangey[1] - 1
     iz = (CUDA.blockIdx().z-1) * CUDA.blockDim().z + CUDA.threadIdx().z + recvrangez[1] - 1
@@ -222,7 +222,7 @@ function read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceArray{T}, recvrangex
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.Mem.unsafe_copy3d!(
         pointer(sendbuf), CUDA.Mem.Host, pointer(A), CUDA.Mem.Device,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
@@ -234,7 +234,7 @@ function write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.Mem.unsafe_copy3d!(
         pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
@@ -249,7 +249,7 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
+function ImplicitGlobalGrid.gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
     @inbounds CUDA.copyto!(dst, src)
 end
 

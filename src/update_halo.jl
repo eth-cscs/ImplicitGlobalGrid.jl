@@ -276,6 +276,14 @@ let
 end
 
 
+# TODO: see where to move this! Maybe to shared_defaults.jl in src?
+function write_d2x! end
+function read_x2d! end
+function write_d2h_async! end
+function read_h2d_async! end
+
+function gpumemcopy! end
+
 # (CPU/GPU functions)
 
 # Return the ranges from A to be sent. It will always return ranges for the dimensions x,y and z even if the A is 1D or 2D (for 2D, the 3rd range is 1:1; for 1D, the 2nd and 3rd range are 1:1).
