@@ -1,5 +1,6 @@
 import ImplicitGlobalGrid
 import ImplicitGlobalGrid: GGArray, GGField, GGNumber
+import ImplicitGlobalGrid: NNEIGHBORS_PER_DIM, GG_ALLOC_GRANULARITY
 using CUDA
 
 
