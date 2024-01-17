@@ -96,7 +96,8 @@ halosize(dim::Integer, A::GGField) = (dim==1) ? (A.halowidths[1], size(A,2), siz
 
 let
     #TODO: this was: global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
-    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
+    global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat # TODO: this is to be removed if the corresponding functions are moved.
+    global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat
     sendbufs_raw = nothing
     recvbufs_raw = nothing
 
@@ -135,24 +136,9 @@ let
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
             max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
-            if (length(sendbufs_raw[i][1]) < max_halo_elems)
-                for n = 1:NNEIGHBORS_PER_DIM
-                    reallocate_bufs(T, i, n, max_halo_elems);
-                    if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
-                    if (is_rocarray(A) && none(amdgpuaware_MPI())) reregister_rocbufs(T, i, n); end  # ...
-                end
-                GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
-            end
-            if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
-                for n = 1:NNEIGHBORS_PER_DIM
-                    if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
-                end
-            end
-            if (!isnothing(rocsendbufs_raw) && length(rocsendbufs_raw[i][1]) < max_halo_elems)
-                for n = 1:NNEIGHBORS_PER_DIM
-                    if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
-                end
-            end
+            reallocate_undersized_hostbufs(T, i, max_halo_elems);
+            if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_undersized_cubufs(T, i, max_halo_elems) end
+            if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_undersized_rocbufs(T, i, max_halo_elems) end
         end
     end
 
@@ -172,6 +158,17 @@ let
     function reinterpret_bufs(T::DataType, i::Integer, n::Integer)
         if (eltype(sendbufs_raw[i][n]) != T) sendbufs_raw[i][n] = reinterpret(T, sendbufs_raw[i][n]); end
         if (eltype(recvbufs_raw[i][n]) != T) recvbufs_raw[i][n] = reinterpret(T, recvbufs_raw[i][n]); end
+    end
+
+    function reallocate_undersized_hostbufs(T::DataType, i::Integer, max_halo_elems::Integer)
+        if (length(sendbufs_raw[i][1]) < max_halo_elems)
+            for n = 1:NNEIGHBORS_PER_DIM
+                reallocate_bufs(T, i, n, max_halo_elems);
+                if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
+                if (is_rocarray(A) && none(amdgpuaware_MPI())) reregister_rocbufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # ...
+            end
+            GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
+        end
     end
 
     function reallocate_bufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
@@ -197,6 +194,12 @@ let
     function recvbuf(n::Integer, dim::Integer, i::Integer, A::GGField)
         return reshape(recvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
+
+    # (GPU defaults) #TODO: see where to move this! Maybe to shared_defaults.jl in src?
+    function gpusendbuf end
+    function gpurecvbuf end
+    function gpusendbuf_flat end
+    function gpurecvbuf_flat end
 
     # Make sendbufs_raw and recvbufs_raw accessible for unit testing.
     global get_sendbufs_raw, get_recvbufs_raw

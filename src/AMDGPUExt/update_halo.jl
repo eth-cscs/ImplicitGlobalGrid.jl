@@ -3,8 +3,21 @@
 
 # NOTE: CUDA and AMDGPU buffers live and are dealt with independently, enabling the support of usage of CUDA and AMD GPUs at the same time.
 
+ImplicitGlobalGrid.free_update_halo_rocbuffers(args...) = free_update_halo_rocbuffers(args...)
+ImplicitGlobalGrid.init_rocbufs_arrays(args...) = init_rocbufs_arrays(args...)
+ImplicitGlobalGrid.init_rocbufs(args...) = init_rocbufs(args...)
+ImplicitGlobalGrid.reinterpret_rocbufs(args...) = reinterpret_rocbufs(args...)
+ImplicitGlobalGrid.reallocate_undersized_rocbufs(args...) = reallocate_undersized_rocbufs(args...)
+ImplicitGlobalGrid.reregister_rocbufs(args...) = reregister_rocbufs(args...)
+ImplicitGlobalGrid.get_rocsendbufs_raw(args...) = get_rocsendbufs_raw(args...)
+ImplicitGlobalGrid.get_rocrecvbufs_raw(args...) = get_rocrecvbufs_raw(args...)
+ImplicitGlobalGrid.gpusendbuf(args..., A::ROCField) = gpusendbuf(args..., A)
+ImplicitGlobalGrid.gpurecvbuf(args..., A::ROCField) = gpurecvbuf(args..., A)
+ImplicitGlobalGrid.gpusendbuf_flat(args..., A::ROCField) = gpusendbuf_flat(args..., A)
+ImplicitGlobalGrid.gpurecvbuf_flat(args..., A::ROCField) = gpurecvbuf_flat(args..., A)
+
 let
-    global free_update_halo_rocbuffers, reset_roc_buffers, free_rocbufs
+    global free_update_halo_rocbuffers, init_rocbufs_arrays, init_rocbufs, reinterpret_rocbufs, reregister_rocbufs, reallocate_undersized_rocbufs
     global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat
     rocsendbufs_raw = nothing
     rocrecvbufs_raw = nothing
@@ -57,12 +70,20 @@ let
         if (eltype(rocrecvbufs_raw[i][n]) != T) rocrecvbufs_raw[i][n] = reinterpret(T, rocrecvbufs_raw[i][n]); end
     end
 
+    function reallocate_undersized_rocbufs(T::DataType, i::Integer, max_halo_elems::Integer)
+        if (!isnothing(rocsendbufs_raw) && length(rocsendbufs_raw[i][1]) < max_halo_elems)
+            for n = 1:NNEIGHBORS_PER_DIM
+                if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+            end
+        end
+    end
+
     function reallocate_rocbufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
         rocsendbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
         rocrecvbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
-    function reregister_rocbufs(T::DataType, i::Integer, n::Integer)
+    function reregister_rocbufs(T::DataType, i::Integer, n::Integer, sendbufs_raw, recvbufs_raw)
         # INFO: no need for roc host buffers
         rocsendbufs_raw[i][n] = register(ROCArray,sendbufs_raw[i][n]);
         rocrecvbufs_raw[i][n] = register(ROCArray,recvbufs_raw[i][n]);
@@ -83,11 +104,11 @@ let
     # (GPU functions)
 
     #TODO: see if remove T here and in other cases for CuArray, ROCArray or Array (but then it does not verify that CuArray/ROCArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T} where T <: GGNumber
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T} where T <: GGNumber
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where T <: GGNumber
         return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 

@@ -3,8 +3,21 @@
 
 # NOTE: CUDA and AMDGPU buffers live and are dealt with independently, enabling the support of usage of CUDA and AMD GPUs at the same time.
 
+ImplicitGlobalGrid.free_update_halo_cubuffers(args...) = free_update_halo_cubuffers(args...)
+ImplicitGlobalGrid.init_cubufs_arrays(args...) = init_cubufs_arrays(args...)
+ImplicitGlobalGrid.init_cubufs(args...) = init_cubufs(args...)
+ImplicitGlobalGrid.reinterpret_cubufs(args...) = reinterpret_cubufs(args...)
+ImplicitGlobalGrid.reallocate_undersized_cubufs(args...) = reallocate_undersized_cubufs(args...)
+ImplicitGlobalGrid.reregister_cubufs(args...) = reregister_cubufs(args...)
+ImplicitGlobalGrid.get_cusendbufs_raw(args...) = get_cusendbufs_raw(args...)
+ImplicitGlobalGrid.get_curecvbufs_raw(args...) = get_curecvbufs_raw(args...)
+ImplicitGlobalGrid.gpusendbuf(args..., A::CuField)= gpusendbuf(args..., A)
+ImplicitGlobalGrid.gpurecvbuf(args..., A::CuField)= gpurecvbuf(args..., A)
+ImplicitGlobalGrid.gpusendbuf_flat(args..., A::CuField)= gpusendbuf_flat(args..., A)
+ImplicitGlobalGrid.gpurecvbuf_flat(args..., A::CuField)= gpurecvbuf_flat(args..., A)
+
 let
-    global free_update_halo_cubuffers, reset_cu_buffers, free_cubufs, unregister_cubufs
+    global free_update_halo_cubuffers, init_cubufs_arrays, init_cubufs, reinterpret_cubufs, reregister_cubufs, reallocate_undersized_cubufs
     global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat
     cusendbufs_raw = nothing
     curecvbufs_raw = nothing
@@ -68,12 +81,20 @@ let
         if (eltype(curecvbufs_raw[i][n]) != T) curecvbufs_raw[i][n] = reinterpret(T, curecvbufs_raw[i][n]); end
     end
 
+    function reallocate_undersized_cubufs(T::DataType, i::Integer, max_halo_elems::Integer)
+        if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
+            for n = 1:NNEIGHBORS_PER_DIM
+                if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+            end
+        end
+    end
+
     function reallocate_cubufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
         cusendbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
         curecvbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
-    function reregister_cubufs(T::DataType, i::Integer, n::Integer)
+    function reregister_cubufs(T::DataType, i::Integer, n::Integer, sendbufs_raw, recvbufs_raw)
         if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(CuArray,sendbufs_raw[i][n]);
@@ -95,11 +116,11 @@ let
     # (GPU functions)
 
     #TODO: see if remove T here and in other cases for CuArray, ROCArray or Array (but then it does not verify that CuArray/ROCArray is of type GGNumber) or if I should instead change GGArray to GGArrayUnion and create: GGArray = Array{T} where T <: GGNumber  and  GGCuArray = CuArray{T} where T <: GGNumber; This is however more difficult to read and understand for others.
-    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T} where T <: GGNumber
+    function gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where T <: GGNumber
         return reshape(gpusendbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T} where T <: GGNumber
+    function gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where T <: GGNumber
         return reshape(gpurecvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
