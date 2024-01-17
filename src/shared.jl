@@ -134,4 +134,4 @@ Base.eltype(A::Union{GGField, CPUField})        = Base.eltype(A.A)
 
 ##------------------------------------------
 ## CUDA AND AMDGPU COMMON EXTENSION DEFAULTS
-function register end
+# TODO: this should not be required as only called from the extensions #function register end
