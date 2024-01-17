@@ -1,0 +1,1 @@
+is_rocarray(A::GGArray) = false
