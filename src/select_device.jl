@@ -13,7 +13,7 @@ Select the device (GPU) corresponding to the node-local MPI rank and return its 
 See also: [`init_global_grid`](@ref)
 """
 function select_device()
-    if (cuda_enabled() && amdgpu_enabled()) error("Cannot select a device because both CUDA and AMDGPU are enabled (meaning that both modules were imported before ImplicitGlobalGrid).")
+    if (cuda_enabled() && amdgpu_enabled()) error("Cannot select a device because both CUDA and AMDGPU are enabled (meaning that both modules were imported before ImplicitGlobalGrid).") end
     if cuda_enabled() || amdgpu_enabled()
         check_initialized();
         if cuda_enabled()
