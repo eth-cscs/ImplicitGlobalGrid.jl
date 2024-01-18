@@ -11,10 +11,10 @@ ImplicitGlobalGrid.reallocate_undersized_cubufs(args...) = reallocate_undersized
 ImplicitGlobalGrid.reregister_cubufs(args...) = reregister_cubufs(args...)
 ImplicitGlobalGrid.get_cusendbufs_raw(args...) = get_cusendbufs_raw(args...)
 ImplicitGlobalGrid.get_curecvbufs_raw(args...) = get_curecvbufs_raw(args...)
-ImplicitGlobalGrid.gpusendbuf(args..., A::CuField)= gpusendbuf(args..., A)
-ImplicitGlobalGrid.gpurecvbuf(args..., A::CuField)= gpurecvbuf(args..., A)
-ImplicitGlobalGrid.gpusendbuf_flat(args..., A::CuField)= gpusendbuf_flat(args..., A)
-ImplicitGlobalGrid.gpurecvbuf_flat(args..., A::CuField)= gpurecvbuf_flat(args..., A)
+ImplicitGlobalGrid.gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpusendbuf(n,dim,i,A)
+ImplicitGlobalGrid.gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpurecvbuf(n,dim,i,A)
+ImplicitGlobalGrid.gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpusendbuf_flat(n,dim,i,A)
+ImplicitGlobalGrid.gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpurecvbuf_flat(n,dim,i,A)
 
 let
     global free_update_halo_cubuffers, init_cubufs_arrays, init_cubufs, reinterpret_cubufs, reregister_cubufs, reallocate_undersized_cubufs

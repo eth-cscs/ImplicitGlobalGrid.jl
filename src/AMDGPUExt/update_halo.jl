@@ -11,10 +11,10 @@ ImplicitGlobalGrid.reallocate_undersized_rocbufs(args...) = reallocate_undersize
 ImplicitGlobalGrid.reregister_rocbufs(args...) = reregister_rocbufs(args...)
 ImplicitGlobalGrid.get_rocsendbufs_raw(args...) = get_rocsendbufs_raw(args...)
 ImplicitGlobalGrid.get_rocrecvbufs_raw(args...) = get_rocrecvbufs_raw(args...)
-ImplicitGlobalGrid.gpusendbuf(args..., A::ROCField) = gpusendbuf(args..., A)
-ImplicitGlobalGrid.gpurecvbuf(args..., A::ROCField) = gpurecvbuf(args..., A)
-ImplicitGlobalGrid.gpusendbuf_flat(args..., A::ROCField) = gpusendbuf_flat(args..., A)
-ImplicitGlobalGrid.gpurecvbuf_flat(args..., A::ROCField) = gpurecvbuf_flat(args..., A)
+ImplicitGlobalGrid.gpusendbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpusendbuf(n,dim,i,A)
+ImplicitGlobalGrid.gpurecvbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpurecvbuf(n,dim,i,A)
+ImplicitGlobalGrid.gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpusendbuf_flat(n,dim,i,A)
+ImplicitGlobalGrid.gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpurecvbuf_flat(n,dim,i,A)
 
 let
     global free_update_halo_rocbuffers, init_rocbufs_arrays, init_rocbufs, reinterpret_rocbufs, reregister_rocbufs, reallocate_undersized_rocbufs
