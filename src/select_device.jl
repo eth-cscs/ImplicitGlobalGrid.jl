@@ -16,10 +16,8 @@ function select_device()
     if cuda_enabled() || amdgpu_enabled()
         check_initialized();
         if cuda_enabled()
-            @assert CUDA.functional(true)
             nb_devices = length(CUDA.devices())
         elseif amdgpu_enabled()
-            @assert AMDGPU.functional()
             nb_devices = length(AMDGPU.devices())
         end
         comm_l = MPI.Comm_split_type(comm(), MPI.COMM_TYPE_SHARED, me())
@@ -31,7 +29,7 @@ function select_device()
         end
         return device_id
     else
-        error("Cannot select a device because neither CUDA nor AMDGPU is enabled (possibly detected non functional when the ImplicitGlobalGrid module was loaded).")
+        error("Cannot select a device because neither CUDA nor AMDGPU is enabled (meaning that the corresponding module was not imported before ImplicitGlobalGrid).")
     end
 end
 

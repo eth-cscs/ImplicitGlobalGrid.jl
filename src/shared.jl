@@ -1,24 +1,20 @@
 import MPI
-using CUDA   #TODO: to be removed!
-using AMDGPU #TODO: to be removed!
 using Base.Threads
 
 
-##-------------------------
+##------------------------------------
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
-let
-    global cuda_functional, amdgpu_functional, set_cuda_functional, set_amdgpu_functional
-    _cuda_functional::Bool           = false
-    _amdgpu_functional::Bool         = false
-    cuda_functional()::Bool          = _cuda_functional
-    amdgpu_functional()::Bool        = _amdgpu_functional
-    set_cuda_functional(val::Bool)   = (_cuda_functional = val;)
-    set_amdgpu_functional(val::Bool) = (_amdgpu_functional = val;)
-end
 
-function __init__()
-    set_cuda_functional(CUDA.functional())
-    set_amdgpu_functional(AMDGPU.functional())
+is_loaded(arg) = false #TODO: this would not work as it should be the caller module...: (Base.get_extension(@__MODULE__, ext) !== nothing)
+
+let
+    global cuda_loaded, amdgpu_loaded, set_cuda_loaded, set_amdgpu_loaded
+    _cuda_loaded::Bool    = false
+    _amdgpu_loaded::Bool  = false
+    cuda_loaded()::Bool   = _cuda_loaded
+    amdgpu_loaded()::Bool = _amdgpu_loaded
+    set_cuda_loaded()     = (_cuda_loaded   = is_loaded(Val(:ImplicitGlobalGrid_CUDAExt)))
+    set_amdgpu_loaded()   = (_amdgpu_loaded = is_loaded(Val(:ImplicitGlobalGrid_AMDGPUExt)))
 end
 
 
