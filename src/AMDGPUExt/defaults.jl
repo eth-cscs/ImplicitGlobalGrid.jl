@@ -3,6 +3,12 @@
 is_rocarray(A::GGArray) = false
 
 
+# select_device.jl
+
+function nb_rocdevices end
+function rocdevice! end
+
+
 # update_halo.jl
 
 function free_update_halo_rocbuffers end

@@ -14,6 +14,7 @@ const ROCField{T,N} = GGField{T,N,ROCArray{T,N}}
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
 
 ImplicitGlobalGrid.is_loaded(::Val{:ImplicitGlobalGrid_AMDGPUExt}) = true
+ImplicitGlobalGrid.is_functional(::Val{:AMDGPU})                   = AMDGPU.functional()
 
 
 ##-------------

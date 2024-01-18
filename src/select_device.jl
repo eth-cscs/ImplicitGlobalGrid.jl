@@ -13,22 +13,22 @@ Select the device (GPU) corresponding to the node-local MPI rank and return its 
 See also: [`init_global_grid`](@ref)
 """
 function select_device()
+    check_initialized()
     if (cuda_enabled() && amdgpu_enabled()) error("Cannot select a device because both CUDA and AMDGPU are enabled (meaning that both modules were imported before ImplicitGlobalGrid).") end
     if cuda_enabled() || amdgpu_enabled()
-        check_initialized();
         if cuda_enabled()
-            @assert CUDA.functional(true)
-            nb_devices = length(CUDA.devices())
+            @assert cuda_functional()
+            nb_devices = nb_cudevices()
         elseif amdgpu_enabled()
-            @assert AMDGPU.functional()
-            nb_devices = length(AMDGPU.devices())
+            @assert amdgpu_functional()
+            nb_devices = nb_rocdevices()
         end
         comm_l = MPI.Comm_split_type(comm(), MPI.COMM_TYPE_SHARED, me())
         if (MPI.Comm_size(comm_l) > nb_devices) error("More processes have been launched per node than there are GPUs available."); end
         me_l      = MPI.Comm_rank(comm_l)
         device_id = amdgpu_enabled() ? me_l+1 : me_l
-        if     cuda_enabled()   CUDA.device!(device_id)
-        elseif amdgpu_enabled() AMDGPU.device_id!(device_id)
+        if     cuda_enabled()   cudevice!(device_id)
+        elseif amdgpu_enabled() rocdevice!(device_id)
         end
         return device_id
     else

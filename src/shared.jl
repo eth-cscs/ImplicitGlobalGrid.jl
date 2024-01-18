@@ -5,16 +5,20 @@ using Base.Threads
 ##------------------------------------
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
 
-is_loaded(arg) = false #TODO: this would not work as it should be the caller module...: (Base.get_extension(@__MODULE__, ext) !== nothing)
-
 let
-    global cuda_loaded, amdgpu_loaded, set_cuda_loaded, set_amdgpu_loaded
-    _cuda_loaded::Bool    = false
-    _amdgpu_loaded::Bool  = false
-    cuda_loaded()::Bool   = _cuda_loaded
-    amdgpu_loaded()::Bool = _amdgpu_loaded
-    set_cuda_loaded()     = (_cuda_loaded   = is_loaded(Val(:ImplicitGlobalGrid_CUDAExt)))
-    set_amdgpu_loaded()   = (_amdgpu_loaded = is_loaded(Val(:ImplicitGlobalGrid_AMDGPUExt)))
+    global cuda_loaded, cuda_functional, amdgpu_loaded, amdgpu_functional, set_cuda_loaded, set_cuda_functional, set_amdgpu_loaded, set_amdgpu_functional
+    _cuda_loaded::Bool        = false
+    _cuda_functional::Bool    = false
+    _amdgpu_loaded::Bool      = false
+    _amdgpu_functional::Bool  = false
+    cuda_loaded()::Bool       = _cuda_loaded
+    cuda_functional()::Bool   = _cuda_functional
+    amdgpu_loaded()::Bool     = _amdgpu_loaded
+    amdgpu_functional()::Bool = _amdgpu_functional
+    set_cuda_loaded()         = (_cuda_loaded = is_loaded(Val(:ImplicitGlobalGrid_CUDAExt)))
+    set_cuda_functional()     = (_cuda_functional = is_functional(Val(:CUDA)))
+    set_amdgpu_loaded()       = (_amdgpu_loaded = is_loaded(Val(:ImplicitGlobalGrid_AMDGPUExt)))
+    set_amdgpu_functional()   = (_amdgpu_functional = is_functional(Val(:AMDGPU)))
 end
 
 

@@ -3,6 +3,12 @@
 is_cuarray(A::GGArray) = false
 
 
+# select_device.jl
+
+function nb_cudevices end
+function cudevice! end
+
+
 # update_halo.jl
 
 function free_update_halo_cubuffers end
