@@ -1,5 +1,6 @@
 import ImplicitGlobalGrid
-import ImplicitGlobalGrid: GGArray, GGField, GGNumber
+# import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, is_cuarray, register
+import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, register, is_rocarray
 import ImplicitGlobalGrid: NNEIGHBORS_PER_DIM, GG_ALLOC_GRANULARITY
 using AMDGPU
 
@@ -37,6 +38,6 @@ Base.eltype(A::ROCField)        = Base.eltype(A.A)
 ##---------------
 ## AMDGPU functions
 
-function register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
+function ImplicitGlobalGrid.register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
     return unsafe_wrap(ROCArray, pointer(buf), size(buf))
 end

@@ -1,5 +1,5 @@
 import ImplicitGlobalGrid
-import ImplicitGlobalGrid: GGArray, GGField, GGNumber
+import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, register, is_cuarray
 import ImplicitGlobalGrid: NNEIGHBORS_PER_DIM, GG_ALLOC_GRANULARITY
 using CUDA
 
@@ -38,7 +38,7 @@ Base.eltype(A::CuField)        = Base.eltype(A.A)
 ##---------------
 ## CUDA functions
 
-function register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
+function ImplicitGlobalGrid.register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
     rbuf = CUDA.Mem.register(CUDA.Mem.Host, pointer(buf), sizeof(buf), CUDA.Mem.HOSTREGISTER_DEVICEMAP);
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;

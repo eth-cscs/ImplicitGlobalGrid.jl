@@ -2,6 +2,7 @@
 
 is_loaded(arg) = false #TODO: this would not work as it should be the caller module...: (Base.get_extension(@__MODULE__, ext) !== nothing)
 is_functional(arg) = false
+function register end
 
 
 # update_halo.jl
