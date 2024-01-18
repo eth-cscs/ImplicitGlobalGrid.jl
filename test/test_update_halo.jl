@@ -4,11 +4,9 @@
 
 push!(LOAD_PATH, "../src")
 using Test
-import LoopVectorization
+import MPI, LoopVectorization
+using CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
-import MPI
-using CUDA
-using AMDGPU
 import ImplicitGlobalGrid: @require, longnameof
 
 test_cuda = CUDA.functional()

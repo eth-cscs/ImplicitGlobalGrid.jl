@@ -1,10 +1,9 @@
 # NOTE: All tests of this file can be run with any number of processes.
 push!(LOAD_PATH, "../src")
 using Test
-using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import MPI
-using CUDA
-using AMDGPU
+using CUDA, AMDGPU
+using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import ImplicitGlobalGrid: @require
 
 test_cuda = CUDA.functional()
