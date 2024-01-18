@@ -19,7 +19,7 @@ ImplicitGlobalGrid.is_loaded(::Val{:ImplicitGlobalGrid_AMDGPUExt}) = (@assert AM
 ##-------------
 ## SYNTAX SUGAR
 
-ImplicitGlobalGrid.is_rocarray(A::GGArray) = typeof(A) <: ROCArray  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+ImplicitGlobalGrid.is_rocarray(A::ROCArray) = true  #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##--------------------------------------------------------------------------------

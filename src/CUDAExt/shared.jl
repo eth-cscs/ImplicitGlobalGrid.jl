@@ -19,7 +19,7 @@ ImplicitGlobalGrid.is_loaded(::Val{:ImplicitGlobalGrid_CUDAExt}) = (@assert CUDA
 ##-------------
 ## SYNTAX SUGAR
 
-ImplicitGlobalGrid.is_cuarray(A::GGArray) = typeof(A) <: CuArray   #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+ImplicitGlobalGrid.is_cuarray(A::CuArray) = true   #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##--------------------------------------------------------------------------------
