@@ -96,7 +96,6 @@ halosize(dim::Integer, A::GGField) = (dim==1) ? (A.halowidths[1], size(A,2), siz
 
 let
     #TODO: this was: global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat, gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat, rocsendbuf, rocrecvbuf, rocsendbuf_flat, rocrecvbuf_flat
-    global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat # TODO: this is to be removed if the corresponding functions are moved.
     global free_update_halo_buffers, allocate_bufs, sendbuf, recvbuf, sendbuf_flat, recvbuf_flat
     sendbufs_raw = nothing
     recvbufs_raw = nothing
@@ -195,12 +194,6 @@ let
         return reshape(recvbuf_flat(n,dim,i,A), halosize(dim,A));
     end
 
-    # (GPU defaults) #TODO: see where to move this! Maybe to shared_defaults.jl in src?
-    function gpusendbuf end
-    function gpurecvbuf end
-    function gpusendbuf_flat end
-    function gpurecvbuf_flat end
-
     # Make sendbufs_raw and recvbufs_raw accessible for unit testing.
     global get_sendbufs_raw, get_recvbufs_raw
     get_sendbufs_raw()    = deepcopy(sendbufs_raw)
@@ -275,14 +268,6 @@ let
     get_tasks_iread() = deepcopy(tasks)
 end
 
-
-# TODO: see where to move this! Maybe to shared_defaults.jl in src?
-function write_d2x! end
-function read_x2d! end
-function write_d2h_async! end
-function read_h2d_async! end
-
-function gpumemcopy! end
 
 # (CPU/GPU functions)
 

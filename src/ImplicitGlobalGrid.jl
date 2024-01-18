@@ -42,6 +42,7 @@ using .Exceptions
 include("shared.jl")
 
 ## Alphabetical include of defaults for extensions
+include("defaults_shared.jl")
 include(joinpath("AMDGPUExt", "defaults.jl"))
 include(joinpath("CUDAExt", "defaults.jl"))
 include(joinpath("LoopVectorizationExt", "memcopy_LV_default.jl"))
