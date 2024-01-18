@@ -84,7 +84,7 @@ let
     function reallocate_undersized_cubufs(T::DataType, i::Integer, max_halo_elems::Integer)
         if (!isnothing(cusendbufs_raw) && length(cusendbufs_raw[i][1]) < max_halo_elems)
             for n = 1:NNEIGHBORS_PER_DIM
-                if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                reallocate_cubufs(T, i, n, max_halo_elems); GC.gc(); # Too small buffers had been replaced with larger ones; free the unused memory immediately.
             end
         end
     end

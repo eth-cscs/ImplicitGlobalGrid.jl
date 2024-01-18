@@ -73,7 +73,7 @@ let
     function reallocate_undersized_rocbufs(T::DataType, i::Integer, max_halo_elems::Integer)
         if (!isnothing(rocsendbufs_raw) && length(rocsendbufs_raw[i][1]) < max_halo_elems)
             for n = 1:NNEIGHBORS_PER_DIM
-                if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); end # Too small buffers had been replaced with larger ones; free the unused memory immediately.
+                reallocate_rocbufs(T, i, n, max_halo_elems); GC.gc(); # Too small buffers had been replaced with larger ones; free the unused memory immediately.
             end
         end
     end

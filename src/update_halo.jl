@@ -134,7 +134,7 @@ let
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
             max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
-            reallocate_undersized_hostbufs(T, i, max_halo_elems);
+            reallocate_undersized_hostbufs(T, i, max_halo_elems, A);
             if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_undersized_cubufs(T, i, max_halo_elems) end
             if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_undersized_rocbufs(T, i, max_halo_elems) end
         end
@@ -158,7 +158,7 @@ let
         if (eltype(recvbufs_raw[i][n]) != T) recvbufs_raw[i][n] = reinterpret(T, recvbufs_raw[i][n]); end
     end
 
-    function reallocate_undersized_hostbufs(T::DataType, i::Integer, max_halo_elems::Integer)
+    function reallocate_undersized_hostbufs(T::DataType, i::Integer, max_halo_elems::Integer, A::GGArray)
         if (length(sendbufs_raw[i][1]) < max_halo_elems)
             for n = 1:NNEIGHBORS_PER_DIM
                 reallocate_bufs(T, i, n, max_halo_elems);
