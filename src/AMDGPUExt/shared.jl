@@ -1,6 +1,5 @@
 import ImplicitGlobalGrid
-# import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, is_cuarray, register
-import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, register, is_rocarray
+import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, amdgpuaware_MPI, sendranges, recvranges, sendbuf_flat, recvbuf_flat, write_d2x!, read_x2d!, write_d2h_async!, read_h2d_async!, register, is_rocarray
 import ImplicitGlobalGrid: NNEIGHBORS_PER_DIM, GG_ALLOC_GRANULARITY
 using AMDGPU
 
