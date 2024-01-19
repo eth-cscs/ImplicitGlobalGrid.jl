@@ -14,7 +14,7 @@ const CuField{T,N} = GGField{T,N,CuArray{T,N}}
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
 
 ImplicitGlobalGrid.is_loaded(::Val{:ImplicitGlobalGrid_CUDAExt}) = true
-ImplicitGlobalGrid.is_functional(::Val{:CUDA})                   = CUDA.functional(true)
+ImplicitGlobalGrid.is_functional(::Val{:CUDA})                   = CUDA.functional()
 
 
 ##-------------

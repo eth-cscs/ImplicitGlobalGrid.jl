@@ -108,7 +108,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     cuda_support_string   = (cuda_enabled && all(cudaaware_MPI))     ? "CUDA-aware"   : (cuda_enabled && any(cudaaware_MPI))     ? "CUDA(-aware)"   : (cuda_enabled)   ? "CUDA"   : "";
     amdgpu_support_string = (amdgpu_enabled && all(amdgpuaware_MPI)) ? "AMDGPU-aware" : (amdgpu_enabled && any(amdgpuaware_MPI)) ? "AMDGPU(-aware)" : (amdgpu_enabled) ? "AMDGPU" : "";
     gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string]), ", ");
-    support_string        = isempty(gpu_support_string) ? "CPU-only" : gpu_support_string;
+    support_string        = isempty(gpu_support_string) ? "none" : gpu_support_string;
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]); device support: $support_string)"); end
     if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
     init_timing_functions();
