@@ -105,7 +105,11 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
     set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, loopvectorization, quiet));
-    if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]))"); end
+    cuda_support_string   = (cuda_enabled && all(cudaaware_MPI))     ? "CUDA-aware"   : (cuda_enabled && any(cudaaware_MPI))     ? "CUDA(-aware)"   : (cuda_enabled)   ? "CUDA"   : "";
+    amdgpu_support_string = (amdgpu_enabled && all(amdgpuaware_MPI)) ? "AMDGPU-aware" : (amdgpu_enabled && any(amdgpuaware_MPI)) ? "AMDGPU(-aware)" : (amdgpu_enabled) ? "AMDGPU" : "";
+    gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string]), ", ");
+    support_string        = isempty(gpu_support_string) ? "CPU-only" : gpu_support_string;
+    if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]); device support: $support_string)"); end
     if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
     init_timing_functions();
     return me, dims, nprocs, coords, comm_cart; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
