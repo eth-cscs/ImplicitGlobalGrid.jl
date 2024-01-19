@@ -114,6 +114,9 @@ has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
 any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
 any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
 any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
+all_arrays(fields::GGField...)         = all([is_array(A.A) for A in fields])
+all_cuarrays(fields::GGField...)       = all([is_cuarray(A.A) for A in fields])
+all_rocarrays(fields::GGField...)      = all([is_rocarray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 
 
