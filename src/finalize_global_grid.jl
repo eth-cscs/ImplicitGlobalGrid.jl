@@ -14,7 +14,6 @@ See also: [`init_global_grid`](@ref)
 """
 function finalize_global_grid(;finalize_MPI::Bool=true)
     check_initialized();
-    free_gather_buffer();
     free_update_halo_buffers();
     if (finalize_MPI)
         if (!MPI.Initialized()) error("MPI cannot be finalized as it has not been initialized. "); end  # This case should never occur as init_global_grid() must enforce that after a call to it, MPI is always initialized.
