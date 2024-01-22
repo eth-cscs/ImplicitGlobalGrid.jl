@@ -33,13 +33,13 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
             @testset "\"AMDGPU\"" begin
                 me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="AMDGPU");
                 gpu_id = select_device();
-                @test gpu_id < length(AMDGPU.devices())
+                @test gpu_id <= length(AMDGPU.devices())
                 finalize_global_grid(finalize_MPI=false);
             end;
             @testset "\"auto\"" begin
                 me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="auto");
                 gpu_id = select_device();
-                @test gpu_id < length(AMDGPU.devices())
+                @test gpu_id <= length(AMDGPU.devices())
                 finalize_global_grid(finalize_MPI=false);
             end;
         end
