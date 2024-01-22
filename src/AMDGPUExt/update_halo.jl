@@ -128,6 +128,11 @@ function ImplicitGlobalGrid.allocate_rocstreams(fields::GGField...)
     allocate_rocstreams_iread(fields...);
 end
 
+ImplicitGlobalGrid.iwrite_sendbufs!(n::Integer, dim::Integer, F::ROCField{T}, i::Integer) where {T <: GGNumber} = iwrite_sendbufs!(n,dim,F,i)
+ImplicitGlobalGrid.iread_recvbufs!(n::Integer, dim::Integer, F::ROCField{T}, i::Integer) where {T <: GGNumber} = iread_recvbufs!(n,dim,F,i)
+ImplicitGlobalGrid.wait_iwrite(n::Integer, A::ROCField{T}, i::Integer) where {T <: GGNumber} = wait_iwrite(n,A,i)
+ImplicitGlobalGrid.wait_iread(n::Integer, A::ROCField{T}, i::Integer) where {T <: GGNumber} = wait_iread(n,A,i)
+
 let
     global iwrite_sendbufs!, allocate_rocstreams_iwrite, wait_iwrite
 
