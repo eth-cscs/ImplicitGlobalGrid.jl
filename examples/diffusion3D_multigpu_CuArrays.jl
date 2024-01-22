@@ -1,4 +1,5 @@
-using ImplicitGlobalGrid, CUDA, Plots
+using CUDA                       # Import CUDA before ImplicitGlobalGrid to activate its CUDA device support
+using ImplicitGlobalGrid, Plots
 
 @views d_xa(A) = A[2:end  , :     , :     ] .- A[1:end-1, :     , :     ];
 @views d_xi(A) = A[2:end  ,2:end-1,2:end-1] .- A[1:end-1,2:end-1,2:end-1];

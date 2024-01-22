@@ -23,6 +23,9 @@ https://github.com/eth-cscs/ImplicitGlobalGrid.jl
 
 To see a description of a function type `?<functionname>`.
 
+!!! note "Activation of device support"
+    The support for a device type (CUDA or AMDGPU) is activated by importing the corresponding module (CUDA or AMDGPU) before importing ImplicitGlobalGrid (the corresponding extension will be loaded).
+
 !!! note "Performance note"
     If the system supports CUDA-aware MPI (for Nvidia GPUs) or ROCm-aware MPI (for AMD GPUs), it may be activated for ImplicitGlobalGrid by setting one of the following environment variables (at latest before the call to `init_global_grid`):
     ```shell
@@ -42,6 +45,9 @@ using .Exceptions
 include("shared.jl")
 
 ## Alphabetical include of defaults for extensions
+include("defaults_shared.jl")
+include(joinpath("AMDGPUExt", "defaults.jl"))
+include(joinpath("CUDAExt", "defaults.jl"))
 include(joinpath("LoopVectorizationExt", "memcopy_LV_default.jl"))
 
 ## Alphabetical include of files

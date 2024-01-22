@@ -45,7 +45,8 @@ The following Multi-GPU 3-D heat diffusion solver illustrates how these function
 ## 50-lines Multi-GPU example
 This simple Multi-GPU 3-D heat diffusion solver uses ImplicitGlobalGrid. It relies fully on the broadcasting capabilities of [CUDA.jl]'s `CuArray` type to perform the stencil-computations with maximal simplicity ([CUDA.jl] enables also writing explicit GPU kernels which can lead to significantly better performance for these computations).
 ```julia
-using ImplicitGlobalGrid, CUDA
+using CUDA                # Import CUDA before ImplicitGlobalGrid to activate its CUDA device support
+using ImplicitGlobalGrid
 
 @views d_xa(A) = A[2:end  , :     , :     ] .- A[1:end-1, :     , :     ];
 @views d_xi(A) = A[2:end  ,2:end-1,2:end-1] .- A[1:end-1,2:end-1,2:end-1];
@@ -108,7 +109,8 @@ ImplicitGlobalGrid provides a function to gather an array from each process into
 
 This enables straightforward in-situ visualization or monitoring of Multi-GPU/CPU applications using e.g. the [Julia Plots package] as shown in the following (the GR backend is used as it is particularly fast according to the [Julia Plots documentation]). It is enough to add a couple of lines to the previous example (omitted unmodified lines are represented with `#(...)`):
 ```julia
-using ImplicitGlobalGrid, CUDA, Plots
+using CUDA                       # Import CUDA before ImplicitGlobalGrid to activate its CUDA device support
+using ImplicitGlobalGrid, Plots
 #(...)
 
 @views function diffusion3D()
@@ -230,12 +232,15 @@ search: ImplicitGlobalGrid
 
   To see a description of a function type ?<functionname>.
 
+  │ Activation of device support
+  │
+  │  The support for a device type (CUDA or AMDGPU) is activated by importing the corresponding module (CUDA or AMDGPU) before
+  │  importing ImplicitGlobalGrid (the corresponding extension will be loaded).
+
   │ Performance note
   │
-  │  If the system supports CUDA-aware MPI (for Nvidia GPUs) or
-  │  ROCm-aware MPI (for AMD GPUs), it may be activated for
-  │  ImplicitGlobalGrid by setting one of the following environment
-  │  variables (at latest before the call to init_global_grid):
+  │  If the system supports CUDA-aware MPI (for Nvidia GPUs) or ROCm-aware MPI (for AMD GPUs), it may be activated for
+  │  ImplicitGlobalGrid by setting one of the following environment variables (at latest before the call to init_global_grid):
   │
   │  shell> export IGG_CUDAAWARE_MPI=1
   │

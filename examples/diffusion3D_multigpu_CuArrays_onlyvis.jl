@@ -1,4 +1,5 @@
-using ImplicitGlobalGrid, CUDA, Plots
+using CUDA                       # Import CUDA before ImplicitGlobalGrid to activate its CUDA device support
+using ImplicitGlobalGrid, Plots
 #(...)
 
 @views function diffusion3D()

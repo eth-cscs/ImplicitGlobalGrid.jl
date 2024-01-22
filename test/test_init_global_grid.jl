@@ -1,7 +1,7 @@
 push!(LOAD_PATH, "../src")
 using Test
+import MPI, CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
-import MPI
 import ImplicitGlobalGrid: @require
 
 

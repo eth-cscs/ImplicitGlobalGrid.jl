@@ -20,9 +20,9 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          # - '1.7' # Skipping this version because of AMDGPU deps compat issue (rocBLAS_jll)
+          - '1.9' # Minimum version supporting extensions
           - '1'   # Latest stable 1.x release of Julia
-          - 'nightly'
+          # - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest

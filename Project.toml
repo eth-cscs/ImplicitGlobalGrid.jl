@@ -4,15 +4,17 @@ uuid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 version = "0.14.0"
 
 [deps]
-AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 
 [weakdeps]
+AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
 
 [extensions]
 ImplicitGlobalGrid_LoopVectorizationExt = "LoopVectorization"
+ImplicitGlobalGrid_AMDGPUExt = "AMDGPU"
+ImplicitGlobalGrid_CUDAExt = "CUDA"
 
 [compat]
 AMDGPU = "0.5, 0.6, 0.7, 0.8"
@@ -27,4 +29,4 @@ MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "MPIPreferences", "LoopVectorization"]
+test = ["Test", "MPIPreferences", "AMDGPU", "CUDA", "LoopVectorization"]
