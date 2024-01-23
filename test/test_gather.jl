@@ -25,9 +25,9 @@ dz = 1.0
             A_g = zeros(nx*dims[1]+1);
             B_g = zeros(nx*dims[1], ny*dims[2]-1);
             C_g = zeros(nx*dims[1], ny*dims[2], nz*dims[3]+2);
-            if (me == 0) @test_throws ErrorException gather!(A, A_g) end # Error: A_g is not size(A) .* dims (1D)
-            if (me == 0) @test_throws ErrorException gather!(B, B_g) end # Error: B_g is not size(A) .* dims (2D)
-            if (me == 0) @test_throws ErrorException gather!(C, C_g) end # Error: C_g is not size(A) .* dims (3D)
+            if (me == 0) @test_throws ErrorException gather!(A, A_g) end # Error: A_g is not product of size(A) and dims (1D)
+            if (me == 0) @test_throws ErrorException gather!(B, B_g) end # Error: B_g is not product of size(A) and dims (2D)
+            if (me == 0) @test_throws ErrorException gather!(C, C_g) end # Error: C_g is not product of size(A) and dims (3D)
             if (me == 0) @test_throws ErrorException gather!(C, nothing) end # Error: global is nothing
         	finalize_global_grid(finalize_MPI=false);
         end;
