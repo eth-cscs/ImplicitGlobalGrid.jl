@@ -4,7 +4,7 @@
 
 push!(LOAD_PATH, "../src")
 using Test
-import MPI, LoopVectorization
+import MPI, Polyester
 using CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 import ImplicitGlobalGrid: @require, longnameof
