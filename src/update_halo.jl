@@ -302,14 +302,14 @@ function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{Un
     ix = (length(sendranges[1])==1) ? sendranges[1][1] : sendranges[1];
     iy = (length(sendranges[2])==1) ? sendranges[2][1] : sendranges[2];
     iz = (length(sendranges[3])==1) ? sendranges[3][1] : sendranges[3];
-    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(sendbuf, 1, :, :), view(A,ix, :, :), use_polyester(dim));
-    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf, 1, 1, :), view(A,ix,iy, :), use_polyester(dim));
-    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf, 1, :, 1), view(A,ix, :,iz), use_polyester(dim));
-    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf, 1, 1, 1), view(A,ix,iy,iz), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf, :, 1, :), view(A, :,iy, :), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf, :, 1, 1), view(A, :,iy,iz), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf, :, :, 1), view(A, :, :,iz), use_polyester(dim));
-    else                                                                 memcopy!(sendbuf, view(A,sendranges...), use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
+    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(sendbuf, 1, :, :), view(A,ix, :, :), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(sendbuf, 1, 1, :), view(A,ix,iy, :), use_polyester(dim));
+    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1     && !use_polyester(dim)) memcopy!(view(sendbuf, 1, :, 1), view(A,ix, :,iz), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1     && !use_polyester(dim)) memcopy!(view(sendbuf, 1, 1, 1), view(A,ix,iy,iz), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)                       ) memcopy!(view(sendbuf, :, 1, :), view(A, :,iy, :), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1                           ) memcopy!(view(sendbuf, :, 1, 1), view(A, :,iy,iz), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1                           ) memcopy!(view(sendbuf, :, :, 1), view(A, :, :,iz), use_polyester(dim));
+    else                                                                                        memcopy!(sendbuf, view(A,sendranges...), use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -318,14 +318,14 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
     ix = (length(recvranges[1])==1) ? recvranges[1][1] : recvranges[1];
     iy = (length(recvranges[2])==1) ? recvranges[2][1] : recvranges[2];
     iz = (length(recvranges[3])==1) ? recvranges[3][1] : recvranges[3];
-    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(A,ix, :, :), view(recvbuf, 1, :, :), use_polyester(dim));
-    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(A,ix,iy, :), view(recvbuf, 1, 1, :), use_polyester(dim));
-    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(A,ix, :,iz), view(recvbuf, 1, :, 1), use_polyester(dim));
-    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(view(A,ix,iy,iz), view(recvbuf, 1, 1, 1), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(A, :,iy, :), view(recvbuf, :, 1, :), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(A, :,iy,iz), view(recvbuf, :, 1, 1), use_polyester(dim));
-    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(A, :, :,iz), view(recvbuf, :, :, 1), use_polyester(dim));
-    else                                                                 memcopy!(view(A,recvranges...), recvbuf, use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
+    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(A,ix, :, :), view(recvbuf, 1, :, :), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(A,ix,iy, :), view(recvbuf, 1, 1, :), use_polyester(dim));
+    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1     && !use_polyester(dim)) memcopy!(view(A,ix, :,iz), view(recvbuf, 1, :, 1), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1     && !use_polyester(dim)) memcopy!(view(A,ix,iy,iz), view(recvbuf, 1, 1, 1), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)                       ) memcopy!(view(A, :,iy, :), view(recvbuf, :, 1, :), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1                           ) memcopy!(view(A, :,iy,iz), view(recvbuf, :, 1, 1), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1                           ) memcopy!(view(A, :, :,iz), view(recvbuf, :, :, 1), use_polyester(dim));
+    else                                                                                        memcopy!(view(A,recvranges...), recvbuf, use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
     end
 end
 
