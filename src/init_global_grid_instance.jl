@@ -1,8 +1,8 @@
-export init_global_grid
+export init_global_grid_instance
 
 """
-    init_global_grid(nx, ny, nz)
-    me, dims, nprocs, coords, comm_cart = init_global_grid(nx, ny, nz; <keyword arguments>)
+    init_global_grid_intance(nx, ny, nz)
+    global_grid = init_global_grid(nx, ny, nz; <keyword arguments>)
 
 Initialize a Cartesian grid of MPI processes (and also MPI itself by default) defining implicitely a global grid.
 
@@ -17,29 +17,19 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
     - `disp::Integer=1`:  the displacement argument to `MPI.Cart_shift` in order to determine the neighbors.
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
-    - `init_MPI::Bool=true`: whether to initialize MPI (`true`) or not (`false`).
+    - `init_MPI::Bool=false`:  whether to initialize MPI (`true`) or not (`false`). CAUTION on this init is FALSE by default.
     - `device_type::String="auto"`: the type of the device to be used if available: `"CUDA"`, `"AMDGPU"`, `"none"` or `"auto"`. Set `device_type="none"` if you want to use only CPUs on a system having also GPUs. If `device_type` is `"auto"` (default), it is automatically determined, depending on which of the modules used for programming the devices (CUDA.jl or AMDGPU.jl) was imported before ImplicitGlobalGrid; if both were imported, an error will be given if `device_type` is set as `"auto"`.
     - `select_device::Bool=true`: whether to automatically select the device (GPU) (`true`) or not (`false`) if CUDA or AMDGPU was imported and `device_type` is not `"none"`. If `true`, it selects the device corresponding to the node-local MPI rank. This method of device selection suits both single and multi-device compute nodes and is recommended in general. It is also the default method of device selection of the *function* [`select_device`](@ref).
     For more information, refer to the documentation of MPI.jl / MPI.
+    - `switch::Bool=false`: whether to switch the focused global grid by this new one or not.
 
 # Return values
-- `me`: the MPI rank of the process.
-- `dims`: the number of processes in each dimension.
-- `nprocs`: the number of processes.
-- `coords`: the Cartesian coordinates of the process.
-- `comm_cart`: the MPI communicator of the created Cartesian process topology.
+- `global_grid`: a struct that represents an implicit global grid instance
 
-# Typical use cases
-    init_global_grid(nx, ny, nz)                  # Basic call (no optional in and output arguments).
-    me, = init_global_grid(nx, ny, nz)            # Capture 'me' (note the ','!).
-    me, dims = init_global_grid(nx, ny, nz)       # Capture 'me' and 'dims'.
-    init_global_grid(nx, ny, nz; dimx=2, dimy=2)  # Fix the number of processes in the dimensions x and y of the Cartesian grid of MPI processes to 2 (the number of processes can vary only in the dimension z).
-    init_global_grid(nx, ny, nz; periodz=1)       # Make the boundaries in dimension z periodic.
-
-See also: [`finalize_global_grid`](@ref), [`select_device`](@ref)
+See also: [`finalize_global_grid`](@ref), [`init_global_grid`](@ref)
 """
-function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlaps::Tuple{Int,Int,Int}=(2,2,2), halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2), disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
-    if grid_is_initialized() error("The global grid has already been initialized.") end
+function init_global_grid_instance(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlaps::Tuple{Int,Int,Int}=(2, 2, 2), halowidths::Tuple{Int,Int,Int}=max.(1, overlaps .÷ 2), disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=false, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false, switch::Bool=false)::GlobalGrid
+
     set_cuda_loaded()
     set_cuda_functional()
     set_amdgpu_loaded()
@@ -94,14 +84,14 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     else
         if (!MPI.Initialized()) error("MPI has not been initialized beforehand. Remove the argument 'init_MPI=false'."); end  # Ensure that MPI is always initialized after init_global_grid().
     end
-    # Set single instance
+    # Multi instance
     if !is_instance_number_defined()
-        set_single_instance()
+        set_multi_instance()
     end
-    if is_multi_instance()
-        error("Tried to make a single global instance, given that a multi instance environment has been initialized before")
+    if !is_multi_instance()
+        error("Tried to make more than one instance where a single global instance has been initialized before (use only this init function instead of init_global_grid)")
     end
-    nprocs = MPI.Comm_size(comm)
+    nprocs    = MPI.Comm_size(comm);
     MPI.Dims_create!(nprocs, dims);
     comm_cart = MPI.Cart_create(comm, dims, periods, reorder);
     me        = MPI.Comm_rank(comm_cart);
@@ -111,19 +101,15 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, loopvectorization, quiet));
+    new_gg = GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, loopvectorization, quiet);
+    if switch
+        set_global_grid(new_gg)
+    end
     cuda_support_string   = (cuda_enabled && all(cudaaware_MPI))     ? "CUDA-aware"   : (cuda_enabled && any(cudaaware_MPI))     ? "CUDA(-aware)"   : (cuda_enabled)   ? "CUDA"   : "";
     amdgpu_support_string = (amdgpu_enabled && all(amdgpuaware_MPI)) ? "AMDGPU-aware" : (amdgpu_enabled && any(amdgpuaware_MPI)) ? "AMDGPU(-aware)" : (amdgpu_enabled) ? "AMDGPU" : "";
     gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string]), ", ");
     support_string        = isempty(gpu_support_string) ? "none" : gpu_support_string;
-    if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]); device support: $support_string)"); end
+    if (!quiet && me==0) println("Made a new global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]); device support: $support_string), multi-instance is enabled" * (switch ? ", switched to new grid" : "")); end
     if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
-    init_timing_functions();
-    return me, dims, nprocs, coords, comm_cart; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
-end
-
-# Make sure that timing functions which must be fast at the first user call are already compiled now.
-function init_timing_functions()
-    tic();
-    toc();
+    return new_gg; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
 end
