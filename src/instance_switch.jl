@@ -43,10 +43,10 @@ function switch(global_grid::GlobalGrid)::GlobalGrid
         error("Illegal switch: this execution environment has been initialised in a single global instance regime")
     end
     gg = get_global_grid()
-    if gg == GLOBAL_GRID_NULL
+    set_global_grid(global_grid)
+    if gg.nprocs <= 0
         init_timing_functions()
     end
-    set_global_grid(global_grid)
     return gg
 end
 

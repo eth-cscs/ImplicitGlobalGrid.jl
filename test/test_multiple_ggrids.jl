@@ -54,8 +54,12 @@ nz = 10;
 
         @testset "values in global grid (B)" begin
             @test GG.global_grid().periods   == [1, 0, 1]
-        end;
+        end
         finalize_global_grid(finalize_MPI=false);
+
+        @testset "single instance cannot be called if multiple instance was called before" begin
+	          @test_throws ErrorException init_global_grid(nx, ny, nz, init_MPI = false)
+        end
     end;
 
 end;
