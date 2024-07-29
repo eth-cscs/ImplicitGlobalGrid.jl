@@ -33,7 +33,7 @@ function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...)
     _update_halo!(fields...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
-
+#
 function _update_halo!(fields::GGField...)
     if (!cuda_enabled() && !amdgpu_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
     allocate_bufs(fields...);
@@ -302,14 +302,14 @@ function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{Un
     ix = (length(sendranges[1])==1) ? sendranges[1][1] : sendranges[1];
     iy = (length(sendranges[2])==1) ? sendranges[2][1] : sendranges[2];
     iz = (length(sendranges[3])==1) ? sendranges[3][1] : sendranges[3];
-    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(sendbuf, 1, :, :), view(A,ix, :, :), loopvectorization(dim));
-    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf, 1, 1, :), view(A,ix,iy, :), loopvectorization(dim));
-    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf, 1, :, 1), view(A,ix, :,iz), loopvectorization(dim));
-    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf, 1, 1, 1), view(A,ix,iy,iz), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(sendbuf, :, 1, :), view(A, :,iy, :), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(sendbuf, :, 1, 1), view(A, :,iy,iz), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(sendbuf, :, :, 1), view(A, :, :,iz), loopvectorization(dim));
-    else                                                                 memcopy!(sendbuf, view(A,sendranges...), loopvectorization(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
+    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(sendbuf, 1, :, :), view(A,ix, :, :), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(sendbuf, 1, 1, :), view(A,ix,iy, :), use_polyester(dim));
+    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1     && !use_polyester(dim)) memcopy!(view(sendbuf, 1, :, 1), view(A,ix, :,iz), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1     && !use_polyester(dim)) memcopy!(view(sendbuf, 1, 1, 1), view(A,ix,iy,iz), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)                       ) memcopy!(view(sendbuf, :, 1, :), view(A, :,iy, :), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1                           ) memcopy!(view(sendbuf, :, 1, 1), view(A, :,iy,iz), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1                           ) memcopy!(view(sendbuf, :, :, 1), view(A, :, :,iz), use_polyester(dim));
+    else                                                                                        memcopy!(sendbuf, view(A,sendranges...), use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -318,14 +318,14 @@ function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{Uni
     ix = (length(recvranges[1])==1) ? recvranges[1][1] : recvranges[1];
     iy = (length(recvranges[2])==1) ? recvranges[2][1] : recvranges[2];
     iz = (length(recvranges[3])==1) ? recvranges[3][1] : recvranges[3];
-    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3)) memcopy!(view(A,ix, :, :), view(recvbuf, 1, :, :), loopvectorization(dim));
-    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(A,ix,iy, :), view(recvbuf, 1, 1, :), loopvectorization(dim));
-    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(A,ix, :,iz), view(recvbuf, 1, :, 1), loopvectorization(dim));
-    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1    ) memcopy!(view(A,ix,iy,iz), view(recvbuf, 1, 1, 1), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)) memcopy!(view(A, :,iy, :), view(recvbuf, :, 1, :), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1    ) memcopy!(view(A, :,iy,iz), view(recvbuf, :, 1, 1), loopvectorization(dim));
-    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1    ) memcopy!(view(A, :, :,iz), view(recvbuf, :, :, 1), loopvectorization(dim));
-    else                                                                 memcopy!(view(A,recvranges...), recvbuf, loopvectorization(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
+    if     (length(ix)==1     && iy == 1:size(A,2) && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(A,ix, :, :), view(recvbuf, 1, :, :), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && iz == 1:size(A,3) && !use_polyester(dim)) memcopy!(view(A,ix,iy, :), view(recvbuf, 1, 1, :), use_polyester(dim));
+    elseif (length(ix)==1     && iy == 1:size(A,2) && length(iz)==1     && !use_polyester(dim)) memcopy!(view(A,ix, :,iz), view(recvbuf, 1, :, 1), use_polyester(dim));
+    elseif (length(ix)==1     && length(iy)==1     && length(iz)==1     && !use_polyester(dim)) memcopy!(view(A,ix,iy,iz), view(recvbuf, 1, 1, 1), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && iz == 1:size(A,3)                       ) memcopy!(view(A, :,iy, :), view(recvbuf, :, 1, :), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && length(iy)==1     && length(iz)==1                           ) memcopy!(view(A, :,iy,iz), view(recvbuf, :, 1, 1), use_polyester(dim));
+    elseif (ix == 1:size(A,1) && iy == 1:size(A,2) && length(iz)==1                           ) memcopy!(view(A, :, :,iz), view(recvbuf, :, :, 1), use_polyester(dim));
+    else                                                                                        memcopy!(view(A,recvranges...), recvbuf, use_polyester(dim)); # This general case is slower than the optimised cases above (the result would be the same, of course).
     end
 end
 
@@ -370,17 +370,17 @@ function sendrecv_halo_local(n::Integer, dim::Integer, F::GGField, i::Integer)
             end
         else
             if n == 1
-                memcopy!(recvbuf_flat(2,dim,i,F), sendbuf_flat(1,dim,i,F), loopvectorization(dim));
+                memcopy!(recvbuf_flat(2,dim,i,F), sendbuf_flat(1,dim,i,F), use_polyester(dim));
             elseif n == 2
-                memcopy!(recvbuf_flat(1,dim,i,F), sendbuf_flat(2,dim,i,F), loopvectorization(dim));
+                memcopy!(recvbuf_flat(1,dim,i,F), sendbuf_flat(2,dim,i,F), use_polyester(dim));
             end
         end
     end
 end
 
-function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, loopvectorization::Bool) where T <: GGNumber
-    if loopvectorization && nthreads() > 1 && length(src) > 1 && !(T <: Complex)  # NOTE: LoopVectorization does not yet support Complex numbers and copy reinterpreted arrays leads to bad performance.
-        memcopy_loopvect!(dst, src)
+function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, use_polyester::Bool) where T <: GGNumber
+    if use_polyester && nthreads() > 1 && length(src) > 1 && !(T <: Complex)  # NOTE: Polyester does not yet support Complex numbers and copy reinterpreted arrays leads to bad performance.
+        memcopy_polyester!(dst, src)
     else
         dst_flat = view(dst,:)
         src_flat = view(src,:)

@@ -48,7 +48,7 @@ include("shared.jl")
 include("defaults_shared.jl")
 include(joinpath("AMDGPUExt", "defaults.jl"))
 include(joinpath("CUDAExt", "defaults.jl"))
-include(joinpath("LoopVectorizationExt", "memcopy_LV_default.jl"))
+include(joinpath("PolyesterExt", "memcopy_polyester_default.jl"))
 
 ## Alphabetical include of files
 include("finalize_global_grid.jl")

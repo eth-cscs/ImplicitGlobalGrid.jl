@@ -28,7 +28,7 @@ end
 const NDIMS_MPI = 3                    # Internally, we set the number of dimensions always to 3 for calls to MPI. This ensures a fixed size for MPI coords, neigbors, etc and in general a simple, easy to read code.
 const NNEIGHBORS_PER_DIM = 2           # Number of neighbors per dimension (left neighbor + right neighbor).
 const GG_ALLOC_GRANULARITY = 32        # Internal buffers are allocated with a granulariy of GG_ALLOC_GRANULARITY elements in order to ensure correct reinterpretation when used for different types and to reduce amount of re-allocations.
-const GG_THREADCOPY_THRESHOLD = 32768  # When LoopVectorization is deactivated, then the GG_THREADCOPY_THRESHOLD defines the size in bytes upon which memory copy is performed with multiple threads.
+const GG_THREADCOPY_THRESHOLD = 32768  # When Polyester is deactivated, then the GG_THREADCOPY_THRESHOLD defines the size in bytes upon which memory copy is performed with multiple threads.
 const DEVICE_TYPE_NONE = "none"
 const DEVICE_TYPE_AUTO = "auto"
 const DEVICE_TYPE_CUDA = "CUDA"
@@ -66,7 +66,7 @@ struct GlobalGrid
     amdgpu_enabled::Bool
     cudaaware_MPI::Vector{Bool}
     amdgpuaware_MPI::Vector{Bool}
-    loopvectorization::Vector{Bool}
+    use_polyester::Vector{Bool}
     quiet::Bool
 end
 const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
@@ -108,8 +108,8 @@ cudaaware_MPI()                        = global_grid().cudaaware_MPI
 cudaaware_MPI(dim::Integer)            = global_grid().cudaaware_MPI[dim]
 amdgpuaware_MPI()                      = global_grid().amdgpuaware_MPI
 amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
-loopvectorization()                    = global_grid().loopvectorization
-loopvectorization(dim::Integer)        = global_grid().loopvectorization[dim]
+use_polyester()                        = global_grid().use_polyester
+use_polyester(dim::Integer)            = global_grid().use_polyester[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
 any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
 any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
