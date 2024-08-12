@@ -26,22 +26,22 @@ Update the halo of the given GPU/CPU-array(s).
     shell> export IGG_ROCMAWARE_MPI=1
     ```
 """
-function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...)
+function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...))
     check_initialized();
     fields = wrap_field.(A);
     check_fields(fields...);
-    _update_halo!(fields...);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
+    _update_halo!(fields...; dims=dims);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
 #
-function _update_halo!(fields::GGField...)
+function _update_halo!(fields::GGField...; dims=dims)
     if (!cuda_enabled() && !amdgpu_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
     if any_cuarray(fields...) allocate_custreams(fields...); end
     if any_rocarray(fields...) allocate_rocstreams(fields...); end
 
-    for dim = 1:NDIMS_MPI  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
+    for dim in dims  # NOTE: this works for 1D-3D (e.g. if nx>1, ny>1 and nz=1, then for d=3, there will be no neighbors, i.e. nothing will be done as desired...).
         for ns = 1:NNEIGHBORS_PER_DIM,  i = 1:length(fields)
             if has_neighbor(ns, dim) iwrite_sendbufs!(ns, dim, fields[i], i); end
         end

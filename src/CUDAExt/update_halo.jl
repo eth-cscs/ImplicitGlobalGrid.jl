@@ -150,7 +150,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iwrite(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
+    wait_iwrite(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]; blocking=true);
 
     function allocate_custreams_iwrite(fields::GGField...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuField
@@ -179,7 +179,7 @@ let
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
-    wait_iread(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]);
+    wait_iread(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]; blocking=true);
 
     function allocate_custreams_iread(fields::GGField...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuField
