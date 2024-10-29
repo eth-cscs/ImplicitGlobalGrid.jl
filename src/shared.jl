@@ -6,19 +6,25 @@ using Base.Threads
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
 
 let
-    global cuda_loaded, cuda_functional, amdgpu_loaded, amdgpu_functional, set_cuda_loaded, set_cuda_functional, set_amdgpu_loaded, set_amdgpu_functional
+    global cuda_loaded, cuda_functional, amdgpu_loaded, amdgpu_functional, oneapi_loaded, oneapi_functional, set_cuda_loaded, set_cuda_functional, set_amdgpu_loaded, set_amdgpu_functional, set_oneapi_loaded, set_oneapi_functional
     _cuda_loaded::Bool        = false
     _cuda_functional::Bool    = false
     _amdgpu_loaded::Bool      = false
     _amdgpu_functional::Bool  = false
+    _oneapi_loaded::Bool      = false
+    __oneapi_functional::Bool = false
     cuda_loaded()::Bool       = _cuda_loaded
     cuda_functional()::Bool   = _cuda_functional
     amdgpu_loaded()::Bool     = _amdgpu_loaded
     amdgpu_functional()::Bool = _amdgpu_functional
+    oneapi_loaded()::Bool     = _oneapi_loaded
+    oneapi_functional::Bool  = __oneapi_functional
     set_cuda_loaded()         = (_cuda_loaded = is_loaded(Val(:ImplicitGlobalGrid_CUDAExt)))
     set_cuda_functional()     = (_cuda_functional = is_functional(Val(:CUDA)))
     set_amdgpu_loaded()       = (_amdgpu_loaded = is_loaded(Val(:ImplicitGlobalGrid_AMDGPUExt)))
     set_amdgpu_functional()   = (_amdgpu_functional = is_functional(Val(:AMDGPU)))
+    set_oneapi_loaded()       = (_oneapi_loaded = is_loaded(Val(:ImplicitGlobalGrid_ONEAPIExt)))
+    set_oneapi_functional()     = (_oneapi_functional = is_functional(Val(:ONEAPI)))
 end
 
 
@@ -33,7 +39,8 @@ const DEVICE_TYPE_NONE = "none"
 const DEVICE_TYPE_AUTO = "auto"
 const DEVICE_TYPE_CUDA = "CUDA"
 const DEVICE_TYPE_AMDGPU = "AMDGPU"
-const SUPPORTED_DEVICE_TYPES = [DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]
+const DEVICE_TYPE_ONEAPI = "ONEAPI"
+const SUPPORTED_DEVICE_TYPES = [DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU, DEVICE_TYPE_ONEAPI]
 
 
 ##------
@@ -64,8 +71,10 @@ struct GlobalGrid
     comm::MPI.Comm
     cuda_enabled::Bool
     amdgpu_enabled::Bool
+    oneapi_enabled::Bool
     cudaaware_MPI::Vector{Bool}
     amdgpuaware_MPI::Vector{Bool}
+    oneapigpuaware_MPI::Vector{Bool}
     use_polyester::Vector{Bool}
     quiet::Bool
 end
@@ -104,19 +113,24 @@ neighbors(dim::Integer)                = global_grid().neighbors[:,dim]
 neighbor(n::Integer, dim::Integer)     = global_grid().neighbors[n,dim]
 cuda_enabled()                         = global_grid().cuda_enabled
 amdgpu_enabled()                       = global_grid().amdgpu_enabled
+oneapi_enabled()                       = global_grid().oneapi_enabled
 cudaaware_MPI()                        = global_grid().cudaaware_MPI
 cudaaware_MPI(dim::Integer)            = global_grid().cudaaware_MPI[dim]
 amdgpuaware_MPI()                      = global_grid().amdgpuaware_MPI
 amdgpuaware_MPI(dim::Integer)          = global_grid().amdgpuaware_MPI[dim]
+oneapiaware_MPI()                      = global_grid().oneapiaware_MPI
+oneapiaware_MPI(dim::Integer)          = global_grid().oneapiaware_MPI[dim]
 use_polyester()                        = global_grid().use_polyester
 use_polyester(dim::Integer)            = global_grid().use_polyester[dim]
 has_neighbor(n::Integer, dim::Integer) = neighbor(n, dim) != MPI.PROC_NULL
 any_array(fields::GGField...)          = any([is_array(A.A) for A in fields])
 any_cuarray(fields::GGField...)        = any([is_cuarray(A.A) for A in fields])
 any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
+any_onearray(fields::GGField...)       = any([is_onearray(A.A) for A in fields])
 all_arrays(fields::GGField...)         = all([is_array(A.A) for A in fields])
 all_cuarrays(fields::GGField...)       = all([is_cuarray(A.A) for A in fields])
 all_rocarrays(fields::GGField...)      = all([is_rocarray(A.A) for A in fields])
+all_onearrays(fields::GGField...)      = all([is_onearray(A.A) for A in fields])
 is_array(A::GGArray)                   = typeof(A) <: Array
 
 
