@@ -35,7 +35,7 @@ function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...; dims=(N
 end
 #
 function _update_halo!(fields::GGField...; dims=dims)
-    if (!cuda_enabled() && !amdgpu_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
+    if (!cuda_enabled() && !amdgpu_enabled() && !oneapi_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
     if any_cuarray(fields...) allocate_custreams(fields...); end
@@ -103,6 +103,7 @@ let
         free_update_halo_cpubuffers()
         if (cuda_enabled() && none(cudaaware_MPI()))     free_update_halo_cubuffers() end
         if (amdgpu_enabled() && none(amdgpuaware_MPI())) free_update_halo_rocbuffers() end
+        if (oneapi_enabled() && none(oneapiaware_MPI())) free_update_halo_rocbuffers() end
         GC.gc() #TODO: see how to modify this!
     end
 
@@ -122,21 +123,25 @@ let
             init_bufs_arrays();
             if cuda_enabled() init_cubufs_arrays(); end
             if amdgpu_enabled() init_rocbufs_arrays(); end
+            if oneapi_enabled() init_onebufs_arrays(); end
         end
         init_bufs(T, fields...);
         if cuda_enabled() init_cubufs(T, fields...); end
         if amdgpu_enabled() init_rocbufs(T, fields...); end
+        if oneapi_enabled() init_onebufs(T, fields...); end
         for i = 1:length(fields)
             A, halowidths = fields[i];
             for n = 1:NNEIGHBORS_PER_DIM # Ensure that the buffers are interpreted to contain elements of the same type as the array.
                 reinterpret_bufs(T, i, n);
                 if cuda_enabled() reinterpret_cubufs(T, i, n); end
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
+                if oneapi_enabled() reinterpret_onebufs(T, i, n); end
             end
             max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
             reallocate_undersized_hostbufs(T, i, max_halo_elems, A);
             if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_undersized_cubufs(T, i, max_halo_elems) end
             if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_undersized_rocbufs(T, i, max_halo_elems) end
+            if (is_onearray(A) && any(oneapiaware_MPI())) reallocate_undersized_onebufs(T, i, max_halo_elems) end
         end
     end
 
@@ -164,6 +169,7 @@ let
                 reallocate_bufs(T, i, n, max_halo_elems);
                 if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
                 if (is_rocarray(A) && none(amdgpuaware_MPI())) reregister_rocbufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # ...
+                if (is_onearray(A) && none(oneapiaware_MPI())) reregister_onebufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # ...
             end
             GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
         end
@@ -337,7 +343,7 @@ function irecv_halo!(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Inte
     req = MPI.REQUEST_NULL;
     A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
-        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A) || (oneapiaware_MPI(dim) && is_onearray(A)))
             req = MPI.Irecv!(gpurecvbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         else
             req = MPI.Irecv!(recvbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
@@ -350,7 +356,7 @@ function isend_halo(n::Integer, dim::Integer, F::GGField, i::Integer; tag::Integ
     req = MPI.REQUEST_NULL;
     A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
-        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A) || (oneapiaware_MPI(dim) && is_onearray(A)))
             req = MPI.Isend(gpusendbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
         else
             req = MPI.Isend(sendbuf_flat(n,dim,i,F), neighbor(n,dim), tag, comm());
@@ -362,7 +368,7 @@ end
 function sendrecv_halo_local(n::Integer, dim::Integer, F::GGField, i::Integer)
     A, halowidths = F;
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
-        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
+        if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A) || (oneapiaware_MPI(dim) && is_onearray(A)))
             if n == 1
                 gpumemcopy!(gpurecvbuf_flat(2,dim,i,F), gpusendbuf_flat(1,dim,i,F));
             elseif n == 2
