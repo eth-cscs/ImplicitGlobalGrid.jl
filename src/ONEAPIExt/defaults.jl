@@ -5,18 +5,18 @@ is_onearray(A::GGArray) = false
 
 # select_device.jl
 
-function nb_inteldevices end
-function inteldevice! end
+function nb_oneapidevices end
+function oneapidevice! end
 
 
 # update_halo.jl
 
 function free_update_halo_intelbuffers end
-function init_intelbufs_arrays end
-function init_intelbufs end
-function reinterpret_intelbufs end
-function reallocate_undersized_intelbufs end
-function reregister_itnelbufs end
-function get_intelsendbufs_raw end
-function get_intelrecvbufs_raw end
-function allocate_intelstreams end
+function init_onebufs_arrays end
+function init_onebufs end
+function reinterpret_onebufs end
+function reallocate_undersized_onebufs end
+function reregister_onebufs end
+function get_onesendbufs_raw end
+function get_onerecvbufs_raw end
+function allocate_onestreams end

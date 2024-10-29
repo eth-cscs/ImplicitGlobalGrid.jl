@@ -12,13 +12,13 @@ let
     _amdgpu_loaded::Bool      = false
     _amdgpu_functional::Bool  = false
     _oneapi_loaded::Bool      = false
-    __oneapi_functional::Bool = false
+    _oneapi_functional::Bool  = false
     cuda_loaded()::Bool       = _cuda_loaded
     cuda_functional()::Bool   = _cuda_functional
     amdgpu_loaded()::Bool     = _amdgpu_loaded
     amdgpu_functional()::Bool = _amdgpu_functional
     oneapi_loaded()::Bool     = _oneapi_loaded
-    oneapi_functional::Bool  = __oneapi_functional
+    oneapi_functional()::Bool = _oneapi_functional
     set_cuda_loaded()         = (_cuda_loaded = is_loaded(Val(:ImplicitGlobalGrid_CUDAExt)))
     set_cuda_functional()     = (_cuda_functional = is_functional(Val(:CUDA)))
     set_amdgpu_loaded()       = (_amdgpu_loaded = is_loaded(Val(:ImplicitGlobalGrid_AMDGPUExt)))
