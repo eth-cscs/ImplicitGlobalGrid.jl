@@ -46,7 +46,7 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if (isa(bufs[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(bufs[i][n]); bufs[i][n] = []; end
+                    if (isa(bufs[i][n],CUDA.HostMemory)) CUDA.unregister(bufs[i][n]); bufs[i][n] = []; end
                 end
             end
         end
@@ -95,8 +95,8 @@ let
     end
 
     function reregister_cubufs(T::DataType, i::Integer, n::Integer, sendbufs_raw, recvbufs_raw)
-        if (isa(cusendbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-        if (isa(curecvbufs_raw_h[i][n],CUDA.Mem.HostBuffer)) CUDA.Mem.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+        if (isa(cusendbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
+        if (isa(curecvbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
         cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(CuArray,sendbufs_raw[i][n]);
         curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(CuArray,recvbufs_raw[i][n]);
     end
@@ -228,8 +228,8 @@ end
 
 # Write to the send buffer on the host from the array on the device (d2h).
 function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
-    CUDA.Mem.unsafe_copy3d!(
-        pointer(sendbuf), CUDA.Mem.Host, pointer(A), CUDA.Mem.Device,
+    CUDA.unsafe_copy3d!(
+        pointer(sendbuf), CUDA.HostMemory, pointer(A), CUDA.DeviceMemory,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
         srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
@@ -240,8 +240,8 @@ end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
 function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
-    CUDA.Mem.unsafe_copy3d!(
-        pointer(A), CUDA.Mem.Device, pointer(recvbuf), CUDA.Mem.Host,
+    CUDA.unsafe_copy3d!(
+        pointer(A), CUDA.DeviceMemory, pointer(recvbuf), CUDA.HostMemory,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
         srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
