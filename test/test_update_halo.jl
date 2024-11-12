@@ -416,7 +416,7 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
+                        CUDA.unregister(buf_h);
                         # (dim=2)
                         dim = 2;
                         P2  = gpuzeros(eltype(P),size(P));
@@ -437,7 +437,7 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
+                        CUDA.unregister(buf_h);
                         # (dim=3)
                         dim = 3
                         P2  = gpuzeros(eltype(P),size(P));
@@ -458,7 +458,7 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
-                        CUDA.Mem.unregister(buf_h);
+                        CUDA.unregister(buf_h);
                     elseif array_type == "AMDGPU"
                         # (dim=1)
                         dim = 1;
