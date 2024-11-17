@@ -5,6 +5,7 @@ version = "0.15.3"
 
 [deps]
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
 
 [weakdeps]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
@@ -22,6 +23,7 @@ CUDA = "1, ~3.1, ~3.2, ~3.3, ~3.7.1, ~3.8, ~3.9, ~3.10, ~3.11, ~3.12, ~3.13, 4, 
 MPI = "0.20"
 Polyester = "0.7"
 julia = "1.9"
+oneAPI = "1.6.1"
 
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"

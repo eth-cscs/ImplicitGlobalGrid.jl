@@ -48,6 +48,7 @@ include("shared.jl")
 include("defaults_shared.jl")
 include(joinpath("AMDGPUExt", "defaults.jl"))
 include(joinpath("CUDAExt", "defaults.jl"))
+include(joinpath("ONEAPIExt", "defaults.jl"))
 include(joinpath("PolyesterExt", "memcopy_polyester_default.jl"))
 
 ## Alphabetical include of files

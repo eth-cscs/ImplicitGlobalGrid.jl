@@ -44,6 +44,8 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     set_cuda_functional()
     set_amdgpu_loaded()
     set_amdgpu_functional()
+    set_oneapi_loaded()
+    set_oneapi_functional()
     nxyz              = [nx, ny, nz];
     dims              = [dimx, dimy, dimz];
     periods           = [periodx, periody, periodz];
@@ -51,12 +53,15 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     halowidths        = [halowidths...];
     cuda_enabled      = false
     amdgpu_enabled    = false
+    oneapi_enabled    = false
     cudaaware_MPI     = [false, false, false]
     amdgpuaware_MPI   = [false, false, false]
+    oneapiaware_MPI   = [false, false, false]
     use_polyester     = [false, false, false]
     if haskey(ENV, "IGG_LOOPVECTORIZATION") error("Environment variable IGG_LOOPVECTORIZATION is not supported anymore. Use IGG_USE_POLYESTER instead.") end
     if haskey(ENV, "IGG_CUDAAWARE_MPI") cudaaware_MPI .= (parse(Int64, ENV["IGG_CUDAAWARE_MPI"]) > 0); end
     if haskey(ENV, "IGG_ROCMAWARE_MPI") amdgpuaware_MPI .= (parse(Int64, ENV["IGG_ROCMAWARE_MPI"]) > 0); end
+    if haskey(ENV, "IGG_ONEAPIAWARE_MPI") oneapiaware_MPI .= (parse(Int64, ENV["IGG_ONEAPIAWARE_MPI"]) > 0); end
     if haskey(ENV, "IGG_USE_POLYESTER") use_polyester .= (parse(Int64, ENV["IGG_USE_POLYESTER"]) > 0); end
     if none(cudaaware_MPI)
         if haskey(ENV, "IGG_CUDAAWARE_MPI_DIMX") cudaaware_MPI[1] = (parse(Int64, ENV["IGG_CUDAAWARE_MPI_DIMX"]) > 0); end
@@ -73,11 +78,17 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         if haskey(ENV, "IGG_USE_POLYESTER_DIMY") use_polyester[2] = (parse(Int64, ENV["IGG_USE_POLYESTER_DIMY"]) > 0); end
         if haskey(ENV, "IGG_USE_POLYESTER_DIMZ") use_polyester[3] = (parse(Int64, ENV["IGG_USE_POLYESTER_DIMZ"]) > 0); end
     end
-    if !(device_type in [DEVICE_TYPE_NONE, DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_NONE, $DEVICE_TYPE_AUTO") end
-    if ((device_type == DEVICE_TYPE_AUTO) && cuda_loaded() && cuda_functional() && amdgpu_loaded() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU extensions are loaded and functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
+    if none(oneapiaware_MPI)
+        if haskey(ENV, "IGG_ONEAPIAWARE_MPI_DIMX") oneapiaware_MPI[1] = (parse(Int64, ENV["IGG_ONEAPIAWARE_MPI_DIMX"]) > 0); end
+        if haskey(ENV, "IGG_ONEAPIAWARE_MPI_DIMY") oneapiaware_MPI[2] = (parse(Int64, ENV["IGG_ONEAPIAWARE_MPI_DIMY"]) > 0); end
+        if haskey(ENV, "IGG_ONEAPIAWARE_MPI_DIMZ") oneapiaware_MPI[3] = (parse(Int64, ENV["IGG_ONEAPIAWARE_MPI_DIMZ"]) > 0); end
+    end
+    if !(device_type in [DEVICE_TYPE_NONE, DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU, DEVICE_TYPE_ONEAPI]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_ONEAPI, $DEVICE_TYPE_NONE, $DEVICE_TYPE_AUTO") end
+    if ((device_type == DEVICE_TYPE_AUTO) && cuda_loaded() && cuda_functional() && amdgpu_loaded() && amdgpu_functional() && oneapi_loaded() && oneapi_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU extensions are loaded and functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU or $DEVICE_TYPE_ONEAPI.") end
     if (device_type != DEVICE_TYPE_NONE)
         if (device_type in [DEVICE_TYPE_CUDA,   DEVICE_TYPE_AUTO]) cuda_enabled   = cuda_loaded() && cuda_functional()  end # NOTE: cuda could be enabled/disabled depending on some additional criteria.
         if (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_loaded() && amdgpu_functional() end # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
+        if (device_type in [DEVICE_TYPE_ONEAPI,   DEVICE_TYPE_AUTO]) oneapi_enabled   = oneapi_loaded() && oneapi_functional()  end # NOTE: oneapi could be enabled/disabled depending on some additional criteria.
     end
     if (any(nxyz .< 1)) error("Invalid arguments: nx, ny, and nz cannot be less than 1."); end
     if (any(dims .< 0)) error("Invalid arguments: dimx, dimy, and dimz cannot be negative."); end
@@ -105,13 +116,14 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, use_polyester, quiet));
+    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, oneapi_enabled, cudaaware_MPI, amdgpuaware_MPI, oneapiaware_MPI, use_polyester, quiet));
     cuda_support_string   = (cuda_enabled && all(cudaaware_MPI))     ? "CUDA-aware"   : (cuda_enabled && any(cudaaware_MPI))     ? "CUDA(-aware)"   : (cuda_enabled)   ? "CUDA"   : "";
     amdgpu_support_string = (amdgpu_enabled && all(amdgpuaware_MPI)) ? "AMDGPU-aware" : (amdgpu_enabled && any(amdgpuaware_MPI)) ? "AMDGPU(-aware)" : (amdgpu_enabled) ? "AMDGPU" : "";
-    gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string]), ", ");
+    oneapi_support_string   = (oneapi_enabled && all(oneapiaware_MPI))     ? "ONEAPI-aware"   : (oneapi_enabled && any(oneapiaware_MPI))     ? "ONEAPI(-aware)"   : (oneapi_enabled)   ? "ONEAPI"   : "";
+    gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string, oneapi_support_string]), ", ");
     support_string        = isempty(gpu_support_string) ? "none" : gpu_support_string;
     if (!quiet && me==0) println("Global grid: $(nxyz_g[1])x$(nxyz_g[2])x$(nxyz_g[3]) (nprocs: $nprocs, dims: $(dims[1])x$(dims[2])x$(dims[3]); device support: $support_string)"); end
-    if ((cuda_enabled || amdgpu_enabled) && select_device) _select_device() end
+    if ((cuda_enabled || amdgpu_enabled || oneapi_enabled) && select_device) _select_device() end
     init_timing_functions();
     return me, dims, nprocs, coords, comm_cart; # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
 end
