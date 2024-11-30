@@ -58,4 +58,8 @@ include("select_device.jl")
 include("tools.jl")
 include("update_halo.jl")
 
+## Multi-instance calling
+include("instance_switch.jl")
+include("init_global_grid_instance.jl")
+
 end
