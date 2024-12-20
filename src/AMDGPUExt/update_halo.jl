@@ -220,7 +220,7 @@ function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDevic
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
     buf_view = reshape(sendbuf, Tuple(length.(sendranges)))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(sendbuf), AMDGPU.Mem.HostBuffer,
@@ -235,7 +235,7 @@ function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::ROCAr
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::ROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::AnyROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
     buf_view = reshape(recvbuf, Tuple(length.(recvranges)))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), typeof(A.buf),
