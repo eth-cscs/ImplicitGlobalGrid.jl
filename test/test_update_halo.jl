@@ -87,7 +87,9 @@ dz = 1.0
         C = zeros(Float32,    nx+1, ny+1, nz+1);
         Z = zeros(ComplexF16, nx,   ny,   nz  );
         Y = zeros(ComplexF16, nx-1, ny+2, nz+1);
-        P, A, B, C, Z, Y = GG.wrap_field.((P, A, B, C, Z, Y));
+        D = view(P, 2:length(P)-1);
+        E = @view A[2:end-1, 2:end-1, 2:end-1];
+        P, A, B, C, Z, Y, D, E = GG.wrap_field.((P, A, B, C, Z, Y, D, E));
         halowidths = (3,1,2);
         A_hw, Z_hw = GG.wrap_field(A.A, halowidths), GG.wrap_field(Z.A, halowidths);
         @testset "free buffers" begin
@@ -119,6 +121,28 @@ dz = 1.0
                 @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
                 for n = 1:nneighbors_per_dim
                     @test length(bufs_raw[1][n]) >= prod(sort([size(Z)...])[2:end])  # required length: max halo elements in any of the dimensions
+                end
+            end
+        end;
+        @testset "allocate single (contiguous view)" begin
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(D);
+            for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+                @test length(bufs_raw)       == 1                                    # 1 array
+                @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+                for n = 1:nneighbors_per_dim
+                    @test length(bufs_raw[1][n]) >= prod(sort([size(D)...])[2:end])  # required length: max halo elements in any of the dimensions
+                end
+            end
+        end;
+        @testset "allocate single (non-contiguous view)" begin
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(E);
+            for bufs_raw in [GG.get_sendbufs_raw(), GG.get_recvbufs_raw()]
+                @test length(bufs_raw)       == 1                                    # 1 array
+                @test length(bufs_raw[1])    == nneighbors_per_dim                   # 2 neighbors per dimension
+                for n = 1:nneighbors_per_dim
+                    @test length(bufs_raw[1][n]) >= prod(sort([size(E)...])[2:end])  # required length: max halo elements in any of the dimensions
                 end
             end
         end;
@@ -230,6 +254,26 @@ dz = 1.0
                 @test all(length(recvbuf(n,dim,2,Z))    .== prod(size(Z)[1:ndims(Z).!=dim]))
                 @test all(size(sendbuf(n,dim,2,Z))[dim] .== Z.halowidths[dim])
                 @test all(size(recvbuf(n,dim,2,Z))[dim] .== Z.halowidths[dim])
+            end
+        end;
+        @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (views)" begin
+            sendbuf, recvbuf = (GG.sendbuf, GG.recvbuf);
+            if array_type in ["CUDA", "AMDGPU"]
+                sendbuf, recvbuf = (GG.gpusendbuf, GG.gpurecvbuf);
+            end
+            GG.free_update_halo_buffers();
+            GG.allocate_bufs(D, P);
+            for dim = 1:ndims(D), n = 1:nneighbors_per_dim
+                @test all(length(sendbuf(n,dim,1,D))    .== prod(size(D)[1:ndims(D).!=dim]))
+                @test all(length(recvbuf(n,dim,1,D))    .== prod(size(D)[1:ndims(D).!=dim]))
+                @test all(size(sendbuf(n,dim,1,D))[dim] .== D.halowidths[dim])
+                @test all(size(recvbuf(n,dim,1,D))[dim] .== D.halowidths[dim])
+            end
+            for dim = 1:ndims(E), n = 1:nneighbors_per_dim
+                @test all(length(sendbuf(n,dim,2,E))    .== prod(size(E)[1:ndims(E).!=dim]))
+                @test all(length(recvbuf(n,dim,2,E))    .== prod(size(E)[1:ndims(E).!=dim]))
+                @test all(size(sendbuf(n,dim,2,E))[dim] .== E.halowidths[dim])
+                @test all(size(recvbuf(n,dim,2,E))[dim] .== E.halowidths[dim])
             end
         end;
         @testset "(cu/roc)sendbuf / (cu/roc)recvbuf (halowidth > 1)" begin
@@ -1071,6 +1115,40 @@ dz = 1.0
                 @require !all(CPUArray(Vz .== Vz_ref))
                 update_halo!(Vz);
                 @test all(CPUArray(Vz .== Vz_ref))
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "1D (contiguous view)" begin
+                init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+                P_buf = -1.0 .+ zeros(nx+2);
+                P     = @view P_buf[2:end-1];
+                P    .= [x_g(ix,dx,P) for ix=1:size(P,1)];
+                P_ref = copy(P);
+                P[[1, end]] .= 0.0;
+                P     = Array(P);
+                P_ref = Array(P_ref);
+                @require !all(CPUArray(P .== P_ref)) # DEBUG: CPUArray needed here and onwards as mapreduce! is failing on AMDGPU (see https://github.com/JuliaGPU/AMDGPU.jl/issues/210)
+                update_halo!(P);
+                @test all(CPUArray(P .== P_ref))
+                @test all(CPUArray(P_buf[[1, end]] .== -1.0))
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "3D (non-contiguous view)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+                Vz_buf = -1.0 .+ zeros(nx+2,ny+2,nz+3);
+                Vz     = @view Vz_buf[2:end-1,2:end-1,2:end-1];
+                Vz    .= [z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)];
+                Vz_ref = copy(Vz);
+                Vz[[1, end],       :,       :] .= 0.0;
+                Vz[       :,[1, end],       :] .= 0.0;
+                Vz[       :,       :,[1, end]] .= 0.0;
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                @require !all(CPUArray(Vz .== Vz_ref))
+                update_halo!(Vz);
+                @test all(CPUArray(Vz .== Vz_ref))
+                @test all(CPUArray(Vz_buf[[1, end],:,:] .== -1.0))
+                @test all(CPUArray(Vz_buf[:,[1, end],:] .== -1.0))
+                @test all(CPUArray(Vz_buf[:,:,[1, end]] .== -1.0))
                 finalize_global_grid(finalize_MPI=false);
             end;
             # @testset "3D (changing datatype)" begin
