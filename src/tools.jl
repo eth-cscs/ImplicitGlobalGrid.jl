@@ -95,7 +95,7 @@ julia> [x_g(ix, dx, Vx) for ix=1:size(Vx, 1)]
 julia> finalize_global_grid()
 ```
 """
-function x_g(ix::Integer, dx::GGNumber, A::GGArray)::GGNumber
+function x_g(ix::Integer, dx::Real, A::GGArray)
     x0 = 0.5*(@nx()-size(A,1))*dx;
     x  = (@coordx()*(@nx()-@olx()) + ix-1)*dx + x0;
     if @periodx()
@@ -143,7 +143,7 @@ julia> [y_g(iy, dy, Vy) for iy=1:size(Vy, 2)]
 julia> finalize_global_grid()
 ```
 """
-function y_g(iy::Integer, dy::GGNumber, A::GGArray)::GGNumber
+function y_g(iy::Integer, dy::Real, A::GGArray)
     y0 = 0.5*(@ny()-size(A,2))*dy;
     y  = (@coordy()*(@ny()-@oly()) + iy-1)*dy + y0;
     if @periody()
@@ -191,7 +191,7 @@ julia> [z_g(iz, dz, Vz) for iz=1:size(Vz, 3)]
 julia> finalize_global_grid()
 ```
 """
-function z_g(iz::Integer, dz::GGNumber, A::GGArray)::GGNumber
+function z_g(iz::Integer, dz::Real, A::GGArray)
     z0 = 0.5*(@nz()-size(A,3))*dz;
     z  = (@coordz()*(@nz()-@olz()) + iz-1)*dz + z0;
     if @periodz()
