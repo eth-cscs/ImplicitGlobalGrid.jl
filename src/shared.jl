@@ -1,4 +1,5 @@
 import MPI
+import LinearAlgebra
 using Base.Threads
 
 
@@ -39,15 +40,17 @@ const SUPPORTED_DEVICE_TYPES = [DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]
 ##------
 ## TYPES
 
+const AnyCPUArray{T,N}                = Union{Base.LogicalIndex{T, <:Array}, Base.ReinterpretArray{T, N, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s14"}, var"#s14"}} where var"#s14"<:Array, Base.ReshapedArray{T, N, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s15"}, var"#s15"}}, SubArray{<:Any, <:Any, var"#s15"}, var"#s15"}} where var"#s15"<:Array, SubArray{T, N, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, Base.ReshapedArray{<:Any, <:Any, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, var"#s16"}} where var"#s16"<:Array, Array{T, N}, LinearAlgebra.Adjoint{T, <:Array{T, N}}, LinearAlgebra.Diagonal{T, <:Array{T, N}}, LinearAlgebra.LowerTriangular{T, <:Array{T, N}}, LinearAlgebra.Symmetric{T, <:Array{T, N}}, LinearAlgebra.Transpose{T, <:Array{T, N}}, LinearAlgebra.Tridiagonal{T, <:Array{T, N}}, LinearAlgebra.UnitLowerTriangular{T, <:Array{T, N}}, LinearAlgebra.UnitUpperTriangular{T, <:Array{T, N}}, LinearAlgebra.UpperTriangular{T, <:Array{T, N}}, PermutedDimsArray{T, N, <:Any, <:Any, <:Array}} where {T, N}  # NOTE: This is done in analogy with CUDA.AnyCuArray.
+const AnyDenseArray{T,N}              = Union{Base.LogicalIndex{T, <:DenseArray}, Base.ReinterpretArray{T, N, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s14"}, var"#s14"}} where var"#s14"<:DenseArray, Base.ReshapedArray{T, N, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s15"}, var"#s15"}}, SubArray{<:Any, <:Any, var"#s15"}, var"#s15"}} where var"#s15"<:DenseArray, SubArray{T, N, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, Base.ReshapedArray{<:Any, <:Any, <:Union{Base.ReinterpretArray{<:Any, <:Any, <:Any, <:Union{SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, SubArray{<:Any, <:Any, var"#s16"}, var"#s16"}}, var"#s16"}} where var"#s16"<:DenseArray, DenseArray{T, N}, LinearAlgebra.Adjoint{T, <:DenseArray{T, N}}, LinearAlgebra.Diagonal{T, <:DenseArray{T, N}}, LinearAlgebra.LowerTriangular{T, <:DenseArray{T, N}}, LinearAlgebra.Symmetric{T, <:DenseArray{T, N}}, LinearAlgebra.Transpose{T, <:DenseArray{T, N}}, LinearAlgebra.Tridiagonal{T, <:DenseArray{T, N}}, LinearAlgebra.UnitLowerTriangular{T, <:DenseArray{T, N}}, LinearAlgebra.UnitUpperTriangular{T, <:DenseArray{T, N}}, LinearAlgebra.UpperTriangular{T, <:DenseArray{T, N}}, PermutedDimsArray{T, N, <:Any, <:Any, <:DenseArray}} where {T, N}  # NOTE: This is done in analogy with CUDA.AnyCuArray.
 const GGInt                           = Cint
-const GGNumber                        = Number
-const GGArray{T,N}                    = DenseArray{T,N} # TODO: was Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
+const GGNumber                        = Any # NOTE: In every user facing function, it must be verified that it is bits (union) type # was Number
+const GGArray{T,N}                    = AnyDenseArray{T,N} # was Union{Array{T,N}, CuArray{T,N}, ROCArray{T,N}}
 const GGField{T,N,T_array}            = NamedTuple{(:A, :halowidths), Tuple{T_array, Tuple{GGInt,GGInt,GGInt}}} where {T_array<:GGArray{T,N}}
 const GGFieldConvertible{T,N,T_array} = NamedTuple{(:A, :halowidths), <:Tuple{T_array, Tuple{T2,T2,T2}}} where {T_array<:GGArray{T,N}, T2<:Integer}
 const GGField{}(t::NamedTuple)        = GGField{eltype(t.A),ndims(t.A),typeof(t.A)}((t.A, GGInt.(t.halowidths)))
-const CPUField{T,N}                   = GGField{T,N,Array{T,N}}
+const CPUField{T,N}                   = GGField{T,N,<:AnyCPUArray{T,N}}
 
-"An GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
+"A GlobalGrid struct contains information on the grid and the corresponding MPI communicator." # Note: type GlobalGrid is immutable, i.e. users can only read, but not modify it (except the actual entries of arrays can be modified, e.g. dims .= dims - useful for writing tests)
 struct GlobalGrid
     nxyz_g::Vector{GGInt}
     nxyz::Vector{GGInt}
@@ -117,7 +120,7 @@ any_rocarray(fields::GGField...)       = any([is_rocarray(A.A) for A in fields])
 all_arrays(fields::GGField...)         = all([is_array(A.A) for A in fields])
 all_cuarrays(fields::GGField...)       = all([is_cuarray(A.A) for A in fields])
 all_rocarrays(fields::GGField...)      = all([is_rocarray(A.A) for A in fields])
-is_array(A::GGArray)                   = typeof(A) <: Array
+is_array(A::GGArray)                   = typeof(A) <: AnyCPUArray
 
 
 ##--------------------------------------------------------------------------------
@@ -125,15 +128,16 @@ is_array(A::GGArray)                   = typeof(A) <: Array
 
 wrap_field(A::GGField)                 = A
 wrap_field(A::GGFieldConvertible)      = GGField(A)
-wrap_field(A::Array, hw::Tuple)        = CPUField{eltype(A), ndims(A)}((A, hw))
 wrap_field(A::GGArray, hw::Integer...) = wrap_field(A, hw)
 wrap_field(A::GGArray)                 = wrap_field(A, hw_default()...)
+wrap_field(A::T_array, hw::Tuple) where {T_array <: GGArray} = GGField{eltype(A),ndims(A),T_array}((A, hw))
 
-Base.size(A::Union{GGField, CPUField})          = Base.size(A.A)
 Base.size(A::Union{GGField, CPUField}, args...) = Base.size(A.A, args...)
 Base.length(A::Union{GGField, CPUField})        = Base.length(A.A)
 Base.ndims(A::Union{GGField, CPUField})         = Base.ndims(A.A)
 Base.eltype(A::Union{GGField, CPUField})        = Base.eltype(A.A)
+
+Base.iscontiguous(A::DenseArray) = true
 
 
 ##------------------------------------------
