@@ -227,7 +227,7 @@ function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceA
 end
 
 # Write to the send buffer on the host from the array on the device (d2h).
-function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyCuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.unsafe_copy3d!(
         pointer(sendbuf), CUDA.HostMemory, pointer(A), CUDA.DeviceMemory,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
@@ -239,7 +239,7 @@ function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::CuArr
 end
 
 # Read from the receive buffer on the host and store on the array on the device (h2d).
-function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::CuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::AnyCuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
     CUDA.unsafe_copy3d!(
         pointer(A), CUDA.DeviceMemory, pointer(recvbuf), CUDA.HostMemory,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
