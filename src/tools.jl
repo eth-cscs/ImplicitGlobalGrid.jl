@@ -21,42 +21,42 @@ macro periodz() esc(:( convert(Bool, global_grid().periods[3]) )) end
 
 Return the size of the global grid in dimension x.
 """
-nx_g()::GGInt = @nx_g()
+nx_g() = @nx_g()
 
 """
     ny_g()
 
 Return the size of the global grid in dimension y.
 """
-ny_g()::GGInt = @ny_g()
+ny_g() = @ny_g()
 
 """
     nz_g()
 
 Return the size of the global grid in dimension z.
 """
-nz_g()::GGInt = @nz_g()
+nz_g() = @nz_g()
 
 """
     nx_g(A)
 
 Return the size of array `A` in the global grid in dimension x.
 """
-nx_g(A::GGArray)::GGInt = @nx_g() + (size(A,1)-@nx())
+nx_g(A::AbstractArray) = @nx_g() + (size(A,1)-@nx())
 
 """
     ny_g(A)
 
 Return the size of array `A` in the global grid in dimension y.
 """
-ny_g(A::GGArray)::GGInt = @ny_g() + (size(A,2)-@ny())
+ny_g(A::AbstractArray) = @ny_g() + (size(A,2)-@ny())
 
 """
     nz_g(A)
 
 Return the size of array `A` in the global grid in dimension z.
 """
-nz_g(A::GGArray)::GGInt = @nz_g() + (size(A,3)-@nz())
+nz_g(A::AbstractArray) = @nz_g() + (size(A,3)-@nz())
 
 """
     x_g(ix, dx, A)
@@ -95,7 +95,7 @@ julia> [x_g(ix, dx, Vx) for ix=1:size(Vx, 1)]
 julia> finalize_global_grid()
 ```
 """
-function x_g(ix::Integer, dx::Real, A::GGArray)
+function x_g(ix::Integer, dx::Real, A::AbstractArray)
     x0 = 0.5*(@nx()-size(A,1))*dx;
     x  = (@coordx()*(@nx()-@olx()) + ix-1)*dx + x0;
     if @periodx()
@@ -143,7 +143,7 @@ julia> [y_g(iy, dy, Vy) for iy=1:size(Vy, 2)]
 julia> finalize_global_grid()
 ```
 """
-function y_g(iy::Integer, dy::Real, A::GGArray)
+function y_g(iy::Integer, dy::Real, A::AbstractArray)
     y0 = 0.5*(@ny()-size(A,2))*dy;
     y  = (@coordy()*(@ny()-@oly()) + iy-1)*dy + y0;
     if @periody()
@@ -191,7 +191,7 @@ julia> [z_g(iz, dz, Vz) for iz=1:size(Vz, 3)]
 julia> finalize_global_grid()
 ```
 """
-function z_g(iz::Integer, dz::Real, A::GGArray)
+function z_g(iz::Integer, dz::Real, A::AbstractArray)
     z0 = 0.5*(@nz()-size(A,3))*dz;
     z  = (@coordz()*(@nz()-@olz()) + iz-1)*dz + z0;
     if @periodz()
