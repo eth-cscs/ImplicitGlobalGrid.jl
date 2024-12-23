@@ -26,14 +26,15 @@ Update the halo of the given GPU/CPU-array(s).
     shell> export IGG_ROCMAWARE_MPI=1
     ```
 """
-function update_halo!(A::Union{GGArray, GGField, GGFieldConvertible}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...))
+function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellFieldConvertible, GGField}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...))
     check_initialized();
-    fields = wrap_field.(A);
+    As = ((extract.(A)...)...,);
+    fields = wrap_field.(As);
     check_fields(fields...);
     _update_halo!(fields...; dims=dims);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
     return nothing
 end
-#
+
 function _update_halo!(fields::GGField...; dims=dims)
     if (!cuda_enabled() && !amdgpu_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
     allocate_bufs(fields...);
@@ -298,7 +299,7 @@ end
 # (CPU functions)
 
 # Write to the send buffer on the host from the array on the host (h2h). Note: it works for 1D-3D, as sendranges contains always 3 ranges independently of the number of dimensions of A (see function sendranges).
-function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
+function write_h2h!(sendbuf::AbstractArray{T}, A::AbstractArray{T}, sendranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
     ix = (length(sendranges[1])==1) ? sendranges[1][1] : sendranges[1];
     iy = (length(sendranges[2])==1) ? sendranges[2][1] : sendranges[2];
     iz = (length(sendranges[3])==1) ? sendranges[3][1] : sendranges[3];
@@ -314,7 +315,7 @@ function write_h2h!(sendbuf::AbstractArray{T}, A::Array{T}, sendranges::Array{Un
 end
 
 # Read from the receive buffer on the host and store on the array on the host (h2h). Note: it works for 1D-3D, as recvranges contains always 3 ranges independently of the number of dimensions of A (see function recvranges).
-function read_h2h!(recvbuf::AbstractArray{T}, A::Array{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
+function read_h2h!(recvbuf::AbstractArray{T}, A::AbstractArray{T}, recvranges::Array{UnitRange{T2},1}, dim::Integer) where T <: GGNumber where T2 <: Integer
     ix = (length(recvranges[1])==1) ? recvranges[1][1] : recvranges[1];
     iy = (length(recvranges[2])==1) ? recvranges[2][1] : recvranges[2];
     iz = (length(recvranges[3])==1) ? recvranges[3][1] : recvranges[3];
@@ -435,6 +436,30 @@ function check_fields(fields::GGField...)
         error("The pairs of fields with the positions $(join(duplicates,", "," and ")) are the same; remove any duplicates from the call.")
     elseif length(duplicates) > 0
         error("The field at position $(duplicates[1][2]) is a duplicate of the one at the position $(duplicates[1][1]); remove the duplicate from the call.")
+    end
+
+    # Raise an error if the elements of any field are not of bits type or "is-bits" Union type.
+    invalid_types = [i for i=1:length(fields) if !(isbitstype(eltype(fields[i].A)) || Base.isbitsunion(eltype(fields[i].A)))];
+    if length(invalid_types) > 1
+        error("The fields at positions $(join(invalid_types,", "," and ")) are not of bits type or 'is-bits' Union type.")
+    elseif length(invalid_types) > 0
+        error("The field at position $(invalid_types[1]) is not of bits type or 'is-bits' Union type.")
+    end
+
+    # Raise an error if any of the given fields is non-contiguous (in indexing).
+    non_contiguous = [i for i=1:length(fields) if !Base.iscontiguous(fields[i].A)];
+    if length(non_contiguous) > 1
+        error("The fields at positions $(join(non_contiguous,", "," and ")) are non-contiguous (in indexing).")
+    elseif length(non_contiguous) > 0
+        error("The field at position $(non_contiguous[1]) is non-contiguous (in indexing)..")
+    end
+
+    # Raise an error if any of the given fields does not have a supported array type.
+    unsupported_types = [i for i=1:length(fields) if !(is_array(fields[i].A) || is_cuarray(fields[i].A) || is_rocarray(fields[i].A))];
+    if length(unsupported_types) > 1
+        error("The fields at positions $(join(unsupported_types,", "," and ")) do not have a supported array type.")
+    elseif length(unsupported_types) > 0
+        error("The field at position $(unsupported_types[1]) does not have a supported array type.")
     end
 
     # Raise an error if not all fields are of the same datatype (restriction comes from buffer handling).

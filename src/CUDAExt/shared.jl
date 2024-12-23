@@ -7,7 +7,7 @@ using CUDA
 ##------
 ## TYPES
 
-const CuField{T,N} = GGField{T,N,CuArray{T,N}}
+const CuField{T,N} = GGField{T,N,<:AnyCuArray{T,N}}
 
 
 ##------------------------------------
@@ -20,15 +20,12 @@ ImplicitGlobalGrid.is_functional(::Val{:CUDA})                   = CUDA.function
 ##-------------
 ## SYNTAX SUGAR
 
-ImplicitGlobalGrid.is_cuarray(A::CuArray) = true   #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
+ImplicitGlobalGrid.is_cuarray(A::AnyCuArray) = true   #NOTE: this function is only to be used when multiple dispatch on the type of the array seems an overkill (in particular when only something needs to be done for the GPU case, but nothing for the CPU case) and as long as performance does not suffer.
 
 
 ##--------------------------------------------------------------------------------
 ## FUNCTIONS FOR WRAPPING ARRAYS AND FIELDS AND DEFINE ARRAY PROPERTY BASE METHODS
 
-ImplicitGlobalGrid.wrap_field(A::CuArray, hw::Tuple) = CuField{eltype(A), ndims(A)}((A, hw))
-
-Base.size(A::CuField)          = Base.size(A.A)
 Base.size(A::CuField, args...) = Base.size(A.A, args...)
 Base.length(A::CuField)        = Base.length(A.A)
 Base.ndims(A::CuField)         = Base.ndims(A.A)
