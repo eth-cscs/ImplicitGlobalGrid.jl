@@ -96,7 +96,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         if (!MPI.Initialized()) error("MPI has not been initialized beforehand. Remove the argument 'init_MPI=false'."); end  # Ensure that MPI is always initialized after init_global_grid().
     end
     nprocs    = MPI.Comm_size(comm);
-    MPI.Dims_create!(nprocs, dims);
+    dims     .= MPI.Dims_create!(nprocs, dims);
     comm_cart = MPI.Cart_create(comm, dims, periods, reorder);
     me        = MPI.Comm_rank(comm_cart);
     coords    = MPI.Cart_coords(comm_cart);
