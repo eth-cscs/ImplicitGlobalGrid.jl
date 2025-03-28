@@ -457,28 +457,28 @@ julia> extents(1) # The extents as required by VTK
 julia> finalize_global_grid()
 ```
 """
-function extents(; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
+function extents(; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     extents = (1:@nx(), 1:@ny(), 1:@nz())
-    return _adjust_extents(extents, @nxyz(), @ols(), coords, fix_global_boundaries)
+    return _adjust_extents(extents, @nxyz(), @ols(), coords, dims, fix_global_boundaries)
 end
 
-function extents(A::AbstractArray; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
+function extents(A::AbstractArray; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     ol_A = @olx() + (size(A,1)-@nx()), @oly() + (size(A,2)-@ny()), @olz() + (size(A,3)-@nz())
     extents = (1:size(A,1), 1:size(A,2), 1:size(A,3))
-    return _adjust_extents(extents, size(A), ol_A, coords, fix_global_boundaries)
+    return _adjust_extents(extents, size(A), ol_A, coords, dims, fix_global_boundaries)
 end
 
-function extents(overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
+function extents(overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     overlaps = isa(overlaps, Integer) ? (Int(overlaps), Int(overlaps), Int(overlaps)) : overlaps
     if (overlaps[1] > @olx()) || (overlaps[2] > @oly()) || (overlaps[3] > @olz()) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
     # extents = (1:@nx()-@olx()+overlaps[1], 1:@ny()-@oly()+overlaps[2], 1:@nz()-@olz()+overlaps[3])
     bx, by, bz = (@olx()-overlaps[1]) ÷ 2, (@oly()-overlaps[2]) ÷ 2, (@olz()-overlaps[3]) ÷ 2
     ex, ey, ez = cld(@olx()-overlaps[1], 2), cld(@oly()-overlaps[2], 2), cld(@olz()-overlaps[3], 2)
     extents = (1+bx:@nx()-ex, 1+by:@ny()-ey, 1+bz:@nz()-ez)
-    return _adjust_extents(extents, @nxyz(), @ols(), coords, fix_global_boundaries)
+    return _adjust_extents(extents, @nxyz(), @ols(), coords, dims, fix_global_boundaries)
 end
 
-function extents(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
+function extents(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     overlaps = isa(overlaps, Integer) ? (Int(overlaps), Int(overlaps), Int(overlaps)) : overlaps
     ol_A = @olx() + (size(A,1)-@nx()), @oly() + (size(A,2)-@ny()), @olz() + (size(A,3)-@nz())
     if (overlaps[1] > ol_A[1]) || (overlaps[2] > ol_A[2]) || (overlaps[3] > ol_A[3]) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
@@ -486,10 +486,10 @@ function extents(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; 
     bx, by, bz = (ol_A[1]-overlaps[1]) ÷ 2, (ol_A[2]-overlaps[2]) ÷ 2, (ol_A[3]-overlaps[3]) ÷ 2
     ex, ey, ez = cld(ol_A[1]-overlaps[1], 2), cld(ol_A[2]-overlaps[2], 2), cld(ol_A[3]-overlaps[3], 2)
     extents = (1+bx:size(A,1)-ex, 1+by:size(A,2)-ey, 1+bz:size(A,3)-ez)
-    return _adjust_extents(extents, size(A), ol_A, coords, fix_global_boundaries)
+    return _adjust_extents(extents, size(A), ol_A, coords, dims, fix_global_boundaries)
 end
 
-# function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
+# function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
 #     @show extents
 #     if fix_global_boundaries
 #         extents_new = ( if !(@periods()[i])
@@ -509,7 +509,7 @@ end
 #     return extents_new
 # end
 
-function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, ol_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
+function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, ol_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
     extents = [extents...]
     if fix_global_boundaries
         b_g = (ol_A[1] ÷ 2, ol_A[2] ÷ 2, ol_A[3] ÷ 2)
@@ -519,14 +519,14 @@ function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{
                 if coords[i] == 0
                     extents[i] = 1+b_g[i]:extents[i].stop
                 end
-                if coords[i] == @dims()[i]-1
+                if coords[i] == dims[i]-1
                     extents[i] = extents[i].start:nxyz_A[i]-e_g[i]
                 end
             else
                 if coords[i] == 0
                     extents[i] = 1:extents[i].stop
                 end
-                if coords[i] == @dims()[i]-1
+                if coords[i] == dims[i]-1
                     extents[i] = extents[i].start:nxyz_A[i]
                 end
             end
@@ -575,23 +575,23 @@ julia> extents_g(1) # The extents as required by VTK
 julia> finalize_global_grid()
 ```
 """
-function extents_g(; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
-    extents_l = extents(; fix_global_boundaries=fix_global_boundaries, coords=coords)
+function extents_g(; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+    extents_l = extents(; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, @nxyz(), coords)
 end
 
-function extents_g(A::AbstractArray; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
-    extents_l = extents(A; fix_global_boundaries=fix_global_boundaries, coords=coords)
+function extents_g(A::AbstractArray; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+    extents_l = extents(A; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, size(A), coords)
 end
 
-function extents_g(overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
-    extents_l = extents(overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords)
+function extents_g(overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+    extents_l = extents(overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, @nxyz(), coords)
 end
 
-function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords())
-    extents_l = extents(A, overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords)
+function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+    extents_l = extents(A, overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, size(A), coords)
 end
 
@@ -654,7 +654,7 @@ julia> finalize_global_grid()
 ```
 """
 function metagrid(dims::Tuple{Int,Int,Int}, f::Function, args...; kwargs...)
-    return [f(args...; coords=(x,y,z), kwargs...) for x=0:dims[1]-1, y=0:dims[2]-1, z=0:dims[3]-1]
+    return [f(args...; coords=(x,y,z), dims=dims, kwargs...) for x=0:dims[1]-1, y=0:dims[2]-1, z=0:dims[3]-1]
 end
 
 metagrid(f::Function, args...; kwargs...) = metagrid(@dims(), f, args...; kwargs...)
