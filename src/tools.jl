@@ -531,10 +531,10 @@ end
 #     if fix_global_boundaries
 #         extents_new = ( if !(@periods()[i])
 #                             if coords[i] == 0
-#                                 1:extents[i].stop
+#                                 1:extents[i].last
 #                             end
 #                             if coords[i] == @dims()[i]-1
-#                                 extents[i].start:nxyz_A[i]
+#                                 extents[i].first:nxyz_A[i]
 #                             end
 #                         else
 #                             extents[i]
@@ -556,17 +556,17 @@ function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{
         for i in 1:3
             if @periods()[i]
                 if coords[i] == 0
-                    extents[i] = 1+b_g[i]:extents[i].stop
+                    extents[i] = 1+b_g[i]:last(extents[i])
                 end
                 if coords[i] == dims[i]-1
-                    extents[i] = extents[i].start:nxyz_A[i]-e_g[i]
+                    extents[i] = first(extents[i]):nxyz_A[i]-e_g[i]
                 end
             else
                 if coords[i] == 0
-                    extents[i] = 1:extents[i].stop
+                    extents[i] = 1:last(extents[i])
                 end
                 if coords[i] == dims[i]-1
-                    extents[i] = extents[i].start:nxyz_A[i]
+                    extents[i] = first(extents[i]):nxyz_A[i]
                 end
             end
         end
@@ -653,15 +653,15 @@ function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}
 end
 
 function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Nothing, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
-    return (_ix_g(extents[1].start, nxyz_A[1], false, coords[1], dims[1]) : _ix_g(extents[1].stop, nxyz_A[1], false, coords[1], dims[1]),
-            _iy_g(extents[2].start, nxyz_A[2], false, coords[2], dims[2]) : _iy_g(extents[2].stop, nxyz_A[2], false, coords[2], dims[2]),
-            _iz_g(extents[3].start, nxyz_A[3], false, coords[3], dims[3]) : _iz_g(extents[3].stop, nxyz_A[3], false, coords[3], dims[3]))
+    return (_ix_g(first(extents[1]), nxyz_A[1], false, coords[1], dims[1]) : _ix_g(last(extents[1]), nxyz_A[1], false, coords[1], dims[1]),
+            _iy_g(first(extents[2]), nxyz_A[2], false, coords[2], dims[2]) : _iy_g(last(extents[2]), nxyz_A[2], false, coords[2], dims[2]),
+            _iz_g(first(extents[3]), nxyz_A[3], false, coords[3], dims[3]) : _iz_g(last(extents[3]), nxyz_A[3], false, coords[3], dims[3]))
 end
 
 function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Tuple{Real,Real,Real}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
-    return (_x_g(extents[1].start, dxyz[1], nxyz_A[1], false, coords[1], dims[1]) : dxyz[1] : _x_g(extents[1].stop, dxyz[1], nxyz_A[1], false, coords[1], dims[1]),
-            _y_g(extents[2].start, dxyz[2], nxyz_A[2], false, coords[2], dims[2]) : dxyz[2] : _y_g(extents[2].stop, dxyz[2], nxyz_A[2], false, coords[2], dims[2]),
-            _z_g(extents[3].start, dxyz[3], nxyz_A[3], false, coords[3], dims[3]) : dxyz[3] : _z_g(extents[3].stop, dxyz[3], nxyz_A[3], false, coords[3], dims[3]))
+    return (_x_g(first(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]) : dxyz[1] : _x_g(last(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]),
+            _y_g(first(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]) : dxyz[2] : _y_g(last(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]),
+            _z_g(first(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]) : dxyz[3] : _z_g(last(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]))
 end
 
 
