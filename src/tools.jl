@@ -23,6 +23,15 @@ macro periodx() esc(:( convert(Bool, global_grid().periods[1]) )) end
 macro periody() esc(:( convert(Bool, global_grid().periods[2]) )) end
 macro periodz() esc(:( convert(Bool, global_grid().periods[3]) )) end
 macro periods() esc(:( (Bool.(global_grid().periods)...,) )) end
+macro originx() esc(:( global_grid().origin[1] )) end
+macro originy() esc(:( global_grid().origin[2] )) end
+macro originz() esc(:( global_grid().origin[3] )) end
+macro origin()  esc(:( (global_grid().origin...,) )) end
+macro origin_on_vertex() esc(:( global_grid().origin_on_vertex )) end
+macro centerx() esc(:( global_grid().center[1] )) end
+macro centery() esc(:( global_grid().center[2] )) end
+macro centerz() esc(:( global_grid().center[3] )) end
+macro centerxyz() esc(:( (global_grid().center...,) )) end
 macro halowidthx() esc(:( global_grid().halowidths[1] )) end
 macro halowidthy() esc(:( global_grid().halowidths[2] )) end
 macro halowidthz() esc(:( global_grid().halowidths[3] )) end
@@ -118,13 +127,16 @@ julia> [x_g(ix, dx, Vx) for ix=1:size(Vx, 1)]
 julia> finalize_global_grid()
 ```
 """
-x_g(ix::Integer, dx::Real, A::AbstractArray; wrap_periodic::Bool=true) =_x_g(ix, dx, size(A,1), wrap_periodic)
+x_g(ix::Integer, dx::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_x_g(ix, dx, size(A,1), wrap_periodic)
 
-function _x_g(ix::Integer, dx::Real, nx_A::Integer, wrap_periodic::Bool, coordx::Integer=@coordx(), dimx::Integer=@dimx())
-    nx_g  = dimx*(@nx()-@olx()) + @olx()*(@periodx()==0)
-    x0_g  = @periodx() ? -dx*@halowidthx() : dx*0 # The first cells of the global problem are halo cells; so, all must be shifted by dx to the left.
-    x0    = 0.5*(@nx()-nx_A)*dx
-    x     = (coordx*(@nx()-@olx()) + ix-1)*dx + x0 + x0_g
+function _x_g(ix::Integer, dx::AbstractFloat, nx_A::Integer, wrap_periodic::Bool, coordx::Integer=@coordx(), dimx::Integer=@dimx())
+    nx_g         = dimx*(@nx()-@olx()) + @olx()*(@periodx()==0)
+    haloshiftx   = @periodx() ? -dx*@halowidthx() : dx*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dx to the left.
+    vertexshiftx = @origin_on_vertex() ? dx*0.5 : dx*0.0
+    centershiftx = @centerx() ? (@origin_on_vertex() ? -nx_g*dx*0.5 : -(nx_g-1)*dx*0.5) : dx*0.0
+    x0_g         = @originx() + haloshiftx + vertexshiftx + centershiftx
+    x0           = 0.5*(@nx()-nx_A)*dx
+    x            = (coordx*(@nx()-@olx()) + ix-1)*dx + x0 + x0_g
     if @periodx() && wrap_periodic
         if (x > (nx_g-1)*dx) x = x - nx_g*dx; end # It must not be (nx_g()-1)*dx as the distance between the local problems (1*dx) must also be taken into account!
         if (x < 0)           x = x + nx_g*dx; end # ...
@@ -174,13 +186,16 @@ julia> [y_g(iy, dy, Vy) for iy=1:size(Vy, 2)]
 julia> finalize_global_grid()
 ```
 """
-y_g(iy::Integer, dy::Real, A::AbstractArray; wrap_periodic::Bool=true) =_y_g(iy, dy, size(A,2), wrap_periodic)
+y_g(iy::Integer, dy::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_y_g(iy, dy, size(A,2), wrap_periodic)
 
-function _y_g(iy::Integer, dy::Real, ny_A::Integer, wrap_periodic::Bool, coordy::Integer=@coordy(), dimy::Integer=@dimy())
-    ny_g  = dimy*(@ny()-@oly()) + @oly()*(@periody()==0)
-    y0_g  = @periody() ? -dy*@halowidthy() : dy*0 # The first cells of the global problem are halo cells; so, all must be shifted by dy to the left.
-    y0    = 0.5*(@ny()-ny_A)*dy
-    y     = (coordy*(@ny()-@oly()) + iy-1)*dy + y0 + y0_g
+function _y_g(iy::Integer, dy::AbstractFloat, ny_A::Integer, wrap_periodic::Bool, coordy::Integer=@coordy(), dimy::Integer=@dimy())
+    ny_g         = dimy*(@ny()-@oly()) + @oly()*(@periody()==0)
+    haloshifty   = @periody() ? -dy*@halowidthy() : dy*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dy to the left.
+    vertexshifty = @origin_on_vertex() ? dy*0.5 : dy*0.0
+    centershifty = @centery() ? (@origin_on_vertex() ? -ny_g*dy*0.5 : -(ny_g-1)*dy*0.5) : dy*0.0
+    y0_g         = @originy() + haloshifty + vertexshifty + centershifty
+    y0           = 0.5*(@ny()-ny_A)*dy
+    y            = (coordy*(@ny()-@oly()) + iy-1)*dy + y0 + y0_g
     if @periody() && wrap_periodic
         if (y > (ny_g-1)*dy) y = y - ny_g*dy; end # It must not be (ny_g()-1)*dy as the distance between the local problems (1*dy) must also be taken into account!
         if (y < 0)           y = y + ny_g*dy; end # ...
@@ -230,13 +245,16 @@ julia> [z_g(iz, dz, Vz) for iz=1:size(Vz, 3)]
 julia> finalize_global_grid()
 ```
 """
-z_g(iz::Integer, dz::Real, A::AbstractArray; wrap_periodic::Bool=true) =_z_g(iz, dz, size(A,3), wrap_periodic)
+z_g(iz::Integer, dz::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_z_g(iz, dz, size(A,3), wrap_periodic)
 
-function _z_g(iz::Integer, dz::Real, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
-    nz_g  = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
-    z0_g  = @periodz() ? -dz*@halowidthz() : dz*0 # The first cells of the global problem are halo cells; so, all must be shifted by dz to the left.
-    z0    = 0.5*(@nz()-nz_A)*dz
-    z     = (coordz*(@nz()-@olz()) + iz-1)*dz + z0 + z0_g
+function _z_g(iz::Integer, dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
+    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
+    haloshifty   = @periodz() ? -dz*@halowidthz() : dz*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dz to the left.
+    vertexshifty = @origin_on_vertex() ? dz*0.5 : dz*0.0
+    centershifty = @centerz() ? (@origin_on_vertex() ? -nz_g*dz*0.5 : -(nz_g-1)*dz*0.5) : dz*0.0
+    z0_g         = @originz() + haloshifty + vertexshifty + centershifty
+    z0           = 0.5*(@nz()-nz_A)*dz
+    z            = (coordz*(@nz()-@olz()) + iz-1)*dz + z0 + z0_g
     if @periodz() && wrap_periodic
         if (z > (nz_g-1)*dz) z = z - nz_g*dz; end # It must not be (nz_g()-1)*dz as the distance between the local problems (1*dz) must also be taken into account!
         if (z < 0)           z = z + nz_g*dz; end # ...
@@ -586,7 +604,7 @@ Return the global extents in each dimension of the array `A` or the global exten
 - `overlaps::Integer|Tuple{Int,Int,Int}`: the overlap of the "extent" with the neighboring processes' extents in each dimension; the overlaps chosen cannot be bigger than the actual overlaps on the global grid of `A` or of the base grid, respectively. To obtain the extents as required by VTK, set `overlaps=1`. The default is the actual full overlaps on the global grid.
 
 # Keyword arguments
-- `dxyz::Tuple{Real,Real,Real}`: the space step between the elements in each dimension if global Cartesian coordinates are desired.
+- `dxyz::Tuple{AbstractFloat,AbstractFloat,AbstractFloat}`: the space step between the elements in each dimension if global Cartesian coordinates are desired.
 - `fix_global_boundaries::Bool=true`: by default, the extents are fixed at the global boundaries to include them on all sides (attention, the extents are not of equal size for all processes in this case). If `fix_global_boundaries=false`, the extents are not fixed at the global boundaries and the size of the extents is equal for all processes.
 - `coords::Tuple{Int,Int,Int}`: the coordinates of the process for which the global extents is requested. The default is the coordinates of the current process.
 
@@ -632,22 +650,22 @@ julia> extents_g(1; dxyz=(dx, dy, dz)) # The Cartesian coordinates corresponding
 julia> finalize_global_grid()
 ```
 """
-function extents_g(; dxyz::Union{Nothing,Tuple{Real,Real,Real}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+function extents_g(; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     extents_l = extents(; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, @nxyz(), dxyz, coords, dims)
 end
 
-function extents_g(A::AbstractArray; dxyz::Union{Nothing,Tuple{Real,Real,Real}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+function extents_g(A::AbstractArray; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     extents_l = extents(A; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, size(A), dxyz, coords, dims)
 end
 
-function extents_g(overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{Real,Real,Real}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+function extents_g(overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     extents_l = extents(overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, @nxyz(), dxyz, coords, dims)
 end
 
-function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{Real,Real,Real}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
     extents_l = extents(A, overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
     return extents_g(extents_l, size(A), dxyz, coords, dims)
 end
@@ -658,7 +676,7 @@ function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}},
             _iz_g(first(extents[3]), nxyz_A[3], false, coords[3], dims[3]) : _iz_g(last(extents[3]), nxyz_A[3], false, coords[3], dims[3]))
 end
 
-function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Tuple{Real,Real,Real}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
+function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Tuple{AbstractFloat,AbstractFloat,AbstractFloat}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
     return (_x_g(first(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]) : dxyz[1] : _x_g(last(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]),
             _y_g(first(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]) : dxyz[2] : _y_g(last(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]),
             _z_g(first(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]) : dxyz[3] : _z_g(last(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]))
