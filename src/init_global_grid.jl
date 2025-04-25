@@ -9,7 +9,7 @@ export init_global_grid
 Initialize a Cartesian grid of MPI processes (and also MPI itself by default) defining implicitely a global grid.
 
 # Arguments
-- {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}. For 2D problems, setting `nz` to 1 is equivalent to ommitting the argument; for 1D problems, setting `ny` and `nz` to 1 is equivalent to ommitting the arguments.
+- {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}. For 2D problems, setting `nz` to 1 is equivalent to omitting the argument; for 1D problems, setting `ny` and `nz` to 1 is equivalent to omitting the arguments.
 
 # Keyword arguments
 - {`dimx`|`dimy`|`dimz`}`::Integer=0`: the desired number of processes in dimension {x|y|z}. By default, (value `0`) the process topology is created as compact as possible with the given constraints. This is handled by the MPI implementation which is installed on your system. For more information, refer to the specifications of `MPI_Dims_create` in the corresponding documentation.
