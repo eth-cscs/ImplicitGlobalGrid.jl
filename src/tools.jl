@@ -28,10 +28,10 @@ macro originy() esc(:( global_grid().origin[2] )) end
 macro originz() esc(:( global_grid().origin[3] )) end
 macro origin()  esc(:( (global_grid().origin...,) )) end
 macro origin_on_vertex() esc(:( global_grid().origin_on_vertex )) end
-macro centerx() esc(:( global_grid().center[1] )) end
-macro centery() esc(:( global_grid().center[2] )) end
-macro centerz() esc(:( global_grid().center[3] )) end
-macro centerxyz() esc(:( (global_grid().center...,) )) end
+macro centerx() esc(:( global_grid().centerxyz[1] )) end
+macro centery() esc(:( global_grid().centerxyz[2] )) end
+macro centerz() esc(:( global_grid().centerxyz[3] )) end
+macro centerxyz() esc(:( (global_grid().centerxyz...,) )) end
 macro halowidthx() esc(:( global_grid().halowidths[1] )) end
 macro halowidthy() esc(:( global_grid().halowidths[2] )) end
 macro halowidthz() esc(:( global_grid().halowidths[3] )) end
