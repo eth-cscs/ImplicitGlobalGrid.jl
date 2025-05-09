@@ -29,6 +29,21 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nx_g() == nx
             @test ny_g() == ny
             @test nz_g() == nz-2
+            @test nx_g(P) == nx
+            @test ny_g(P) == ny
+            @test nz_g(P) == nz-2
+            @test nx_g(Vx) == nx+1
+            @test ny_g(Vx) == ny
+            @test nz_g(Vx) == nz-2
+            @test nx_g(Vz) == nx
+            @test ny_g(Vz) == ny
+            @test nz_g(Vz) == nz-2+1
+            @test nx_g(A) == nx
+            @test ny_g(A) == ny
+            @test nz_g(A) == nz-2+2
+            @test nx_g(Sxz) == nx-2
+            @test ny_g(Sxz) == ny-1
+            @test nz_g(Sxz) == nz-2-2
         end;
         @testset "x_g / y_g / z_g" begin
             dx  = lx/(nx_g()-1);
@@ -38,14 +53,17 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [x_g(ix,dx,P) for ix = 1:size(P,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [y_g(iy,dy,P) for iy = 1:size(P,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,P) for iz = 1:size(P,3)] == [8.0, 0.0, 4.0, 8.0, 0.0]
+            @test [z_g(iz,dz,P; wrap_periodic=false) for iz = 1:size(P,3)] == [-4.0, 0.0, 4.0, 8.0, 12.0]
             # (for Vx)
             @test [x_g(ix,dx,Vx) for ix = 1:size(Vx,1)] == [-1.0, 1.0, 3.0, 5.0, 7.0, 9.0]
             @test [y_g(iy,dy,Vx) for iy = 1:size(Vx,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,Vx) for iz = 1:size(Vx,3)] == [8.0, 0.0, 4.0, 8.0, 0.0]
+            @test [z_g(iz,dz,Vx; wrap_periodic=false) for iz = 1:size(Vx,3)] == [-4.0, 0.0, 4.0, 8.0, 12.0]
             # (for Vz)
             @test [x_g(ix,dx,Vz) for ix = 1:size(Vz,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [y_g(iy,dy,Vz) for iy = 1:size(Vz,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,Vz) for iz = 1:size(Vz,3)] == [ 6.0, 10.0,  2.0,  6.0, 10.0,  2.0]
+            @test [z_g(iz,dz,Vz; wrap_periodic=false) for iz = 1:size(Vz,3)] == [-6.0, -2.0, 2.0, 6.0, 10.0, 14.0]
             #                       base grid (z dim):        [ 8.0,  0.0,  4.0,  8.0,  0.0]
             #                       possible alternative:  [ 6.0, -2.0,  2.0,  6.0, -2.0,  2.0]  # This would be a possible alternative way to define {x,y,z}_g; however, we decided that the grid should start at 0.0 in this case and the overlap be at the end (we avoid completely any negative z_g).
             #                       wrong:                 [ 6.0, -2.0,  2.0,  6.0, 10.0,  2.0]  # The 2nd and the 2nd-last cell must be the same due to the overlap of 3.
@@ -53,6 +71,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [x_g(ix,dx,A) for ix = 1:size(A,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [y_g(iy,dy,A) for iy = 1:size(A,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [4.0, 8.0, 0.0, 4.0, 8.0, 0.0, 4.0]
+            @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [-8.0, -4.0, 0.0, 4.0, 8.0, 12.0, 16.0]
             #                       base grid (z dim):       [ 8.0, 0.0, 4.0, 8.0, 0.0]
             # (for Sxz)
             @test [x_g(ix,dx,Sxz) for ix = 1:size(Sxz,1)] ==   [2.0, 4.0, 6.0]
@@ -60,6 +79,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [y_g(iy,dy,Sxz) for iy = 1:size(Sxz,2)] == [1.0, 3.0, 5.0, 7.0]
             #                       base grid (y dim):    [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,Sxz) for iz = 1:size(Sxz,3)] ==   [0.0, 4.0, 8.0]
+            @test [z_g(iz,dz,Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] ==   [0.0, 4.0, 8.0]
             #                       base grid (z dim):   [ 8.0, 0.0, 4.0, 8.0, 0.0]
         end;
         finalize_global_grid(finalize_MPI=false);
@@ -82,6 +102,21 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nx_g() == nx
             @test ny_g() == ny
             @test nz_g() == nz-3
+            @test nx_g(P) == nx
+            @test ny_g(P) == ny
+            @test nz_g(P) == nz-3
+            @test nx_g(Vx) == nx+1
+            @test ny_g(Vx) == ny
+            @test nz_g(Vx) == nz-3
+            @test nx_g(Vz) == nx
+            @test ny_g(Vz) == ny
+            @test nz_g(Vz) == nz-3+1
+            @test nx_g(A) == nx
+            @test ny_g(A) == ny
+            @test nz_g(A) == nz-3+2
+            @test nx_g(Sxz) == nx-2
+            @test ny_g(Sxz) == ny-1
+            @test nz_g(Sxz) == nz-3-2
         end;
         @testset "x_g / y_g / z_g" begin
             dx  = lx/(nx_g()-1);
@@ -91,16 +126,19 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [x_g(ix,dx,P) for ix = 1:size(P,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]          # (same as in the first test)
             @test [y_g(iy,dy,P) for iy = 1:size(P,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]          # (same as in the first test)
             @test [z_g(iz,dz,P) for iz = 1:size(P,3)] == [8.0, 0.0, 2.0, 4.0, 6.0, 8.0, 0.0, 2.0]
+            @test [z_g(iz,dz,P; wrap_periodic=false) for iz = 1:size(P,3)] == [-2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0]
             # (for Vz)
             @test [x_g(ix,dx,Vz) for ix = 1:size(Vz,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]        # (same as in the first test)
             @test [y_g(iy,dy,Vz) for iy = 1:size(Vz,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]        # (same as in the first test)
             @test [z_g(iz,dz,Vz) for iz = 1:size(Vz,3)] == [7.0, 9.0, 1.0, 3.0, 5.0, 7.0, 9.0, 1.0, 3.0]
+            @test [z_g(iz,dz,Vz; wrap_periodic=false) for iz = 1:size(Vz,3)] == [-3.0, -1.0, 1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0]
             #                       base grid (z dim):       [8.0, 0.0, 2.0, 4.0, 6.0. 8.0, 0.0, 2.0]
             #                       possible alternative:  [7.0,-1.0, 1.0, 3.0, 5.0, 7.0,-1.0, 1.0, 3.0]
             # (for A)
             @test [x_g(ix,dx,A) for ix = 1:size(A,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]          # (same as in the first test)
             @test [y_g(iy,dy,A) for iy = 1:size(A,2)] == [0.0, 2.0, 4.0, 6.0, 8.0]          # (same as in the first test)
             @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [6.0, 8.0, 0.0, 2.0, 4.0, 6.0, 8.0, 0.0, 2.0, 4.0]
+            @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [-4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0]
             #                       base grid (z dim):        [8.0, 0.0, 2.0, 4.0, 6.0, 8.0, 0.0, 2.0]
             # (for Sxz)
             @test [x_g(ix,dx,Sxz) for ix = 1:size(Sxz,1)] ==   [2.0, 4.0, 6.0]         # (same as in the first test)
@@ -108,6 +146,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [y_g(iy,dy,Sxz) for iy = 1:size(Sxz,2)] == [1.0, 3.0, 5.0, 7.0]       # (same as in the first test)
             #                       base grid (y dim):    [0.0, 2.0, 4.0, 6.0, 8.0]
             @test [z_g(iz,dz,Sxz) for iz = 1:size(Sxz,3)] ==   [0.0, 2.0, 4.0, 6.0, 8.0, 0.0]
+            @test [z_g(iz,dz,Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] ==   [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
             #                       base grid (z dim):    [8.0, 0.0, 2.0, 4.0, 6.0, 8.0, 0.0, 2.0]
         end;
         finalize_global_grid(finalize_MPI=false);
@@ -136,6 +175,12 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nx_g() == nxyz_g[1]
             @test ny_g() == nxyz_g[2]
             @test nz_g() == nxyz_g[3]
+            @test nx_g(P) == nxyz_g[1]
+            @test ny_g(P) == nxyz_g[2]
+            @test nz_g(P) == nxyz_g[3]
+            @test nx_g(A) == nxyz_g[1]+1
+            @test ny_g(A) == nxyz_g[2]-2
+            @test nz_g(A) == nxyz_g[3]+2
         end;
         @testset "x_g / y_g / z_g" begin
             dx  = lx/(nx_g()-1);
@@ -149,8 +194,11 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @coords(2)=1;  @test [y_g(iy,dy,P) for iy = 1:size(P,2)] == [6.0, 8.0, 10.0, 12.0, 14.0]
             @coords(2)=2;  @test [y_g(iy,dy,P) for iy = 1:size(P,2)] == [12.0, 14.0, 16.0, 18.0, 20.0]
             @coords(3)=0;  @test [z_g(iz,dz,P) for iz = 1:size(P,3)] == [16.0, 0.0, 2.0, 4.0, 6.0]
+            @coords(3)=0;  @test [z_g(iz,dz,P; wrap_periodic=false) for iz = 1:size(P,3)] == [-2.0, 0.0, 2.0, 4.0, 6.0]
             @coords(3)=1;  @test [z_g(iz,dz,P) for iz = 1:size(P,3)] == [4.0, 6.0, 8.0, 10.0, 12.0]
+            @coords(3)=1;  @test [z_g(iz,dz,P; wrap_periodic=false) for iz = 1:size(P,3)] == [4.0, 6.0, 8.0, 10.0, 12.0]
             @coords(3)=2;  @test [z_g(iz,dz,P) for iz = 1:size(P,3)] == [10.0, 12.0, 14.0, 16.0, 0.0]
+            @coords(3)=2;  @test [z_g(iz,dz,P; wrap_periodic=false) for iz = 1:size(P,3)] == [10.0, 12.0, 14.0, 16.0, 18.0]
             # (for A)
             @coords(1)=0;  @test [x_g(ix,dx,A) for ix = 1:size(A,1)] == [-1.0, 1.0, 3.0, 5.0, 7.0, 9.0]
             @coords(1)=1;  @test [x_g(ix,dx,A) for ix = 1:size(A,1)] == [5.0, 7.0, 9.0, 11.0, 13.0, 15.0]
@@ -159,8 +207,11 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @coords(2)=1;  @test [y_g(iy,dy,A) for iy = 1:size(A,2)] == [8.0, 10.0, 12.0]
             @coords(2)=2;  @test [y_g(iy,dy,A) for iy = 1:size(A,2)] == [14.0, 16.0, 18.0]
             @coords(3)=0;  @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [14.0, 16.0, 0.0, 2.0, 4.0, 6.0, 8.0]
+            @coords(3)=0;  @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [-4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0]
             @coords(3)=1;  @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0]
+            @coords(3)=1;  @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0]
             @coords(3)=2;  @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [8.0, 10.0, 12.0, 14.0, 16.0, 0.0, 2.0]
+            @coords(3)=2;  @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
         end;
         finalize_global_grid(finalize_MPI=false);
     end;
