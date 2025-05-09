@@ -46,6 +46,9 @@ nz = 1;
             @test GG.global_grid().reorder   == 1
             @test GG.global_grid().comm      == comm_cart
             @test GG.global_grid().quiet     == true
+            @test GG.global_grid().origin    == [0.0, 0.0, 0.0]
+            @test GG.global_grid().origin_on_vertex == false
+            @test GG.global_grid().centerxyz == [false, false, false]
         end;
         finalize_global_grid(finalize_MPI=false);
     end;
@@ -106,6 +109,13 @@ nz = 1;
         @test_throws ErrorException init_global_grid(nx, ny, nz, periody=1, overlaps=(2,3,2), quiet=true, init_MPI=false); # Error: periody==1 while ny<2*overlaps[2]-1 (4<5).
         @test_throws ErrorException init_global_grid(nx, ny, nz, halowidths=(1,0,1), quiet=true, init_MPI=false);    # Error: halowidths[2]<1.
         @test_throws ErrorException init_global_grid(nx, ny, nz, overlaps=(4,3,2), halowidths=(2,2,1), quiet=true, init_MPI=false); # Error: halowidths[2]==2 while overlaps[2]==3.
+        @test_throws ErrorException init_global_grid(nx, ny, nz, origin=(0.0, 0.0, 0.0, 0.0), quiet=true, init_MPI=false); # Error: origin length > 3
+        @test_throws ErrorException init_global_grid(5, ny, nz, centerx=true, origin_on_vertex=true, quiet=true, init_MPI=false); # Error: centerx && origin_on_vertex && nx odd
+        @test_throws ErrorException init_global_grid(nx, 5, nz, centery=true, origin_on_vertex=true, quiet=true, init_MPI=false); # Error: centery && origin_on_vertex && ny odd
+        @test_throws ErrorException init_global_grid(nx, ny, 5, centerz=true, origin_on_vertex=true, quiet=true, init_MPI=false); # Error: centerz && origin_on_vertex && nz odd
+        @test_throws ErrorException init_global_grid(4, ny, nz, centerx=true, origin_on_vertex=false, quiet=true, init_MPI=false); # Error: centerx && !origin_on_vertex && nx even
+        @test_throws ErrorException init_global_grid(nx, 4, nz, centery=true, origin_on_vertex=false, quiet=true, init_MPI=false); # Error: centery && !origin_on_vertex && ny even
+        @test_throws ErrorException init_global_grid(nx, ny, 4, centerz=true, origin_on_vertex=false, quiet=true, init_MPI=false); # Error: centerz && !origin_on_vertex && nz even
         @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true);                                        # Error: MPI already initialized
         @testset "already initialized exception" begin
             init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
