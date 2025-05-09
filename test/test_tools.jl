@@ -82,6 +82,33 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [z_g(iz,dz,Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] ==   [0.0, 4.0, 8.0]
             #                       base grid (z dim):   [ 8.0, 0.0, 4.0, 8.0, 0.0]
         end;
+        @testset "ix_g / iy_g / iz_g" begin
+            # (for P)
+            @test [ix_g(ix, P) for ix = 1:size(P,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, P) for iy = 1:size(P,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, P) for iz = 1:size(P,3)] == [3, 1, 2, 3, 1]
+            @test [iz_g(iz, P; wrap_periodic=false) for iz = 1:size(P,3)] == [0, 1, 2, 3, 4]
+            # (for Vx)
+            @test [ix_g(ix, Vx) for ix = 1:size(Vx,1)] == [1, 2, 3, 4, 5, 6]
+            @test [iy_g(iy, Vx) for iy = 1:size(Vx,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, Vx) for iz = 1:size(Vx,3)] == [3, 1, 2, 3, 1]
+            @test [iz_g(iz, Vx; wrap_periodic=false) for iz = 1:size(Vx,3)] == [0, 1, 2, 3, 4]
+            # (for Vz)
+            @test [ix_g(ix, Vz) for ix = 1:size(Vz,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, Vz) for iy = 1:size(Vz,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, Vz) for iz = 1:size(Vz,3)] == [3, 1, 2, 3, 1, 2]
+            @test [iz_g(iz, Vz; wrap_periodic=false) for iz = 1:size(Vz,3)] == [0, 1, 2, 3, 4, 5]
+            # (for A)
+            @test [ix_g(ix, A) for ix = 1:size(A,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, A) for iy = 1:size(A,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, A) for iz = 1:size(A,3)] == [2, 3, 1, 2, 3, 1, 2]
+            @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [-1, 0, 1, 2, 3, 4, 5]
+            # (for Sxz)
+            @test [ix_g(ix, Sxz) for ix = 1:size(Sxz,1)] == [1, 2, 3]
+            @test [iy_g(iy, Sxz) for iy = 1:size(Sxz,2)] == [1, 2, 3, 4]
+            @test [iz_g(iz, Sxz) for iz = 1:size(Sxz,3)] == [1, 2, 3]
+            @test [iz_g(iz, Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] == [1, 2, 3]
+        end;
         finalize_global_grid(finalize_MPI=false);
     end;
 
@@ -149,6 +176,33 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test [z_g(iz,dz,Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] ==   [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
             #                       base grid (z dim):    [8.0, 0.0, 2.0, 4.0, 6.0, 8.0, 0.0, 2.0]
         end;
+        @testset "ix_g / iy_g / iz_g" begin
+            # (for P)
+            @test [ix_g(ix, P) for ix = 1:size(P,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, P) for iy = 1:size(P,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, P) for iz = 1:size(P,3)] == [5, 1, 2, 3, 4, 5, 1, 2]
+            @test [iz_g(iz, P; wrap_periodic=false) for iz = 1:size(P,3)] == [0, 1, 2, 3, 4, 5, 6, 7]
+            # (for Vx)
+            @test [ix_g(ix, Vx) for ix = 1:size(Vx,1)] == [1, 2, 3, 4, 5, 6]
+            @test [iy_g(iy, Vx) for iy = 1:size(Vx,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, Vx) for iz = 1:size(Vx,3)] == [5, 1, 2, 3, 4, 5, 1, 2]
+            @test [iz_g(iz, Vx; wrap_periodic=false) for iz = 1:size(Vx,3)] == [0, 1, 2, 3, 4, 5, 6, 7]
+            # (for Vz)
+            @test [ix_g(ix, Vz) for ix = 1:size(Vz,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, Vz) for iy = 1:size(Vz,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, Vz) for iz = 1:size(Vz,3)] == [4, 5, 1, 2, 3, 4, 5, 1, 2]
+            @test [iz_g(iz, Vz; wrap_periodic=false) for iz = 1:size(Vz,3)] == [-1, 0, 1, 2, 3, 4, 5, 6, 7]
+            # (for A)
+            @test [ix_g(ix, A) for ix = 1:size(A,1)] == [1, 2, 3, 4, 5]
+            @test [iy_g(iy, A) for iy = 1:size(A,2)] == [1, 2, 3, 4, 5]
+            @test [iz_g(iz, A) for iz = 1:size(A,3)] == [4, 5, 1, 2, 3, 4, 5, 1, 2, 3]
+            @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+            # (for Sxz)
+            @test [ix_g(ix, Sxz) for ix = 1:size(Sxz,1)] == [1, 2, 3]
+            @test [iy_g(iy, Sxz) for iy = 1:size(Sxz,2)] == [1, 2, 3, 4]
+            @test [iz_g(iz, Sxz) for iz = 1:size(Sxz,3)] == [1, 2, 3, 4, 5, 1]
+            @test [iz_g(iz, Sxz; wrap_periodic=false) for iz = 1:size(Sxz,3)] == [1, 2, 3, 4, 5, 6]
+        end;
         finalize_global_grid(finalize_MPI=false);
     end;
 
@@ -212,6 +266,34 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @coords(3)=1;  @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0]
             @coords(3)=2;  @test [z_g(iz,dz,A) for iz = 1:size(A,3)] == [8.0, 10.0, 12.0, 14.0, 16.0, 0.0, 2.0]
             @coords(3)=2;  @test [z_g(iz,dz,A; wrap_periodic=false) for iz = 1:size(A,3)] == [8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]
+        end;
+        @testset "ix_g / iy_g / iz_g" begin
+            # (for P)
+            @coords(1)=0;  @test [ix_g(ix, P) for ix = 1:size(P,1)] == [1, 2, 3, 4, 5]
+            @coords(1)=1;  @test [ix_g(ix, P) for ix = 1:size(P,1)] == [4, 5, 6, 7, 8]
+            @coords(1)=2;  @test [ix_g(ix, P) for ix = 1:size(P,1)] == [7, 8, 9, 10, 11]
+            @coords(2)=0;  @test [iy_g(iy, P) for iy = 1:size(P,2)] == [1, 2, 3, 4, 5]
+            @coords(2)=1;  @test [iy_g(iy, P) for iy = 1:size(P,2)] == [4, 5, 6, 7, 8] 
+            @coords(2)=2;  @test [iy_g(iy, P) for iy = 1:size(P,2)] == [7, 8, 9, 10, 11]
+            @coords(3)=0;  @test [iz_g(iz, P) for iz = 1:size(P,3)] == [9, 1, 2, 3, 4]
+            @coords(3)=0;  @test [iz_g(iz, P; wrap_periodic=false) for iz = 1:size(P,3)] == [0, 1, 2, 3, 4]
+            @coords(3)=1;  @test [iz_g(iz, P) for iz = 1:size(P,3)] == [3, 4, 5, 6, 7]
+            @coords(3)=1;  @test [iz_g(iz, P; wrap_periodic=false) for iz = 1:size(P,3)] == [3, 4, 5, 6, 7]
+            @coords(3)=2;  @test [iz_g(iz, P) for iz = 1:size(P,3)] == [6, 7, 8, 9, 1]
+            @coords(3)=2;  @test [iz_g(iz, P; wrap_periodic=false) for iz = 1:size(P,3)] == [6, 7, 8, 9, 10]
+            # (for A)
+            @coords(1)=0;  @test [ix_g(ix, A) for ix = 1:size(A,1)] == [1, 2, 3, 4, 5, 6]
+            @coords(1)=1;  @test [ix_g(ix, A) for ix = 1:size(A,1)] == [3, 4, 5, 6, 7, 8]
+            @coords(1)=2;  @test [ix_g(ix, A) for ix = 1:size(A,1)] == [5, 6, 7, 8, 9, 10]
+            @coords(2)=0;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [1, 2, 3]
+            @coords(2)=1;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [6, 7, 8]
+            @coords(2)=2;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [11, 12, 13]
+            @coords(3)=0;  @test [iz_g(iz, A) for iz = 1:size(A,3)] == [8, 9, 1, 2, 3, 4, 5]
+            @coords(3)=0;  @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [-1, 0, 1, 2, 3, 4, 5]
+            @coords(3)=1;  @test [iz_g(iz, A) for iz = 1:size(A,3)] == [9, 1, 2, 3, 4, 5, 6]
+            @coords(3)=1;  @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [0, 1, 2, 3, 4, 5, 6]
+            @coords(3)=2;  @test [iz_g(iz, A) for iz = 1:size(A,3)] == [1, 2, 3, 4, 5, 6, 7]
+            @coords(3)=2;  @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [1, 2, 3, 4, 5, 6, 7]
         end;
         finalize_global_grid(finalize_MPI=false);
     end;
