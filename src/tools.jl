@@ -248,16 +248,21 @@ julia> finalize_global_grid()
 z_g(iz::Integer, dz::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_z_g(iz, dz, size(A,3), wrap_periodic)
 
 function _z_g(iz::Integer, dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
-    haloshiftz   = @periodz() ? -dz*@halowidthz() : dz*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dz to the left.
+    olz_A        = @olz() + (nz_A-@nz())
+    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0) # NOTE: nz_g() cannot be used as dimz needs to be used.
+    olshiftz     = @periodz() ? dz*0.0 : +dz*olz_A*0.5  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
     vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
-    centershiftz = @centerz() ? (@origin_on_vertex() ? -nz_g*dz*0.5 : -(nz_g-1)*dz*0.5) : dz*0.0
-    z0_g         = @originz() + haloshiftz + vertexshiftz + centershiftz
-    z0           = 0.5*(@nz()-nz_A)*dz
-    z            = (coordz*(@nz()-@olz()) + iz-1)*dz + z0 + z0_g
+    centershiftz = @centerz() ? (@origin_on_vertex() ? -dz*nz_g*0.5 : -dz*(nz_g-1)*0.5) : dz*0.0
+    z0_g         = @originz() + olshiftz + vertexshiftz + centershiftz
+    z0           = -dz*olz_A*0.5
+    z            = dz*(coordz*(@nz()-@olz()) + iz-1) + z0 + z0_g
     if @periodz() && wrap_periodic
-        if (z > (nz_g-1)*dz) z = z - nz_g*dz; end # It must not be (nz_g()-1)*dz as the distance between the local problems (1*dz) must also be taken into account!
-        if (z < 0)           z = z + nz_g*dz; end # ...
+        lz = @origin_on_vertex() ? dz*nz_g : dz*(nz_g-1)
+        lz_A = lz + dz*(nz_A-@nz())
+        z1 = z0_g - dz*(nz_A-@nz())*0.5 # dz*max((@nz()-nz_A)*0.5, 0)
+        z2 = z1 + lz_A  #lz + dz*(nz_A-@nz())*0.5 #dz*max((@nz()-nz_A)*0.5, 0)
+        if (z > z2) z = z - dz - lz_A; end
+        if (z < z1) z = z + dz + lz_A; end
     end
     return z
 end
@@ -441,58 +446,22 @@ julia> finalize_global_grid()
 """
 iz_g(iz::Integer, A::AbstractArray; wrap_periodic::Bool=true) = _iz_g(iz, size(A,3), wrap_periodic)
 
-
-function _z_g(iz::Integer, dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
-    olz_A        = @olz() + (nz_A-@nz())
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
-    # nz_g_A       = nz_g + (nz_A-@nz())*(@periodz()==0) #TODO: check if this is correct if >0
-    # periodshiftz = @periodz() ? -dz*@olz()*0.5 : dz*0.0  # The first cells of the global problem are overlap cells; so, all must be shifted to the left.
-    olshiftz     = @periodz() ? dz*0.0 : +dz*olz_A*0.5  # The first cells of the global problem are overlap cells; so, all must be shifted to the left.
-    vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
-    centershiftz = @centerz() ? (@origin_on_vertex() ? -dz*nz_g*0.5 : -dz*(nz_g-1)*0.5) : dz*0.0
-    z0_g         = @originz() + olshiftz + vertexshiftz + centershiftz
-    # z0           = dz*(@nz()-nz_A)*0.5 #TODO: check if, for example, OLZ should be added here in case that the coordinate is greater than 0, but what about period shift
-    z0           = -dz*olz_A*0.5
-    z            = dz*(coordz*(@nz()-@olz()) + iz-1) + z0 + z0_g
-    if @periodz() && wrap_periodic
-        lz = @origin_on_vertex() ? dz*nz_g : dz*(nz_g-1)
-        z1 = z0_g + dz*max((@nz()-nz_A)*0.5, 0)
-        z2 = z1 + lz - dz*max((@nz()-nz_A)*0.5, 0)
-        if (z > z2) z = z - z2; end
-        if (z < z1) z = z + z1; end
-    end
-    return z
-end
-
 function _iz_g(iz::Integer, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
     olz_A        = @olz() + (nz_A-@nz())
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
-    # nz_g_A       = nz_g + (nz_A-@nz())*(@periodz()==0) #TODO: check if this is correct if >0
-    olshiftz     = @periodz() ? 0 : olz_A÷2  # The first cells of the global problem are overlap cells; so, all must be shifted to the left.
+    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0) # NOTE: nz_g() cannot be used as dimz needs to be used.
+    olshiftz     = @periodz() ? 0 : olz_A÷2  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
     originz      = 1
     iz0_g        = originz + olshiftz
-    # iz0          = (@nz()-nz_A)÷2
     iz0          = -olz_A÷2
     iz           = (coordz*(@nz()-@olz()) + iz-1) + iz0 + iz0_g
     if @periodz() && wrap_periodic
-        nz_g_A = nz_g + min((nz_A-@nz()), 0)
+        nz_g_A = nz_g + (nz_A-@nz()) #min((nz_A-@nz()), 0)
         if (iz > nz_g_A) iz = iz - nz_g_A; end
         if (iz < 1)      iz = iz + nz_g_A; end
     end
     return iz
-
-
-    # nz_g  = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0)
-    # olz_A = @olz() + (nz_A-@nz())
-    # iz0_g = @periodz() ? 0 : olz_A÷2
-    # iz0   = -olz_A÷2
-    # iz    = coordz*(@nz()-olz_A) + iz + iz0 + iz0_g
-    # if wrap_periodic && @periodz()
-    #     if (iz > nz_g) iz = iz - nz_g; end
-    #     if (iz < 1)    iz = iz + nz_g; end
-    # end
-    # return iz
 end
+
 
 """
     extents(; fix_global_boundaries, coords)
