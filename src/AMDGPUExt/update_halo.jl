@@ -150,16 +150,15 @@ let
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
-            # DEBUG 2: commenting read_h2d_async! for now
-            # if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
-            # else
-            #     write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), rocstreams[n,i]);
-            # end
+            else
+                write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), rocstreams[n,i]);
+            end
         end
     end
 end
@@ -181,16 +180,15 @@ let
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
-            # DEBUG 2: commenting read_h2d_async! for now
-            # if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
-            # else
-            #     read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), rocstreams[n,i]);
-            # end
+            else
+                read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), rocstreams[n,i]);
+            end
         end
     end
 
@@ -224,7 +222,7 @@ function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyRO
     buf_view = reshape(sendbuf, Tuple(length.(sendranges)))
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(sendbuf), AMDGPU.Mem.HostBuffer,
-        pointer(A), typeof(A.buf),
+        pointer(A), AMDGPU.Mem.HIPBuffer,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
         dstPitch=sizeof(T) * size(buf_view, 1), dstHeight=size(buf_view, 2),
@@ -238,7 +236,7 @@ end
 function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::AnyROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
     buf_view = reshape(recvbuf, Tuple(length.(recvranges)))
     AMDGPU.Mem.unsafe_copy3d!(
-        pointer(A), typeof(A.buf),
+        pointer(A), AMDGPU.Mem.HIPBuffer,
         pointer(recvbuf), AMDGPU.Mem.HostBuffer,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
