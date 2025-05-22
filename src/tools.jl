@@ -248,24 +248,55 @@ julia> finalize_global_grid()
 z_g(iz::Integer, dz::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_z_g(iz, dz, size(A,3), wrap_periodic)
 
 function _z_g(iz::Integer, dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
-    olz_A        = @olz() + (nz_A-@nz())
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0) # NOTE: nz_g() cannot be used as dimz needs to be used.
-    olshiftz     = @periodz() ? dz*0.0 : +dz*olz_A*0.5  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
-    vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
-    centershiftz = @centerz() ? (@origin_on_vertex() ? -dz*nz_g*0.5 : -dz*(nz_g-1)*0.5) : dz*0.0
-    z0_g         = @originz() + olshiftz + vertexshiftz + centershiftz
-    z0           = -dz*olz_A*0.5
-    z            = dz*(coordz*(@nz()-@olz()) + iz-1) + z0 + z0_g
-    if @periodz() && wrap_periodic
-        lz = @origin_on_vertex() ? dz*nz_g : dz*(nz_g-1)
-        lz_A = lz + dz*(nz_A-@nz())
-        z1 = z0_g - dz*(nz_A-@nz())*0.5 # dz*max((@nz()-nz_A)*0.5, 0)
-        z2 = z1 + lz_A  #lz + dz*(nz_A-@nz())*0.5 #dz*max((@nz()-nz_A)*0.5, 0)
-        if (z > z2) z = z - dz - lz_A; end
-        if (z < z1) z = z + dz + lz_A; end
+    iz_g   = _iz_g(iz, nz_A, wrap_periodic, coordz, dimz)
+    z_g_A  = _z_g(dz, nz_A, wrap_periodic, coordz, dimz)
+    nz_g_A = length(z_g_A)
+    if     (iz_g > nz_g_A) z = z_g_A[end] + dz*(iz_g - nz_g_A)
+    elseif (iz_g < 1)      z = z_g_A[1] - dz*(1 - iz_g)
+    else                   z = z_g_A[iz_g]
     end
     return z
 end
+
+function _z_g(dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
+    # wrap_periodz = @periodz() && wrap_periodic
+    nz_diff      = nz_A - @nz()
+    olz_A        = @olz() + nz_diff
+    nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
+    nz_g_A       = nz_g + nz_diff*!@periodz() + min(nz_diff+@olz(), 0)*@periodz() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
+    lz_A         = @origin_on_vertex() ? dz*nz_g_A : dz*(nz_g_A-1)
+    vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
+    centershiftz = @centerz() ? lz_A*0.5 : dz*0.0
+    # localshift   = !@periodz() ? -dz*nz_diff*0.5 : dz*0.0 # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
+    localshift   = !@periodz() ? -dz*olz_A*0.5 : dz*0.0 # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
+    staggershift = (@periodz() && isodd(nz_diff)) ? -dz*0.5 : dz*0.0 #dz*0.5 : dz*0.0 # In the periodic case (and wrapped), both the staggered grid and the grid arrays have the same amount of actual values (as it is a ring... - there is the same amount of vertices as cells); we decide here to put the first value on the right of the first grid cell, but it could also be on the left instead.
+    z1_A         = @originz() + vertexshiftz + centershiftz + localshift + staggershift #+ periodshiftz
+    z2_A         = z1_A + lz_A
+    z_g_A        = z1_A:dz:z2_A
+    return z_g_A
+end
+# TODO: nz_g(A) must be fixed for periodic! And round the tests and fix the current issue
+
+# function _z_g(iz::Integer, dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
+#     nz_diff      = nz_A - @nz()
+#     olz_A        = @olz() + nz_diff
+#     nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
+#     olshiftz     = @periodz() ? dz*0.0 : +dz*olz_A*0.5  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
+#     vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
+#     centershiftz = @centerz() ? (@origin_on_vertex() ? -dz*nz_g*0.5 : -dz*(nz_g-1)*0.5) : dz*0.0
+#     z0_g         = @originz() + olshiftz + vertexshiftz + centershiftz
+#     z0           = -dz*olz_A*0.5
+#     z            = dz*(coordz*(@nz()-@olz()) + iz-1) + z0 + z0_g
+#     if @periodz() && wrap_periodic
+#         lz = @origin_on_vertex() ? dz*nz_g : dz*(nz_g-1)
+#         lz_A = lz + dz*nz_diff
+#         z1 = z0_g - dz*nz_diff*0.5 # dz*max((@nz()-nz_A)*0.5, 0)
+#         z2 = z1 + lz_A  #lz + dz*nz_diff*0.5 #dz*max((@nz()-nz_A)*0.5, 0)
+#         if (z > z2) z = z - dz - lz_A; end
+#         if (z < z1) z = z + dz + lz_A; end
+#     end
+#     return z
+# end
 
 
 """
@@ -447,15 +478,22 @@ julia> finalize_global_grid()
 iz_g(iz::Integer, A::AbstractArray; wrap_periodic::Bool=true) = _iz_g(iz, size(A,3), wrap_periodic)
 
 function _iz_g(iz::Integer, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=@coordz(), dimz::Integer=@dimz())
-    olz_A        = @olz() + (nz_A-@nz())
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*(@periodz()==0) # NOTE: nz_g() cannot be used as dimz needs to be used.
-    olshiftz     = @periodz() ? 0 : olz_A÷2  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
+    # wrap_periodz = @periodz() && wrap_periodic
+    nz_diff      = nz_A - @nz()
+    olz_A        = @olz() + nz_diff
+    # nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
+    # nz_g         = dimz*(@nz()-@olz()) + @olz()*!wrap_periodz # NOTE: nz_g() cannot be used as dimz needs to be used.
+    # nz_g_A       = nz_g + nz_diff*!wrap_periodz + min(nz_diff+@olz(), 0)*wrap_periodz # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
+    nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
+    nz_g_A       = nz_g + nz_diff*!@periodz() + min(nz_diff+@olz(), 0)*@periodz() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
+    periodshiftz = @periodz() ? -olz_A÷2 : 0 #-cld(olz_A,2) : 0 #olz_A÷2  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left. If it is periodic (and wrapped), this shift must not happen and in the contrary, we must shift in the other direction in order to have the local overlap more on the left side rather than on the right side.
     originz      = 1
-    iz0_g        = originz + olshiftz
-    iz0          = -olz_A÷2
+    iz0_g        = originz + periodshiftz
+    iz0          = 0 #-olz_A÷2
     iz           = (coordz*(@nz()-@olz()) + iz-1) + iz0 + iz0_g
+    # if wrap_periodz
     if @periodz() && wrap_periodic
-        nz_g_A = nz_g + (nz_A-@nz()) #min((nz_A-@nz()), 0)
+        # nz_g_A = nz_g + min(nz_diff, 0)
         if (iz > nz_g_A) iz = iz - nz_g_A; end
         if (iz < 1)      iz = iz + nz_g_A; end
     end
