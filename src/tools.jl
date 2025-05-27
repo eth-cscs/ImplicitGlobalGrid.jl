@@ -44,6 +44,7 @@ macro halowidths() esc(:( global_grid().halowidths )) end
 Return the size of the global grid in dimension x.
 """
 nx_g() = @nx_g()
+nx_g(dimx::Integer) = dimx*(@nx()-@olx()) + @olx()*!@periodx() # NOTE: nx_g() cannot be used as dimx needs to be used.
 
 
 """
@@ -52,6 +53,7 @@ nx_g() = @nx_g()
 Return the size of the global grid in dimension y.
 """
 ny_g() = @ny_g()
+ny_g(dimy::Integer) = dimy*(@ny()-@oly()) + @oly()*!@periody() # NOTE: ny_g() cannot be used as dimy needs to be used.
 
 
 """
@@ -60,6 +62,7 @@ ny_g() = @ny_g()
 Return the size of the global grid in dimension z.
 """
 nz_g() = @nz_g()
+nz_g(dimz::Integer) = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
 
 
 """
@@ -68,6 +71,7 @@ nz_g() = @nz_g()
 Return the size of array `A` in the global grid in dimension x.
 """
 nx_g(A::AbstractArray) = @nx_g() + (size(A,1)-@nx())
+nx_g(nx_A::Integer, dimx::Integer) = nx_g(dimx) + (nx_A - @nx())*!@periodx() + min((nx_A - @nx())+@olx(), 0)*@periodx() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
 
 
 """
@@ -75,7 +79,8 @@ nx_g(A::AbstractArray) = @nx_g() + (size(A,1)-@nx())
 
 Return the size of array `A` in the global grid in dimension y.
 """
-ny_g(A::AbstractArray) = @ny_g() + (size(A,2)-@ny())
+ny_g(A::AbstractArray)             = @ny_g() + (size(A,2)-@ny())
+ny_g(ny_A::Integer, dimy::Integer) = ny_g(dimy) + (ny_A - @ny())*!@periody() + min((ny_A - @ny())+@oly(), 0)*@periody() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
 
 
 """
@@ -83,7 +88,8 @@ ny_g(A::AbstractArray) = @ny_g() + (size(A,2)-@ny())
 
 Return the size of array `A` in the global grid in dimension z.
 """
-nz_g(A::AbstractArray) = @nz_g() + (size(A,3)-@nz())
+nz_g(A::AbstractArray)             = @nz_g() + (size(A,3)-@nz())
+nz_g(nz_A::Integer, dimz::Integer) = nz_g(dimz) + (nz_A - @nz())*!@periodz() + min((nz_A - @nz())+@olz(), 0)*@periodz() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
 
 
 """
@@ -262,8 +268,7 @@ function _z_g(dz::AbstractFloat, nz_A::Integer, wrap_periodic::Bool, coordz::Int
     # wrap_periodz = @periodz() && wrap_periodic
     nz_diff      = nz_A - @nz()
     olz_A        = @olz() + nz_diff
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
-    nz_g_A       = nz_g + nz_diff*!@periodz() + min(nz_diff+@olz(), 0)*@periodz() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
+    nz_g_A       = nz_g(nz_A, dimz)
     lz_A         = @origin_on_vertex() ? dz*nz_g_A : dz*(nz_g_A-1)
     vertexshiftz = @origin_on_vertex() ? dz*0.5 : dz*0.0
     centershiftz = @centerz() ? lz_A*0.5 : dz*0.0
@@ -484,8 +489,7 @@ function _iz_g(iz::Integer, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=
     # nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
     # nz_g         = dimz*(@nz()-@olz()) + @olz()*!wrap_periodz # NOTE: nz_g() cannot be used as dimz needs to be used.
     # nz_g_A       = nz_g + nz_diff*!wrap_periodz + min(nz_diff+@olz(), 0)*wrap_periodz # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
-    nz_g         = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() cannot be used as dimz needs to be used.
-    nz_g_A       = nz_g + nz_diff*!@periodz() + min(nz_diff+@olz(), 0)*@periodz() # NOTE: if the array is bigger, it doesn't matter when it is periodic: the global array simply overlaps more on itself (also, when it is staggered).
+    nz_g_A       = nz_g(nz_A, dimz)
     periodshiftz = @periodz() ? -olz_A÷2 : 0 #-cld(olz_A,2) : 0 #olz_A÷2  # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left. If it is periodic (and wrapped), this shift must not happen and in the contrary, we must shift in the other direction in order to have the local overlap more on the left side rather than on the right side.
     originz      = 1
     iz0_g        = originz + periodshiftz
