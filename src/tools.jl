@@ -67,8 +67,9 @@ _nz_g(dimz::Integer) = dimz*(@nz()-@olz()) + @olz()*!@periodz() # NOTE: nz_g() c
 
 """
     nx_g(A)
+    nx_g(nx_A)
 
-Return the size of array `A` in the global grid in dimension x.
+Return the size of array `A` in the global grid in dimension x. Alternatively to passing `A`, the size of the array in dimension x can be provided.
 """
 nx_g(A::AbstractArray)              = nx_g(size(A,1))
 nx_g(nx_A::Integer)                 = _adjust_nx_g(nx_g(), nx_A)
@@ -79,8 +80,9 @@ _adjust_nx_g(nx_g::Integer, nx_A::Integer) = nx_g + (nx_A-@nx())*!@periodx() + m
 
 """
     ny_g(A)
+    ny_g(ny_A)
 
-Return the size of array `A` in the global grid in dimension y.
+Return the size of array `A` in the global grid in dimension y. Alternatively to passing `A`, the size of the array in dimension y can be provided.
 """
 ny_g(A::AbstractArray)              = ny_g(size(A,2))
 ny_g(ny_A::Integer)                 = _adjust_ny_g(ny_g(), ny_A)
@@ -92,7 +94,7 @@ _adjust_ny_g(ny_g::Integer, ny_A::Integer) = ny_g + (ny_A-@ny())*!@periody() + m
 """
     nz_g(A)
 
-Return the size of array `A` in the global grid in dimension z.
+Return the size of array `A` in the global grid in dimension z. Alternatively to passing `A`, the size of the array in dimension z can be provided.
 """
 nz_g(A::AbstractArray)              = nz_g(size(A,3))
 nz_g(nz_A::Integer)                 = _adjust_nz_g(nz_g(), nz_A)
