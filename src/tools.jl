@@ -147,18 +147,29 @@ julia> finalize_global_grid()
 x_g(ix::Integer, dx::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_x_g(ix, dx, size(A,1), wrap_periodic)
 
 function _x_g(ix::Integer, dx::AbstractFloat, nx_A::Integer, wrap_periodic::Bool, coordx::Integer=@coordx(), dimx::Integer=@dimx())
-    nx_g         = dimx*(@nx()-@olx()) + @olx()*(@periodx()==0)
-    haloshiftx   = @periodx() ? -dx*@halowidthx() : dx*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dx to the left.
-    vertexshiftx = @origin_on_vertex() ? dx*0.5 : dx*0.0
-    centershiftx = @centerx() ? (@origin_on_vertex() ? -nx_g*dx*0.5 : -(nx_g-1)*dx*0.5) : dx*0.0
-    x0_g         = @originx() + haloshiftx + vertexshiftx + centershiftx
-    x0           = 0.5*(@nx()-nx_A)*dx
-    x            = (coordx*(@nx()-@olx()) + ix-1)*dx + x0 + x0_g
-    if @periodx() && wrap_periodic
-        if (x > (nx_g-1)*dx) x = x - nx_g*dx; end # It must not be (nx_g()-1)*dx as the distance between the local problems (1*dx) must also be taken into account!
-        if (x < 0)           x = x + nx_g*dx; end # ...
+    ix_g   = _ix_g(ix, nx_A, wrap_periodic, coordx, dimx)
+    x_g_A  = _x_g(dx, nx_A, dimx)
+    nx_g_A = length(x_g_A)
+    if     (ix_g > nx_g_A) x = x_g_A[end] + dx*(ix_g - nx_g_A)
+    elseif (ix_g < 1)      x = x_g_A[1] - dx*(1 - ix_g)
+    else                   x = x_g_A[ix_g]
     end
     return x
+end
+
+function _x_g(dx::T, nx_A::Integer, dimx::Integer=@dimx()) where T <: AbstractFloat
+    nx_diff      = nx_A - @nx()
+    nx_g         = _nx_g(dimx)
+    lx           = @origin_on_vertex() ? dx*nx_g : dx*(nx_g-1)
+    lx_A         = lx + dx*nx_diff
+    centershiftx = @centerx() ? -lx*T(0.5) : T(0.0)
+    vertexshiftx = @origin_on_vertex() ? T(0.5) : T(0.0)
+    localshift   = !@periodx() ? -T(nx_diff)*T(0.5) : T(0.0)         # The overlap cells at the beginning of the global problem are part of it (except if it is periodic - this case is handled differently...); so, only arrays overlapping the base grid must be shifted to the left.
+    staggershift = (@periodx() && isodd(nx_diff)) ? -T(0.5) : T(0.0) # In the periodic case, both the staggered grid and the grid arrays have the same amount of actual values (as it is a ring... - there is the same amount of vertices as cells); we decide here to put the first value on the left of the first grid cell, but it could also be on the right instead.
+    x1_A         = @originx() + centershiftx + dx*(vertexshiftx + localshift + staggershift) # dx has been factored out of the last three shifts to reduce the amount of multiplications.
+    x2_A         = x1_A + lx_A
+    x_g_A        = x1_A:dx:x2_A
+    return x_g_A
 end
 
 
@@ -206,18 +217,29 @@ julia> finalize_global_grid()
 y_g(iy::Integer, dy::AbstractFloat, A::AbstractArray; wrap_periodic::Bool=true) =_y_g(iy, dy, size(A,2), wrap_periodic)
 
 function _y_g(iy::Integer, dy::AbstractFloat, ny_A::Integer, wrap_periodic::Bool, coordy::Integer=@coordy(), dimy::Integer=@dimy())
-    ny_g         = dimy*(@ny()-@oly()) + @oly()*(@periody()==0)
-    haloshifty   = @periody() ? -dy*@halowidthy() : dy*0.0  # The first cells of the global problem are halo cells; so, all must be shifted by dy to the left.
-    vertexshifty = @origin_on_vertex() ? dy*0.5 : dy*0.0
-    centershifty = @centery() ? (@origin_on_vertex() ? -ny_g*dy*0.5 : -(ny_g-1)*dy*0.5) : dy*0.0
-    y0_g         = @originy() + haloshifty + vertexshifty + centershifty
-    y0           = 0.5*(@ny()-ny_A)*dy
-    y            = (coordy*(@ny()-@oly()) + iy-1)*dy + y0 + y0_g
-    if @periody() && wrap_periodic
-        if (y > (ny_g-1)*dy) y = y - ny_g*dy; end # It must not be (ny_g()-1)*dy as the distance between the local problems (1*dy) must also be taken into account!
-        if (y < 0)           y = y + ny_g*dy; end # ...
+    iy_g   = _iy_g(iy, ny_A, wrap_periodic, coordy, dimy)
+    y_g_A  = _y_g(dy, ny_A, dimy)
+    ny_g_A = length(y_g_A)
+    if     (iy_g > ny_g_A) y = y_g_A[end] + dy*(iy_g - ny_g_A)
+    elseif (iy_g < 1)      y = y_g_A[1] - dy*(1 - iy_g)
+    else                   y = y_g_A[iy_g]
     end
     return y
+end
+
+function _y_g(dy::T, ny_A::Integer, dimy::Integer=@dimy()) where T <: AbstractFloat
+    ny_diff      = ny_A - @ny()
+    ny_g         = _ny_g(dimy)
+    ly           = @origin_on_vertex() ? dy*ny_g : dy*(ny_g-1)
+    ly_A         = ly + dy*ny_diff
+    centershifty = @centery() ? -ly*T(0.5) : T(0.0)
+    vertexshifty = @origin_on_vertex() ? T(0.5) : T(0.0)
+    localshifty  = !@periody() ? -T(ny_diff)*T(0.5) : T(0.0)          # The overlap cells at the beginning of the global problem are part of it (except if it is periodic - this case is handled differently...); so, only arrays overlapping the base grid must be shifted to the left.
+    staggershifty = (@periody() && isodd(ny_diff)) ? -T(0.5) : T(0.0) # In the periodic case, both the staggered grid and the grid arrays have the same amount of actual values (as it is a ring... - there is the same amount of vertices as cells); we decide here to put the first value on the left of the first grid cell, but it could also be on the right instead.
+    y1_A         = @originy() + centershifty + dy*(vertexshifty + localshifty + staggershifty) # dy has been factored out of the last three shifts to reduce the amount of multiplications.
+    y2_A         = y1_A + ly_A
+    y_g_A        = y1_A:dy:y2_A
+    return y_g_A
 end
 
 
@@ -277,12 +299,12 @@ end
 
 function _z_g(dz::T, nz_A::Integer, dimz::Integer=@dimz()) where T <: AbstractFloat
     nz_diff      = nz_A - @nz()
-    olz_A        = @olz() + nz_diff
-    nz_g_A       = _nz_g(nz_A, dimz)
-    lz_A         = @origin_on_vertex() ? dz*nz_g_A : dz*(nz_g_A-1)
-    centershiftz = @centerz() ? lz_A*T(0.5) : T(0.0)
+    nz_g         = _nz_g(dimz)
+    lz           = @origin_on_vertex() ? dz*nz_g : dz*(nz_g-1)
+    lz_A         = lz + dz*nz_diff
+    centershiftz = @centerz() ? -lz*T(0.5) : T(0.0)
     vertexshiftz = @origin_on_vertex() ? T(0.5) : T(0.0)
-    localshift   = !@periodz() ? -T(olz_A)*T(0.5) : T(0.0)           # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, all must be shifted to the left.
+    localshift   = !@periodz() ? -T(nz_diff)*T(0.5) : T(0.0)         # The overlap cells at the beginning of the global problem are part of it (except if it is periodic - this case is handled differently...); so, only arrays overlapping the base grid must be shifted to the left.
     staggershift = (@periodz() && isodd(nz_diff)) ? -T(0.5) : T(0.0) # In the periodic case, both the staggered grid and the grid arrays have the same amount of actual values (as it is a ring... - there is the same amount of vertices as cells); we decide here to put the first value on the left of the first grid cell, but it could also be on the right instead.
     z1_A         = @originz() + centershiftz + dz*(vertexshiftz + localshift + staggershift) # dz has been factored out of the last three shifts to reduce the amount of multiplications.
     z2_A         = z1_A + lz_A
