@@ -335,16 +335,15 @@ julia> finalize_global_grid()
 """
 ix_g(ix::Integer, A::AbstractArray; wrap_periodic::Bool=true) = _ix_g(ix, size(A,1), wrap_periodic)
 
-
 function _ix_g(ix::Integer, nx_A::Integer, wrap_periodic::Bool, coordx::Integer=@coordx(), dimx::Integer=@dimx())
-    nx_g  = dimx*(@nx()-@olx()) + @olx()*(@periodx()==0)
-    olx_A = @olx() + (nx_A-@nx())
-    ix0_g = @periodx() ? 0 : olx_A÷2
-    ix0   = -olx_A÷2
-    ix    = coordx*(@nx()-olx_A) + ix + ix0 + ix0_g
-    if wrap_periodic && @periodx()
-        if (ix > nx_g) ix = ix - nx_g; end
-        if (ix < 1)    ix = ix + nx_g; end
+    nx_diff = nx_A - @nx()
+    olx_A   = @olx() + nx_diff
+    nx_g_A  = _nx_g(nx_A, dimx)
+    ix0_g   = @periodx() ? -olx_A÷2 : 0 # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, in this case, we must shift to the left. If we wanted to have more overlap on the left then on the right then we would have to do the following: -cld(olx_A,2) : 0
+    ix      = coordx*(@nx()-@olx()) + ix + ix0_g
+    if @periodx() && wrap_periodic
+        if (ix > nx_g_A) ix = ix - nx_g_A; end
+        if (ix < 1)      ix = ix + nx_g_A; end
     end
     return ix
 end
@@ -395,14 +394,14 @@ julia> finalize_global_grid()
 iy_g(iy::Integer, A::AbstractArray; wrap_periodic::Bool=true) = _iy_g(iy, size(A,2), wrap_periodic)
 
 function _iy_g(iy::Integer, ny_A::Integer, wrap_periodic::Bool, coordy::Integer=@coordy(), dimy::Integer=@dimy())
-    ny_g  = dimy*(@ny()-@oly()) + @oly()*(@periody()==0)
-    oly_A = @oly() + (ny_A-@ny())
-    iy0_g = @periody() ? 0 : oly_A÷2
-    iy0   = -oly_A÷2
-    iy    = coordy*(@ny()-oly_A) + iy + iy0 + iy0_g
-    if wrap_periodic && @periody()
-        if (iy > ny_g) iy = iy - ny_g; end
-        if (iy < 1)    iy = iy + ny_g; end
+    ny_diff = ny_A - @ny()
+    oly_A   = @oly() + ny_diff
+    ny_g_A  = _ny_g(ny_A, dimy)
+    iy0_g   = @periody() ? -oly_A÷2 : 0 # The overlap cells at the beginning of the global problem are part of it except if it is periodic; so, in this case, we must shift to the left. If we wanted to have more overlap on the left then on the right then we would have to do the following: -cld(oly_A,2) : 0
+    iy      = coordy*(@ny()-@oly()) + iy + iy0_g
+    if @periody() && wrap_periodic
+        if (iy > ny_g_A) iy = iy - ny_g_A; end
+        if (iy < 1)      iy = iy + ny_g_A; end
     end
     return iy
 end
