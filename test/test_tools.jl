@@ -37,13 +37,13 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nz_g(Vx) == nz-2
             @test nx_g(Vz) == nx
             @test ny_g(Vz) == ny
-            @test nz_g(Vz) == nz-2+1
+            @test nz_g(Vz) == nz-2
             @test nx_g(A) == nx+2
             @test ny_g(A) == ny
-            @test nz_g(A) == nz-2+2
+            @test nz_g(A) == nz-2
             @test nx_g(Sxz) == nx-2
             @test ny_g(Sxz) == ny-1
-            @test nz_g(Sxz) == nz-2-2
+            @test nz_g(Sxz) == nz-2
         end;
         @testset "ix_g / iy_g / iz_g" begin
             # (for P)
@@ -118,7 +118,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @test extents(A) == (1:7, 1:5, 3:5)
                 @test extents(Sxz) == (1:3, 1:4, 1:3)
             end;
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @test extents(; fix_global_boundaries=false) == (1:5, 1:5, 1:5)
                 @test extents(P; fix_global_boundaries=false) == (1:5, 1:5, 1:5)
                 @test extents(Vx; fix_global_boundaries=false) == (1:6, 1:5, 1:5)
@@ -139,7 +139,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             dx  = lx/(nx_g()-1);
             dy  = ly/(ny_g()-1);
             dz  = lz/(nz_g()-1);
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @test extents_g(; fix_global_boundaries=false) == (1:5, 1:5, 0:4)
                 @test extents_g(P; fix_global_boundaries=false) == (1:5, 1:5, 0:4)
                 @test extents_g(Vx; fix_global_boundaries=false) == (1:6, 1:5, 0:4)
@@ -201,13 +201,13 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nz_g(Vx) == nz-3
             @test nx_g(Vz) == nx
             @test ny_g(Vz) == ny
-            @test nz_g(Vz) == nz-3+1
+            @test nz_g(Vz) == nz-3
             @test nx_g(A) == nx+2
             @test ny_g(A) == ny
-            @test nz_g(A) == nz-3+2
+            @test nz_g(A) == nz-3
             @test nx_g(Sxz) == nx-2
             @test ny_g(Sxz) == ny-1
-            @test nz_g(Sxz) == nz-3-2
+            @test nz_g(Sxz) == nz-3
         end;
         @testset "ix_g / iy_g / iz_g" begin
             # (for P)
@@ -281,7 +281,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @test extents(A) == (1:7, 1:5, 3:7)
                 @test extents(Sxz) == (1:3, 1:4, 1:5)
             end;
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @test extents(; fix_global_boundaries=false) == (1:5, 1:5, 1:8)
                 @test extents(P; fix_global_boundaries=false) == (1:5, 1:5, 1:8)
                 @test extents(Vx; fix_global_boundaries=false) == (1:6, 1:5, 1:8)
@@ -312,7 +312,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @test extents_g(A) == (1:7, 1:5, 1:5)
                 @test extents_g(Sxz) == (1:3, 1:4, 1:5)
             end;
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @test extents_g(; fix_global_boundaries=false) == (1:5, 1:5, 0:7)
                 @test extents_g(P; fix_global_boundaries=false) == (1:5, 1:5, 0:7)
                 @test extents_g(Vx; fix_global_boundaries=false) == (1:6, 1:5, 0:7)
@@ -369,7 +369,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @test nz_g(P) == nxyz_g[3]
             @test nx_g(A) == nxyz_g[1]+1
             @test ny_g(A) == nxyz_g[2]-2
-            @test nz_g(A) == nxyz_g[3]+2
+            @test nz_g(A) == nxyz_g[3]
         end;
         @testset "ix_g / iy_g / iz_g" begin
             # (for P)
@@ -390,8 +390,8 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
             @coords(1)=1;  @test [ix_g(ix, A) for ix = 1:size(A,1)] == [4, 5, 6, 7, 8, 9]
             @coords(1)=2;  @test [ix_g(ix, A) for ix = 1:size(A,1)] == [7, 8, 9, 10, 11, 12]
             @coords(2)=0;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [1, 2, 3]
-            @coords(2)=1;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [6, 7, 8]
-            @coords(2)=2;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [11, 12, 13]
+            @coords(2)=1;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [4, 5, 6]
+            @coords(2)=2;  @test [iy_g(iy, A) for iy = 1:size(A,2)] == [7, 8, 9]
             @coords(3)=0;  @test [iz_g(iz, A) for iz = 1:size(A,3)] == [8, 9, 1, 2, 3, 4, 5]
             @coords(3)=0;  @test [iz_g(iz, A; wrap_periodic=false) for iz = 1:size(A,3)] == [-1, 0, 1, 2, 3, 4, 5]
             @coords(3)=1;  @test [iz_g(iz, A) for iz = 1:size(A,3)] == [2, 3, 4, 5, 6, 7, 8]
@@ -447,7 +447,7 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @test extents(P) == (1:5, 1:5, 1:4)
                 @test extents(A) == (1:6, 1:3, 1:5)
             end;
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @coords(1)=0; @coords(2)=0; @coords(3)=0;
                 @test extents(; fix_global_boundaries=false) == (1:5, 1:5, 1:5)
                 @test extents(P; fix_global_boundaries=false) == (1:5, 1:5, 1:5)
@@ -496,14 +496,14 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @coords(1)=1; @coords(2)=1; @coords(3)=1;
                 @test extents_g() == (4:8, 4:8, 3:7)
                 @test extents_g(P) == (4:8, 4:8, 3:7)
-                @test extents_g(A) == (3:8, 6:8, 2:8)
+                @test extents_g(A) == (4:9, 4:6, 2:8)
                 
                 @coords(1)=2; @coords(2)=2; @coords(3)=2;
                 @test extents_g() == (7:11, 7:11, 6:9)
                 @test extents_g(P) == (7:11, 7:11, 6:9)
-                @test extents_g(A) == (5:10, 11:13, 5:9)
+                @test extents_g(A) == (7:12, 7:9, 5:9)
             end;
-            @testset "fix_global_boundaries" begin
+            @testset "!fix_global_boundaries" begin
                 @coords(1)=0; @coords(2)=0; @coords(3)=0;
                 @test extents_g(; fix_global_boundaries=false) == (1:5, 1:5, 0:4)
                 @test extents_g(P; fix_global_boundaries=false) == (1:5, 1:5, 0:4)
@@ -512,12 +512,12 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
                 @coords(1)=1; @coords(2)=1; @coords(3)=1;
                 @test extents_g(; fix_global_boundaries=false) == (4:8, 4:8, 3:7)
                 @test extents_g(P; fix_global_boundaries=false) == (4:8, 4:8, 3:7)
-                @test extents_g(A; fix_global_boundaries=false) == (3:8, 6:8, 2:8)
+                @test extents_g(A; fix_global_boundaries=false) == (4:9, 4:6, 2:8)
                 
                 @coords(1)=2; @coords(2)=2; @coords(3)=2;
                 @test extents_g(; fix_global_boundaries=false) == (7:11, 7:11, 6:10)
                 @test extents_g(P; fix_global_boundaries=false) == (7:11, 7:11, 6:10)
-                @test extents_g(A; fix_global_boundaries=false) == (5:10, 11:13, 5:11)
+                @test extents_g(A; fix_global_boundaries=false) == (7:12, 7:9, 5:11)
             end;
             @testset "overlap" begin
                 @coords(1)=0; @coords(2)=0; @coords(3)=0;
@@ -557,6 +557,8 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
         end;
         finalize_global_grid(finalize_MPI=false);
     end;
+
+    #TODO: add testset with metagrid with origin_on_vertex and center and periodic and origin on the other dimensions. Add missing tests for nx_g etc. including wrap periodic
 end;
 
 ## Test tear down
