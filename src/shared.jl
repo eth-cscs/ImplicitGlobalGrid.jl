@@ -61,6 +61,9 @@ struct GlobalGrid
     dims::Vector{GGInt}
     overlaps::Vector{GGInt}
     halowidths::Vector{GGInt}
+    origin::Vector{GGInt}
+    origin_on_vertex::Bool
+    centerxyz::Vector{Bool}
     nprocs::GGInt
     me::GGInt
     coords::Vector{GGInt}
@@ -76,7 +79,7 @@ struct GlobalGrid
     use_polyester::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], false, [false,false,false], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end

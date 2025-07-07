@@ -1,19 +1,26 @@
 export init_global_grid
 
 """
+    init_global_grid(nx)
+    init_global_grid(nx, ny)
     init_global_grid(nx, ny, nz)
     me, dims, nprocs, coords, comm_cart = init_global_grid(nx, ny, nz; <keyword arguments>)
 
 Initialize a Cartesian grid of MPI processes (and also MPI itself by default) defining implicitely a global grid.
 
 # Arguments
-- {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}.
+- {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}. For 2D problems, setting `nz` to 1 is equivalent to omitting the argument; for 1D problems, setting `ny` and `nz` to 1 is equivalent to omitting the arguments.
+
+# Keyword arguments
 - {`dimx`|`dimy`|`dimz`}`::Integer=0`: the desired number of processes in dimension {x|y|z}. By default, (value `0`) the process topology is created as compact as possible with the given constraints. This is handled by the MPI implementation which is installed on your system. For more information, refer to the specifications of `MPI_Dims_create` in the corresponding documentation.
-- {`periodx`|`periody`|`periodz`}`::Integer=0`: whether the grid is periodic (`1`) or not (`0`) in dimension {x|y|z}.
+- {`periodx`|`periody`|`periodz`}`::Bool|Integer=false`: whether the grid is periodic (`true`) or not (`false`) in dimension {x|y|z}. The argument is also accepted as an integer as traditionally in the MPI standard (`1` for `true` and `0` for `false`).
+- `origin::Tuple|AbstractFloat`: the origin of the global grid. By default, it is set to `(0.0, 0.0, 0.0)` for 3D, `(0.0, 0.0)` for 2D and `0.0` for 1D.
+- `origin_on_vertex::Bool=false`: whether the origin is on the cell vertex; else, it is on the cell center (default). The default implies that the space step `dx` is computed in the user code as `dx=lx/(nx-1)`, where `lx` is the length of the global grid in dimension x. Setting the origin on the vertex implies that the space step is computed as `dx=lx/nx`, instead. The analog applies for the dimensions y and z.
+- {`centerx`|`centery`|`centerz`}`::Bool=false`: whether to center the grid on the origin (`true`) or not (`false`) in dimension {x|y|z}. By default, the grid is extends from `origin` in the positive direction of the corresponding dimension.
 - `quiet::Bool=false`: whether to suppress printing information like the size of the global grid (`true`) or not (`false`).
 !!! note "Advanced keyword arguments"
     - `overlaps::Tuple{Int,Int,Int}=(2,2,2)`: the number of elements adjacent local grids overlap in dimension x, y and z. By default (value `(2,2,2)`), an array `A` of size (`nx`, `ny`, `nz`) on process 1 (`A_1`) overlaps the corresponding array `A` on process 2 (`A_2`) by `2` indices if the two processes are adjacent. E.g., if `overlaps[1]=2` and process 2 is the right neighbor of process 1 in dimension x, then `A_1[end-1:end,:,:]` overlaps `A_2[1:2,:,:]`. That means, after every call `update_halo!(A)`, we have `all(A_1[end-1:end,:,:] .== A_2[1:2,:,:])` (`A_1[end,:,:]` is the halo of process 1 and `A_2[1,:,:]` is the halo of process 2). The analog applies for the dimensions y and z.
-    - `halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2)`: the default width of an array's halo in dimension x, y and z (must be greater than 1). The default can be overwritten per array in the function [`update_halo`](@ref).
+    - `halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2)`: the default width of an array's halo in dimension x, y and z (must be greater or equal to 1). The default can be overwritten per array in the function [`update_halo`](@ref).
     - `disp::Integer=1`:  the displacement argument to `MPI.Cart_shift` in order to determine the neighbors.
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
@@ -38,7 +45,7 @@ Initialize a Cartesian grid of MPI processes (and also MPI itself by default) de
 
 See also: [`finalize_global_grid`](@ref), [`select_device`](@ref)
 """
-function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Integer=0, periody::Integer=0, periodz::Integer=0, overlaps::Tuple{Int,Int,Int}=(2,2,2), halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2), disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
+function init_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1; dimx::Integer=0, dimy::Integer=0, dimz::Integer=0, periodx::Union{Bool,Integer}=0, periody::Union{Bool,Integer}=0, periodz::Union{Bool,Integer}=0, origin::Union{Tuple,AbstractFloat}=(0.0, 0.0, 0.0), origin_on_vertex::Bool=false, centerx::Bool=false, centery::Bool=false, centerz::Bool=false, overlaps::Tuple{Int,Int,Int}=(2,2,2), halowidths::Tuple{Int,Int,Int}=max.(1,overlaps.÷2), disp::Integer=1, reorder::Integer=1, comm::MPI.Comm=MPI.COMM_WORLD, init_MPI::Bool=true, device_type::String=DEVICE_TYPE_AUTO, select_device::Bool=true, quiet::Bool=false)
     if grid_is_initialized() error("The global grid has already been initialized.") end
     set_cuda_loaded()
     set_cuda_functional()
@@ -46,7 +53,9 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     set_amdgpu_functional()
     nxyz              = [nx, ny, nz];
     dims              = [dimx, dimy, dimz];
-    periods           = [periodx, periody, periodz];
+    periods           = Int64.([periodx, periody, periodz]);
+    origin            = Float64.([((length((origin...,)) == 1) ?  (origin, 0, 0) : ((length(origin) == 2) ? (origin..., 0) : origin))...]);
+    centerxyz         = [centerx, centery, centerz];
     overlaps          = [overlaps...];
     halowidths        = [halowidths...];
     cuda_enabled      = false
@@ -82,6 +91,13 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
     if (any(nxyz .< 1)) error("Invalid arguments: nx, ny, and nz cannot be less than 1."); end
     if (any(dims .< 0)) error("Invalid arguments: dimx, dimy, and dimz cannot be negative."); end
     if (any(periods .∉ ((0,1),))) error("Invalid arguments: periodx, periody, and periodz must be either 0 or 1."); end
+    if length(origin) != 3 error("Invalid argument: the length of the origin tuple must be at most 3.") end
+    if (centerx && origin_on_vertex && isodd(nx)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and nx being odd; set either `origin_on_vertex=false` or make nx even."); end
+    if (centery && origin_on_vertex && isodd(ny)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and ny being odd; set either `origin_on_vertex=false` or make ny even."); end
+    if (centerz && origin_on_vertex && isodd(nz)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and nz being odd; set either `origin_on_vertex=false` or make nz even."); end
+    if (centerx && !origin_on_vertex && iseven(nx)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and nx being even; set either `origin_on_vertex=true` or make nx odd."); end
+    if (centery && !origin_on_vertex && iseven(ny)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and ny being even; set either `origin_on_vertex=true` or make ny odd."); end
+    if (centerz && !origin_on_vertex && iseven(nz)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and nz being even; set either `origin_on_vertex=true` or make nz odd."); end
     if (any(halowidths .< 1)) error("Invalid arguments: halowidths cannot be less than 1."); end
     if (nx==1) error("Invalid arguments: nx can never be 1.") end
     if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
@@ -105,7 +121,7 @@ function init_global_grid(nx::Integer, ny::Integer, nz::Integer; dimx::Integer=0
         neighbors[:,i] .= MPI.Cart_shift(comm_cart, i-1, disp);
     end
     nxyz_g = dims.*(nxyz.-overlaps) .+ overlaps.*(periods.==0); # E.g. for dimension x with ol=2 and periodx=0: dimx*(nx-2)+2
-    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, use_polyester, quiet));
+    set_global_grid(GlobalGrid(nxyz_g, nxyz, dims, overlaps, halowidths, origin, origin_on_vertex, centerxyz, nprocs, me, coords, neighbors, periods, disp, reorder, comm_cart, cuda_enabled, amdgpu_enabled, cudaaware_MPI, amdgpuaware_MPI, use_polyester, quiet));
     cuda_support_string   = (cuda_enabled && all(cudaaware_MPI))     ? "CUDA-aware"   : (cuda_enabled && any(cudaaware_MPI))     ? "CUDA(-aware)"   : (cuda_enabled)   ? "CUDA"   : "";
     amdgpu_support_string = (amdgpu_enabled && all(amdgpuaware_MPI)) ? "AMDGPU-aware" : (amdgpu_enabled && any(amdgpuaware_MPI)) ? "AMDGPU(-aware)" : (amdgpu_enabled) ? "AMDGPU" : "";
     gpu_support_string    = join(filter(!isempty, [cuda_support_string, amdgpu_support_string]), ", ");
