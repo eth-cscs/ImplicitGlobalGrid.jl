@@ -313,6 +313,15 @@ function _z_g(dz::T, nz_A::Integer, dimz::Integer=@dimz()) where T <: AbstractFl
 end
 
 
+function _i_g(i::Integer, ii::Integer, di::AbstractFloat, ni_A::Integer, wrap_periodic::Bool, coordi::Integer=@coords()[i], dimi::Integer=@dims()[i])
+    if     (i==1) _x_g(ii, di, ni_A, wrap_periodic, coordi, dimi)
+    elseif (i==2) _y_g(ii, di, ni_A, wrap_periodic, coordi, dimi)
+    elseif (i==3) _z_g(ii, di, ni_A, wrap_periodic, coordi, dimi)
+    else          error("Invalid dimension index $i.")
+    end
+end
+
+
 """
     ix_g(ix, A)
     ix_g(ix, A; wrap_periodic)
@@ -504,16 +513,27 @@ function _iz_g(iz::Integer, nz_A::Integer, wrap_periodic::Bool, coordz::Integer=
 end
 
 
-"""
-    extents(; fix_global_boundaries, coords)
-    extents(A; fix_global_boundaries, coords)
-    extents(overlaps; fix_global_boundaries, coords)
-    extents(A, overlaps; fix_global_boundaries, coords)
+function _ii_g(i::Integer, ii::Integer, ni_A::Integer, wrap_periodic::Bool, coordi::Integer=@coords()[i], dimi::Integer=@dims()[i])
+    if     (i==1) _ix_g(ii, ni_A, wrap_periodic, coordi, dimi)
+    elseif (i==2) _iy_g(ii, ni_A, wrap_periodic, coordi, dimi)
+    elseif (i==3) _iz_g(ii, ni_A, wrap_periodic, coordi, dimi)
+    else          error("Invalid dimension index $i.")
+    end
+end
 
-Return the local extents in each dimension of the array `A` or the local extents of the base grid if `A` is not provided (return type: tuple of ranges).
+
+"""
+    extents(A; fix_global_boundaries, coords)
+    extents(nxyz; fix_global_boundaries, coords)
+    extents(; fix_global_boundaries, coords)
+    extents(A, overlaps; fix_global_boundaries, coords)
+    extents(nxyz, overlaps; fix_global_boundaries, coords)
+    extents(overlaps; fix_global_boundaries, coords)
+
+Return the local extents in each dimension of the array `A` or of an array of length `nxyz` or the local extents of the base grid with the length `nxyz` (return type: NTuple of ranges with N = ndims(A) or N = ndims(nxyz)). If neither `A` nor `nxyz` is provided, the extents of the base grid are returned as a 3-dimensional tuple of ranges; for 2D grids, it can be preferable to call `extents((nx, ny); ...)` in order to obtain a 2-dimensional tuple; for 1D grids, the analogue is true.
 
 # Arguments
-- `overlaps::Integer|Tuple{Int,Int,Int}`: the overlap of the "extent" with the neighboring processes' extents in each dimension; the overlaps chosen cannot be bigger than the actual overlaps on the global grid of `A` or of the base grid, respectively. To obtain the extents as required by VTK, set `overlaps=1`. The default is the actual full overlaps on the global grid (i.e., the extents are simply the full ranges of the array or of the base grid, respectively).
+- `overlaps::Integer`: the overlap of the "extent" with the neighboring processes' extents in each dimension; the overlaps chosen cannot be bigger than the actual overlaps on the global grid of `A` or of the base grid, respectively. To obtain the extents as required by VTK, set `overlaps=1`. The default is the actual full overlaps on the global grid (i.e., the extents are simply the full ranges of the array or of the base grid, respectively).
 
 # Keyword arguments
 - `fix_global_boundaries::Bool=true`: by default, the extents are fixed at the global boundaries to include them on all sides (attention, the extents are not of equal size for all processes in this case). If `fix_global_boundaries=false`, the extents are not fixed at the global boundaries and the size of the extents is equal for all processes.
@@ -556,43 +576,35 @@ julia> summary(Vx_IO)
 julia> finalize_global_grid()
 ```
 """
-function extents(; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    extents = (1:@nx(), 1:@ny(), 1:@nz())
-    return _adjust_extents(extents, @nxyz(), @ols(), coords, dims, fix_global_boundaries)
+function extents(A::AbstractArray{T,N}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where {T,N}
+    extents(size(A); fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
 end
 
-function extents(A::AbstractArray; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    # ol_A = @olx() + (size(A,1)-@nx()), @oly() + (size(A,2)-@ny()), @olz() + (size(A,3)-@nz())
-    ol_A = @ols() .+ (size(A) .- @nxyz())
-    extents = (1:size(A,1), 1:size(A,2), 1:size(A,3))
-    return _adjust_extents(extents, size(A), ol_A, coords, dims, fix_global_boundaries)
+function extents(nxyz_A::NTuple{N,Int}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    nxyz_A = (N==1 ? (nxyz_A[1],1,1) : (N==2 ? (nxyz_A[1:2]...,1) : nxyz_A))
+    ol_A = @ols() .+ (nxyz_A .- @nxyz())
+    extents = (1:nxyz_A[1], 1:nxyz_A[2], 1:nxyz_A[3])
+    return _adjust_extents(extents, nxyz_A[1:N], ol_A, coords, dims, fix_global_boundaries) # NOTE: N is used to trigger correct dispatch.
 end
 
-function extents(overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
+function extents(A::AbstractArray{T,N}, overlaps::Integer; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where {T,N}
+    extents(size(A), overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
+end
+
+function extents(nxyz_A::NTuple{N,Int}, overlaps::Integer; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    nxyz_A = (N==1 ? (nxyz_A[1],1,1) : (N==2 ? (nxyz_A[1:2]...,1) : nxyz_A))
     overlaps = isa(overlaps, Integer) ? (Int(overlaps), Int(overlaps), Int(overlaps)) : overlaps
-    # if (overlaps[1] > @olx()) || (overlaps[2] > @oly()) || (overlaps[3] > @olz()) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
-    if any(overlaps .> @ols()) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
-    # bx, by, bz = (@olx()-overlaps[1]) ÷ 2, (@oly()-overlaps[2]) ÷ 2, (@olz()-overlaps[3]) ÷ 2
-    bx, by, bz = (@ols() .- overlaps) .÷ 2
-    # ex, ey, ez = cld(@olx()-overlaps[1], 2), cld(@oly()-overlaps[2], 2), cld(@olz()-overlaps[3], 2)
-    ex, ey, ez = cld.(@ols() .- overlaps, 2)
-    extents = (1+bx:@nx()-ex, 1+by:@ny()-ey, 1+bz:@nz()-ez)
-    return _adjust_extents(extents, @nxyz(), @ols(), coords, dims, fix_global_boundaries)
-end
-
-function extents(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    overlaps = isa(overlaps, Integer) ? (Int(overlaps), Int(overlaps), Int(overlaps)) : overlaps
-    # ol_A = @olx() + (size(A,1)-@nx()), @oly() + (size(A,2)-@ny()), @olz() + (size(A,3)-@nz())
-    ol_A = @ols() .+ (size(A) .- @nxyz())
-    # if (overlaps[1] > ol_A[1]) || (overlaps[2] > ol_A[2]) || (overlaps[3] > ol_A[3]) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
+    ol_A = @ols() .+ (nxyz_A .- @nxyz())
     if any(overlaps .> ol_A) @ArgumentError("The overlaps chosen cannot be bigger than the actual overlaps on the global grid.") end
-    # bx, by, bz = (ol_A[1]-overlaps[1]) ÷ 2, (ol_A[2]-overlaps[2]) ÷ 2, (ol_A[3]-overlaps[3]) ÷ 2
     bx, by, bz = (ol_A .- overlaps) .÷ 2
-    # ex, ey, ez = cld(ol_A[1]-overlaps[1], 2), cld(ol_A[2]-overlaps[2], 2), cld(ol_A[3]-overlaps[3], 2)
     ex, ey, ez = cld.(ol_A .- overlaps, 2)
-    extents = (1+bx:size(A,1)-ex, 1+by:size(A,2)-ey, 1+bz:size(A,3)-ez)
-    return _adjust_extents(extents, size(A), ol_A, coords, dims, fix_global_boundaries)
+    extents = (1+bx:nxyz_A[1]-ex, 1+by:nxyz_A[2]-ey, 1+bz:nxyz_A[3]-ez)
+    return _adjust_extents(extents, nxyz_A[1:N], ol_A, coords, dims, fix_global_boundaries) # NOTE: N is used to trigger correct dispatch.
 end
+
+extents(; kwargs...)                  = extents(@nxyz(); kwargs...)
+extents(overlaps::Integer; kwargs...) = extents(@nxyz(), overlaps; kwargs...)
+
 
 # function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
 #     @show extents
@@ -614,12 +626,11 @@ end
 #     return extents_new
 # end
 
-function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, ol_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}, fix_global_boundaries::Bool)
+function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::NTuple{N,Int}, ol_A::Tuple{Int,Int,Int}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}, fix_global_boundaries::Bool) where N
+    nxyz_A = (N==1 ? (nxyz_A[1],1,1) : (N==2 ? (nxyz_A[1:2]...,1) : nxyz_A)) # NOTE: for simplicity we always treat every case like a 3D case; in this particular case, however, we want to return a tuple with dimensions of the array (or base grid)... Using N here ensures type stability.
     extents = [extents...]
     if fix_global_boundaries
-        # b_g = (ol_A[1] ÷ 2, ol_A[2] ÷ 2, ol_A[3] ÷ 2)
         b_g = ol_A .÷ 2
-        # e_g = (cld(ol_A[1], 2), cld(ol_A[2], 2), cld(ol_A[3], 2))
         e_g = cld.(ol_A, 2)
         for i in 1:3
             if @periods()[i]
@@ -639,22 +650,25 @@ function _adjust_extents(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{
             end
         end
     end
-    return (extents...,)
+    return (extents[1:N]...,)
 end
+    
 
 """
-    extents_g(; dxyz, fix_global_boundaries, coords)
     extents_g(A; dxyz, fix_global_boundaries, coords)
-    extents_g(overlaps; dxyz, fix_global_boundaries, coords)
+    extents_g(nxyz; dxyz, fix_global_boundaries, coords)
+    extents_g(; dxyz, fix_global_boundaries, coords)
     extents_g(A, overlaps; dxyz, fix_global_boundaries, coords)
+    extents_g(nxyz, overlaps; dxyz, fix_global_boundaries, coords)
+    extents_g(overlaps; dxyz, fix_global_boundaries, coords)
 
-Return the global extents in each dimension of the array `A` or the global extents of the base grid if `A` is not provided (return type: tuple of ranges); if `dxyz` is set, global Cartesian coordinates extents are returned, else global index extents are returned.
+Return the global extents in each dimension of the array `A` or of an array of length `nxyz` or the global extents of the base grid with the length `nxyz` (return type: NTuple of ranges with N = ndims(A) or N = ndims(nxyz)); if `dxyz` is set, global Cartesian coordinates extents are returned, else global index extents are returned. If neither `A` nor `nxyz` is provided, the global extents of the base grid are returned as a 3-dimensional tuple of ranges; for 2D grids, it can be preferable to call `extents_g((nx, ny); ...)` in order to obtain a 2-dimensional tuple; for 1D grids, the analogue is true.
 
 # Arguments
-- `overlaps::Integer|Tuple{Int,Int,Int}`: the overlap of the "extent" with the neighboring processes' extents in each dimension; the overlaps chosen cannot be bigger than the actual overlaps on the global grid of `A` or of the base grid, respectively. To obtain the extents as required by VTK, set `overlaps=1`. The default is the actual full overlaps on the global grid.
+- `overlaps::Integer`: the overlap of the "extent" with the neighboring processes' extents in each dimension; the overlaps chosen cannot be bigger than the actual overlaps on the global grid of `A` or of the base grid, respectively. To obtain the extents as required by VTK, set `overlaps=1`. The default is the actual full overlaps on the global grid.
 
 # Keyword arguments
-- `dxyz::Tuple{AbstractFloat,AbstractFloat,AbstractFloat}`: the space step between the elements in each dimension if global Cartesian coordinates are desired.
+- `dxyz::NTuple{N, AbstractFloat}`: the space step between the elements in each dimension if global Cartesian coordinates are desired.
 - `fix_global_boundaries::Bool=true`: by default, the extents are fixed at the global boundaries to include them on all sides (attention, the extents are not of equal size for all processes in this case). If `fix_global_boundaries=false`, the extents are not fixed at the global boundaries and the size of the extents is equal for all processes.
 - `coords::Tuple{Int,Int,Int}`: the coordinates of the process for which the global extents is requested. The default is the coordinates of the current process.
 
@@ -700,36 +714,40 @@ julia> extents_g(1; dxyz=(dx, dy, dz)) # The Cartesian coordinates corresponding
 julia> finalize_global_grid()
 ```
 """
-function extents_g(; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    extents_l = extents(; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
-    return extents_g(extents_l, @nxyz(), dxyz, coords, dims)
+function extents_g(A::AbstractArray{T,N}; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where {T,N}
+    extents_g(size(A); dxyz=dxyz, fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
 end
 
-function extents_g(A::AbstractArray; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    extents_l = extents(A; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
-    return extents_g(extents_l, size(A), dxyz, coords, dims)
+function extents_g(nxyz_A::NTuple{N,Int}; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    extents_l = extents(nxyz_A; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
+    return extents_g(extents_l, nxyz_A, dxyz, coords, dims)
 end
 
-function extents_g(overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    extents_l = extents(overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
-    return extents_g(extents_l, @nxyz(), dxyz, coords, dims)
+function extents_g(A::AbstractArray{T,N}, overlaps::Integer; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where {T,N}
+    extents_g(size(A), overlaps; dxyz=dxyz, fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
 end
 
-function extents_g(A::AbstractArray, overlaps::Union{Integer,Tuple{Int,Int,Int}}; dxyz::Union{Nothing,Tuple{AbstractFloat,AbstractFloat,AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims())
-    extents_l = extents(A, overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
-    return extents_g(extents_l, size(A), dxyz, coords, dims)
+function extents_g(nxyz_A::NTuple{N,Int}, overlaps::Integer; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    extents_l = extents(nxyz_A, overlaps; fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
+    return extents_g(extents_l, nxyz_A, dxyz, coords, dims)
 end
 
-function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Nothing, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
-    return (_ix_g(first(extents[1]), nxyz_A[1], false, coords[1], dims[1]) : _ix_g(last(extents[1]), nxyz_A[1], false, coords[1], dims[1]),
-            _iy_g(first(extents[2]), nxyz_A[2], false, coords[2], dims[2]) : _iy_g(last(extents[2]), nxyz_A[2], false, coords[2], dims[2]),
-            _iz_g(first(extents[3]), nxyz_A[3], false, coords[3], dims[3]) : _iz_g(last(extents[3]), nxyz_A[3], false, coords[3], dims[3]))
+function extents_g(extents::NTuple{N,UnitRange{Int}}, nxyz_A::NTuple{N,Int}, dxyz::Nothing, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}) where N
+    return ntuple(i -> _ii_g(i, first(extents[i]), nxyz_A[i], false, coords[i], dims[i]) : _ii_g(i, last(extents[i]), nxyz_A[i], false, coords[i], dims[i]), Val(N))
 end
 
-function extents_g(extents::Tuple{UnitRange{Int},UnitRange{Int},UnitRange{Int}}, nxyz_A::Tuple{Int,Int,Int}, dxyz::Tuple{AbstractFloat,AbstractFloat,AbstractFloat}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int})
-    return (_x_g(first(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]) : dxyz[1] : _x_g(last(extents[1]), dxyz[1], nxyz_A[1], false, coords[1], dims[1]),
-            _y_g(first(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]) : dxyz[2] : _y_g(last(extents[2]), dxyz[2], nxyz_A[2], false, coords[2], dims[2]),
-            _z_g(first(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]) : dxyz[3] : _z_g(last(extents[3]), dxyz[3], nxyz_A[3], false, coords[3], dims[3]))
+function extents_g(extents::NTuple{N,UnitRange{Int}}, nxyz_A::NTuple{N,Int}, dxyz::NTuple{N,AbstractFloat}, coords::Tuple{Int,Int,Int}, dims::Tuple{Int,Int,Int}) where N
+    return ntuple(i -> (_i_g(i, first(extents[i]), dxyz[i], nxyz_A[i], false, coords[i], dims[i]) : dxyz[i] : _i_g(i, last(extents[i]), dxyz[i], nxyz_A[i], false, coords[i], dims[i])), Val(N))
+end
+
+function extents_g(; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    if (!isnothing(dxyz) && N != 3) error("extents_g(;...) returns a 3-dimensional tuple of ranges, but you provided a $N-dimensional dxyz. Please use extents_g((nx, ny); ...) instead to obtain a 2-dimensional tuple of ranges or extents_g((nx,); ...) to obtain a 1-dimensional tuple of ranges.") end
+    extents_g(@nxyz(); dxyz=dxyz, fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
+end
+
+function extents_g(overlaps::Integer; dxyz::Union{Nothing,NTuple{N, AbstractFloat}}=nothing, fix_global_boundaries::Bool=true, coords::Tuple{Int,Int,Int}=@coords(), dims::Tuple{Int,Int,Int}=@dims()) where N
+    if (!isnothing(dxyz) && N != 3) error("extents_g(overlaps;...) returns a 3-dimensional tuple of ranges, but you provided a $N-dimensional dxyz. Please use extents_g((nx, ny), overlaps; ...) instead to obtain a 2-dimensional tuple of ranges or extents_g((nx,), overlaps; ...) to obtain a 1-dimensional tuple of ranges.") end
+    extents_g(@nxyz(), overlaps; dxyz=dxyz, fix_global_boundaries=fix_global_boundaries, coords=coords, dims=dims)
 end
 
 
