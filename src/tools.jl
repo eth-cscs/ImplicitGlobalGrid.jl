@@ -880,7 +880,9 @@ tic
 
 Return the elapsed time from chronometer (since the last call to `tic`) when all processes have reached this point.
 
-!!! warning
+!!! warnings
+    Every call to toc has to be executed after a previous call to tic. Calling toc before tic leads to undefined behaviour (likely an MPI error). 
+
     The chronometer may currently add an overhead of multiple 10th of miliseconds at the first usage.
 
 See also: [`tic`](@ref)
