@@ -10,7 +10,7 @@ Replaces the current active grid parameters with the ones provided by `new_gg`. 
 - `new_gg::GlobalGrid`: the global grid configuration to be set active. It must be a GlobalGrid returned by a call to `create_global_grid`.
 
 # Usage example
-    Given two local domains of different size and/or ghost cell properties: we have bigger_array_A, bigger_array_B and two grids that reflect those differences respectively: A,B
+    Given two local domains of different size and/or ghost cell properties: we have array `A1` and `B1` on grid `gg1`, and array `A2`, `B2` on grid `gg2`.
     
     activate_global_grid(A)       # Activate the first grid configuration
     update_halo!(bigger_array_A)  # Update the halo regions of bigger_array_A according to configuration A
