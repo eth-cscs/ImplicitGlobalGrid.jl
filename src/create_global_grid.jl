@@ -52,7 +52,7 @@ function create_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1;
     quiet                              = default(:quiet),)
     
     check_initialized()
-    # These have been moved out of the argument list since they are not expected to change in different grids
+    # These have been moved out of the argument list since they are not expected to change in different grids and the default is updated by the preceding call to init_global_grid if the user set the corresponding keywords.
     device_type     = default(:device_type)
     select_device   = default(:select_device)
     nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet = normalize_input(nx,ny,nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
