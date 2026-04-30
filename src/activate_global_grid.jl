@@ -13,7 +13,7 @@ Replaces the current active grid parameters with the ones provided by `new_gg`. 
     Given two local domains of different size and/or ghost cell properties: we have array `A1` and `B1` on grid `gg1`, and array `A2`, `B2` on grid `gg2`.
     
     activate_global_grid(A)       # Activate the first grid configuration
-    update_halo!(bigger_array_A)  # Update the halo regions of bigger_array_A according to configuration A
+    update_halo!(A1, B1)  # Update the halo regions of arrays A1 and B1 on grid gg1
     activate_global_grid(B)       # Activate the second grid configuration
     update_halo!(smaller_array_B) # Update the halo regions of smaller_array_B according to configuration B
 
