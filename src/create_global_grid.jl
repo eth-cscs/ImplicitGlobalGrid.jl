@@ -26,7 +26,7 @@ Construct and return a Cartesian grid configuration of MPI processes, defining i
 
 # Usage example
     init_global_grid()                  # Basic call no dimensions are provided thus no grid is defined.
-    GG = create_global_grid(nx, ny, nz) # A global grid specification is created
+    gg = create_global_grid(nx, ny, nz) # A global grid specification is created
     activate_global_grid(GG)            # The new global grid specification is active
     update_halo!(array)                 # The halo exchange is made following the active global grid specification
 
