@@ -14,7 +14,7 @@ Replaces the current active grid parameters with the ones provided by `new_gg`. 
     
     activate_global_grid(A)       # Activate the first grid configuration
     update_halo!(A1, B1)  # Update the halo regions of arrays A1 and B1 on grid gg1
-    activate_global_grid(B)       # Activate the second grid configuration
+    activate_global_grid(gg2)       # Activate the second grid configuration
     update_halo!(smaller_array_B) # Update the halo regions of smaller_array_B according to configuration B
 
 See also: [`init_global_grid`](@ref), [`create_global_grid`](@ref)
