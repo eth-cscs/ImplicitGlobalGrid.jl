@@ -109,7 +109,7 @@ function init_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1; dimx::Integ
         set_initialized(false)
         rethrow()  
     end
-    return gg.me, gg.dims, gg.nprocs, gg.coords, gg.comm # The typical use case requires only these variables; the remaining can be obtained calling active_global_grid() if needed.
+    return gg.me, gg.dims, gg.nprocs, gg.coords, gg.comm # The typical use case requires only these variables; the remaining can be obtained calling get_global_grid() if needed.
 end
 
 # Make sure that timing functions which must be fast at the first user call are already compiled now.

@@ -3,7 +3,7 @@ export activate_global_grid
 """
     activate_global_grid(new_gg)
 
-Replaces the current active grid parameters with the ones provided by `new_gg`. Only one grid configuration can be active at a time. This function returns `nothing`; use [`active_global_grid()`](@ref) or [`get_global_grid()`](@ref) if you need to query the currently active grid.
+Replaces the current active grid parameters with the ones provided by `new_gg`. Only one grid configuration can be active at a time. This function returns `nothing`; use [`get_global_grid()`](@ref) or [`get_global_grid()`](@ref) if you need to query the currently active grid.
 
 
 # Argument

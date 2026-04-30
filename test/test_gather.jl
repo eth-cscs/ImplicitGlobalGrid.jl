@@ -162,7 +162,7 @@ dz = 1.0
 
         gg = create_global_grid(nx, 1, 1);
         activate_global_grid(gg)
-        me = active_global_grid().me
+        me = get_global_grid().me
         P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
         P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
         P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
