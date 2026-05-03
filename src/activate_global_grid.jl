@@ -7,7 +7,7 @@ Replaces the current active grid parameters with the ones provided by `new_gg`. 
 
 
 # Argument
-- `new_gg::GlobalGrid`: the global grid configuration to be set active. It must be a GlobalGrid returned by a call to `create_global_grid`.
+- `new_gg::GlobalGrid`: the global grid configuration to be set active. It must be a GlobalGrid returned by a call to `create_global_grid` or a grid created by the one-time call to `init_global_grid` and retrieved by `get_global_grid`.
 
 # Usage example
     Given two local domains of different size and/or ghost cell properties: we have array `A1` and `B1` on grid `gg1`, and array `A2`, `B2` on grid `gg2`.
