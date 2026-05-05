@@ -32,7 +32,7 @@ function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellF
     # If no global grid is active we swap the null grid with the argument passed one, if that one is null as well a error will be thrown
     old = grid_is_initialized() ? global_grid() : GLOBAL_GRID_NULL
     activate_global_grid(active_global_grid)
-    if !grid_is_initialized() error("No grid is active when calling update_halo!, activate a grid specification first or pass it as an argument.") end
+    if !grid_is_initialized() error("No grid is active when calling update_halo!, activate a grid first or pass it as an argument.") end
     As = ((extract.(A)...)...,);
     fields = wrap_field.(As);
     check_fields(fields...);
