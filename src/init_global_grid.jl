@@ -42,7 +42,7 @@ end
 
 Initialize the package and create a Cartesian grid of MPI processes (and also MPI itself by default) defining implicitly a global grid. 
 
-For use cases needing multiple grid arrangements, the first grid can be created with `init_global_grid` and additional grids with `create_global_grid`. Alternatively, the dispatch without (`nx`|`ny`|`nz`) can be used to do a package initialization and to define `create_global_grid` keyword defaults without creating a grid; all required grids can then be created by the `create_global_grid` function. Grids are activated with `activate_global_grid`.
+For use cases needing multiple grids, the first grid can be created with `init_global_grid` and additional grids with `create_global_grid`. Alternatively, the dispatch without (`nx`|`ny`|`nz`) can be used to do a package initialization and to define `create_global_grid` keyword defaults without creating a grid; all required grids can then be created by the `create_global_grid` function. Grids are activated with `activate_global_grid`.
 
 # Arguments
 - {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}.

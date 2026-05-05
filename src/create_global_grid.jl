@@ -3,7 +3,7 @@ export create_global_grid
 """
     gg = create_global_grid(nx, ny, nz; <keyword arguments>)
 
-Construct and return a Cartesian grid configuration of MPI processes, defining implicitly a global grid. This grid configuration can then be activated by `activate_global_grid`.
+Construct and return a Cartesian grid of MPI processes, defining implicitly a global grid. This grid can then be activated by `activate_global_grid`.
 
 # Arguments
 - {`nx`|`ny`|`nz`}`::Integer`: the number of elements of the local grid in dimension {x|y|z}.
@@ -26,9 +26,9 @@ Construct and return a Cartesian grid configuration of MPI processes, defining i
 
 # Usage example
     init_global_grid()                  # Basic call no dimensions are provided thus no grid is defined.
-    gg = create_global_grid(nx, ny, nz) # A global grid specification is created
-    activate_global_grid(gg)            # The new global grid specification is active
-    update_halo!(array)                 # The halo exchange is made following the active global grid specification
+    gg = create_global_grid(nx, ny, nz) # A global grid is created
+    activate_global_grid(gg)            # The new global grid is activated
+    update_halo!(array)                 # The halo exchange is made following the active global grid
 
 See also: [`finalize_global_grid`](@ref), [`init_global_grid`](@ref), [`activate_global_grid`](@ref)
 """
