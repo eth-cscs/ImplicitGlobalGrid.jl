@@ -73,12 +73,12 @@ nz = 1;
         init_global_grid(save_kwarg_defaults=true, quiet=true, periodx=0, init_MPI=false)
 
         P = zeros(Float64, nx)
-        P[[1,2,end-1,end]]= [2.0, 1.0, 2.0, 1.0] 
+        P[[1, 2, end - 1, end]] = [2.0, 1.0, 2.0, 1.0]
         P = Array(P)
         P_ref = copy(P)
-        P[[1, end]] .= (eltype(P)(0.0),) 
+        P[[1, end]] .= (eltype(P)(0.0),)
 
-        gg1 = create_global_grid(nx)        
+        gg1 = create_global_grid(nx)
         gg2 = create_global_grid(nx, periodx=1)
 
         @require !(P == P_ref)
@@ -86,8 +86,8 @@ nz = 1;
         @test (P == P_ref)
 
         activate_global_grid(gg1)
-        P[[1, end]] .= (eltype(P)(0.0),) 
-        
+        P[[1, end]] .= (eltype(P)(0.0),)
+
 
         @require !(P == P_ref)
         update_halo!(P; active_global_grid=gg2)
@@ -102,6 +102,19 @@ nz = 1;
         finalize_global_grid(finalize_MPI=false)
     end
 
+    @testset "4. activation when package is not initialized" begin
+        @test_throws ErrorException activate_global_grid(GG.GLOBAL_GRID_NULL)
+        @test_throws ErrorException GG.check_grid_is_initialized()
+
+        init_global_grid(save_kwarg_defaults=true, quiet=true, periodx=0, init_MPI=false)
+
+        @test_throws ErrorException GG.global_grid()
+        
+        gg = GG.get_global_grid()
+        @test all([gg.:($field) == GG.GLOBAL_GRID_NULL.:($field) for field in fieldnames(GG.GlobalGrid)])
+
+        finalize_global_grid(finalize_MPI=false)
+    end
 end;
 
 ## Test tear down
