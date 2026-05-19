@@ -69,7 +69,7 @@ nz = 1;
         finalize_global_grid(finalize_MPI=false)
     end
 
-    @testset "3. activation inside update_halo!" begin
+    @testset "3. activation inside and outside update_halo!" begin
         init_global_grid(save_kwarg_defaults=true, quiet=true, periodx=0, init_MPI=false)
 
         P = zeros(Float64, nx)
@@ -81,14 +81,18 @@ nz = 1;
         gg1 = create_global_grid(nx)
         gg2 = create_global_grid(nx, periodx=1)
 
+        # Updating with gg2 with no default active
         @require !(P == P_ref)
         update_halo!(P; active_global_grid=gg2)
         @test (P == P_ref)
 
+        # Trying to update with active grid with no active grid
+        @test_throws ErrorException update_halo!(P)
+
         activate_global_grid(gg1)
         P[[1, end]] .= (eltype(P)(0.0),)
 
-
+        # Updating with gg2 even though gg1 is active
         @require !(P == P_ref)
         update_halo!(P; active_global_grid=gg2)
         @test (P == P_ref)
@@ -98,6 +102,18 @@ nz = 1;
         # Mutation checks
         @test gg1.periods == [0, 0, 0]
         @test gg2.periods == [1, 0, 0]
+
+        # Updating with gg1 as active GG
+        P = copy(P_ref)
+        update_halo!(P)
+        @test (P == P_ref)
+
+        # Updating with gg2 as active GG
+        activate_global_grid(gg2)
+        P[[1, end]] .= (eltype(P)(0.0),)
+        @require (P != P_ref)
+        update_halo!(P)
+        @test (P == P_ref)
 
         finalize_global_grid(finalize_MPI=false)
     end
