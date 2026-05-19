@@ -21,6 +21,8 @@ function finalize_global_grid(;finalize_MPI::Bool=true)
         MPI.Finalize();
     end
     set_global_grid(GLOBAL_GRID_NULL);
+    reset_default_args();
+    set_initialized(false);
     GC.gc();
     return nothing
 end

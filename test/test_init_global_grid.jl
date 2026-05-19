@@ -118,11 +118,34 @@ nz = 1;
         @test_throws ErrorException init_global_grid(nx, ny, 4, centerz=true, origin_on_vertex=false, quiet=true, init_MPI=false); # Error: centerz && !origin_on_vertex && nz even
         @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true);                                        # Error: MPI already initialized
         @testset "already initialized exception" begin
+            
             init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
             @require GG.grid_is_initialized()
             @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);  # Error: IGG already initialised
+            @test_throws ErrorException init_global_grid(init_MPI=false);
+            finalize_global_grid(finalize_MPI=false);
+            
+            init_global_grid(init_MPI=false);
+            @test_throws ErrorException init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);  # Error: IGG already initialised
+            @test_throws ErrorException init_global_grid(init_MPI=false);
             finalize_global_grid(finalize_MPI=false);
         end;
+    end;
+
+    @testset "7. initialization only, keyword arguments only" begin
+        @require MPI.Initialized()
+        @require GG.check_not_initialized() isa Nothing
+        @require !GG.grid_is_initialized()
+
+        init_global_grid(init_MPI=false);
+        @test GG.check_initialized() isa Nothing
+        @test !GG.grid_is_initialized()
+        finalize_global_grid(finalize_MPI=false);
+
+        @test_throws ErrorException init_global_grid(save_kwarg_defaults=false, quiet=true, init_MPI=false); # Error: grid arguments passed, while save_kwarg_defaults=false. 
+        @test_throws ErrorException init_global_grid(save_kwarg_defaults=true, halowidths=(1,0,1), quiet=true, init_MPI=false);    # Error: halowidths[2]<1.
+        @test_throws ErrorException init_global_grid(save_kwarg_defaults=true, overlaps=(4,3,2), halowidths=(2,2,1), quiet=true, init_MPI=false); # Error: halowidths[2]==2 while overlaps[2]==3.
+        @test_throws ErrorException init_global_grid(save_kwarg_defaults=true, origin=(0.0, 0.0, 0.0, 0.0), quiet=true, init_MPI=false); # Error: origin length > 3
     end;
 end;
 

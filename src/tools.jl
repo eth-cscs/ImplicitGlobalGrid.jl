@@ -880,7 +880,9 @@ tic
 
 Return the elapsed time from chronometer (since the last call to `tic`) when all processes have reached this point.
 
-!!! warning
+!!! warnings
+    Every call to toc has to be executed after a call to tic. Calling toc before tic leads to undefined behaviour (likely an MPI error). 
+
     The chronometer may currently add an overhead of multiple 10th of miliseconds at the first usage.
 
 See also: [`tic`](@ref)
@@ -891,6 +893,6 @@ let
     global tic, toc
     t0 = nothing
 
-    tic() = ( check_initialized(); MPI.Barrier(comm()); t0 = time() )
-    toc() = ( check_initialized(); MPI.Barrier(comm()); time() - t0 )
+    tic() = ( MPI.Barrier(comm()); t0 = time() )
+    toc() = ( MPI.Barrier(_unsafe_get_comm()); time() - t0 )
 end

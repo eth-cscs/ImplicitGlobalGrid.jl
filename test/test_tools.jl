@@ -558,6 +558,67 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD);
         finalize_global_grid(finalize_MPI=false);
     end;
 
+    @testset "4. tools with uninitialized global grid" begin
+
+        @testset "timing functions" begin
+            @test_throws ErrorException tic();
+            #@test_throws ErrorException toc(); unprotected!
+
+            init_global_grid(quiet=true, save_kwarg_defaults=true, init_MPI=false);
+
+            @test_throws ErrorException tic();
+            #@test_throws ErrorException toc(); unprotected!
+
+            gg = create_global_grid(4,4,4);
+            activate_global_grid(gg);
+
+            @test (tic() isa Float64) && (toc() isa Float64)
+
+            finalize_global_grid(finalize_MPI=false);
+        end;
+
+        @testset "grid functions" begin
+            lx = 8;
+            ly = 8;
+            lz = 8;
+            nx = 5;
+            ny = 5;
+            nz = 5;
+            P   = zeros(nx,  ny,  nz  );
+            Vx  = zeros(nx+1,ny,  nz  );
+            Vz  = zeros(nx,  ny,  nz+1);
+            A   = zeros(nx+2,ny,  nz+2);
+            Sxz = zeros(nx-2,ny-1,nz-2);
+
+            @test_throws ErrorException nx_g();
+            @test_throws ErrorException ny_g();
+            @test_throws ErrorException nz_g();
+            @test_throws ErrorException [ix_g(ix, P) for ix = 1:size(P,1)];
+            @test_throws ErrorException extents();
+            @test_throws ErrorException extents_g();
+
+            init_global_grid(quiet=true, save_kwarg_defaults=true, init_MPI=false);
+
+            @test_throws ErrorException nx_g();
+            @test_throws ErrorException ny_g();
+            @test_throws ErrorException nz_g();
+            @test_throws ErrorException [ix_g(ix, P) for ix = 1:size(P,1)];
+            @test_throws ErrorException extents();
+            @test_throws ErrorException extents_g();
+
+            gg = create_global_grid(nx, ny, nz, dimx=1, dimy=1, dimz=1, periodz=1);
+            activate_global_grid(gg);
+
+            @test nx_g() == nx
+            @test [ix_g(ix, P) for ix = 1:size(P,1)] == [1, 2, 3, 4, 5]
+            dx  = lx/(nx_g()-1);
+            @test [x_g(ix,dx,P) for ix = 1:size(P,1)] == [0.0, 2.0, 4.0, 6.0, 8.0]
+            @test extents() == (1:5, 1:5, 2:4)
+            @test extents_g() == (1:5, 1:5, 1:3)
+        end;
+
+    end;
+
     #TODO: add testset with metagrid with origin_on_vertex and center and periodic and origin on the other dimensions. Add missing tests for nx_g etc. including wrap periodic
 end;
 
