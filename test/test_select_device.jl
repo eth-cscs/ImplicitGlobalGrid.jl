@@ -19,6 +19,11 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
             init_global_grid(init_MPI=false)
             @test_throws ErrorException select_device()
             finalize_global_grid(finalize_MPI=false)
+
+            init_global_grid(init_MPI=false)
+            gg = GG.GLOBAL_GRID_NULL
+            @test_throws ErrorException select_device(gg)
+            finalize_global_grid(finalize_MPI=false)
         end
 
         @static if test_cuda && !test_amdgpu
