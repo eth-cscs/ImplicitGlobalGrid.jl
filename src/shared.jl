@@ -1,7 +1,7 @@
 import MPI
 using Base.Threads
 using CellArrays
-
+export get_global_grid
 
 ##------------------------------------
 ## HANDLING OF CUDA AND AMDGPU SUPPORT
@@ -61,7 +61,7 @@ struct GlobalGrid
     dims::Vector{GGInt}
     overlaps::Vector{GGInt}
     halowidths::Vector{GGInt}
-    origin::Vector{GGInt}
+    origin::Vector{Float64}
     origin_on_vertex::Bool
     centerxyz::Vector{Bool}
     nprocs::GGInt
@@ -79,21 +79,131 @@ struct GlobalGrid
     use_polyester::Vector{Bool}
     quiet::Bool
 end
-const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], false, [false,false,false], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
+const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-1,-1], Float64[-1,-1,-1], false, [false,false,false], -1, -1, GGInt[-1,-1,-1], GGInt[-1 -1 -1; -1 -1 -1], GGInt[-1,-1,-1], -1, -1, MPI.COMM_NULL, false, false, [false,false,false], [false,false,false], [false,false,false], false)
+
+"""
+    get_global_grid() :: GlobalGrid
+
+    Returns a deep copy of the currently active global grid. If no grid is active a GLOBAL_GRID_NULL will be returned, with negative nprocs. 
+"""
+function get_global_grid end
 
 # Macro to switch on/off check_initialized() for performance reasons (potentially relevant for tools.jl).
 macro check_initialized() :(check_initialized();) end  #FIXME: Alternative: macro check_initialized() end
 let
-    global global_grid, set_global_grid, grid_is_initialized, check_initialized, get_global_grid
+    global global_grid, set_global_grid, grid_is_initialized, check_initialized, check_not_initialized, check_grid_is_initialized, get_global_grid, set_initialized, _unsafe_get_comm
 
     _global_grid::GlobalGrid           = GLOBAL_GRID_NULL
-    global_grid()::GlobalGrid          = (@check_initialized(); _global_grid::GlobalGrid) # Thanks to the call to check_initialized, we can be sure that _global_grid is defined and therefore must be of type GlobalGrid.
+    _init_::Bool                        = false
+    global_grid()::GlobalGrid          = (check_grid_is_initialized(); _global_grid::GlobalGrid) # Protected access for internal use
     set_global_grid(gg::GlobalGrid)    = (_global_grid = gg;)
+    set_initialized(val::Bool = true)  = (_init_ = val; nothing)
     grid_is_initialized()              = (_global_grid.nprocs > 0)
-    check_initialized()                = if !grid_is_initialized() error("No function of the module can be called before init_global_grid() or after finalize_global_grid().") end
+    check_initialized()                = if !_init_ error("No function of the module can be called before init_global_grid().") end
+    check_not_initialized()            = if _init_ error("init_global_grid() can only be called once before finalize_global_grid().") end
+    check_grid_is_initialized()        = (if !grid_is_initialized() error("No global grid has been created and activated yet, or the package has not been initialized.") end)
 
-    "Return a deep copy of the global grid."
-    get_global_grid()                  = deepcopy(_global_grid)
+    function get_global_grid() :: GlobalGrid
+        check_initialized();
+        return deepcopy(_global_grid)
+    end
+
+    _unsafe_get_comm()         = _global_grid.comm # For toc so there is no overhead of init checks
+end
+
+
+let 
+    global  differ_default_args, set_default_args, reset_default_args, default
+
+    _default_args::Dict{Symbol,Any}    = Dict([
+        :dimx          => 0,
+        :dimy          => 0,
+        :dimz          => 0,
+        :periodx       => 0,
+        :periody       => 0,
+        :periodz       => 0,
+        :origin        => (0.0, 0.0, 0.0),
+        :origin_on_vertex => false,
+        :centerx       => false,
+        :centery       => false,
+        :centerz       => false,
+        :overlaps      => (2, 2, 2),
+        :halowidths    => max.(1, (2,2,2) .÷ 2),
+        :disp          => 1,
+        :reorder       => 1,
+        :comm          => MPI.COMM_WORLD,
+        :device_type   => DEVICE_TYPE_AUTO, # as of now changing this between grids is disabled
+        :select_device => true,             # as of now changing this between grids is disabled
+        :quiet         => false,        
+    ])
+    DEFAULT_OF_DEFAULT_ARGS::Dict{Symbol,Any} = copy(_default_args) # This is used in the corner case of finalizing and reinitializing to reset the default arguments to their original values.
+    # Check if the value set is not the same as the current default.
+    differ_default_args(;kwargs...)    = any([haskey(kwargs, key) && kwargs[key] != value for (key, value) in _default_args])
+    # Set the new argument set as default
+    set_default_args(;kwargs...)       = ([_default_args[key] = kwargs[key] for key in keys(kwargs)];nothing)
+    reset_default_args()               = (_default_args = copy(DEFAULT_OF_DEFAULT_ARGS); nothing)
+    # For an argument get its default value
+    default(key::Symbol)               = _default_args[key]
+end
+
+
+"""
+    normalize_input(nx,ny,nz,...)
+    normalize_input(...)
+
+    Validates and normalizes the input arguments for implicit global grid creation.
+"""
+function normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+    # Signature includes all params for easy extensibility of checks
+    dims              = [dimx, dimy, dimz];
+    periods           = Int64.([periodx, periody, periodz]);
+    # origin: In the GG is a vector but in the arguments is a tuple
+    origin            = Float64.((((length((origin...,)) == 1) ?  (origin, 0, 0) : ((length(origin) == 2) ? (origin..., 0) : origin))))
+    # Value checks
+    if !(device_type in [DEVICE_TYPE_NONE, DEVICE_TYPE_AUTO, DEVICE_TYPE_CUDA, DEVICE_TYPE_AMDGPU]) error("Argument `device_type`: invalid value obtained ($device_type). Valid values are: $DEVICE_TYPE_CUDA, $DEVICE_TYPE_AMDGPU, $DEVICE_TYPE_NONE, $DEVICE_TYPE_AUTO") end
+    if ((device_type == DEVICE_TYPE_AUTO) && cuda_loaded() && cuda_functional() && amdgpu_loaded() && amdgpu_functional()) error("Automatic detection of the device type to be used not possible: both CUDA and AMDGPU extensions are loaded and functional. Set keyword argument `device_type` to $DEVICE_TYPE_CUDA or $DEVICE_TYPE_AMDGPU.") end
+    if (any(dims .< 0)) error("Invalid arguments: dimx, dimy, and dimz cannot be negative."); end
+    if (any(periods .∉ ((0,1),))) error("Invalid arguments: periodx, periody, and periodz must be either 0 or 1."); end
+    if length(origin) != 3 error("Invalid argument: the length of the origin tuple must be at most 3.") end
+    if (any(halowidths .< 1)) error("Invalid arguments: halowidths cannot be less than 1."); end
+    if (any((overlaps .> 0) .& (halowidths .> overlaps.÷2))) error("Incoherent arguments: if overlap is greater than 0, then halowidth cannot be greater than overlap÷2, in each dimension."); end
+    return dimx, dimy, dimz, 
+        periodx, periody, periodz, 
+        origin, origin_on_vertex, 
+        centerx, centery, centerz, 
+        overlaps, halowidths, disp, 
+        reorder, comm, 
+        device_type, select_device, quiet 
+end
+
+function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+    # Signature includes all params for easy extensibility of checks
+    # Checks without grid size
+    dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet = normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+    dims              = [dimx, dimy, dimz];
+    nxyz              = [nx, ny, nz];
+    periods           = [periodx, periody, periodz];
+    # Value checks
+    if (any(nxyz .< 1)) error("Invalid arguments: nx, ny, and nz cannot be less than 1."); end
+    if (centerx && origin_on_vertex && isodd(nx)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and nx being odd; set either `origin_on_vertex=false` or make nx even."); end
+    if (centery && origin_on_vertex && isodd(ny)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and ny being odd; set either `origin_on_vertex=false` or make ny even."); end
+    if (centerz && origin_on_vertex && isodd(nz)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin on the cell vertex and nz being odd; set either `origin_on_vertex=false` or make nz even."); end
+    if (centerx && !origin_on_vertex && iseven(nx)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and nx being even; set either `origin_on_vertex=true` or make nx odd."); end
+    if (centery && !origin_on_vertex && iseven(ny)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and ny being even; set either `origin_on_vertex=true` or make ny odd."); end
+    if (centerz && !origin_on_vertex && iseven(nz)) error("Incoherent arguments: the grid cannot be centered on the origin with the constraint to have the origin the cell center and nz being even; set either `origin_on_vertex=true` or make nz odd."); end
+    if (nx==1) error("Invalid arguments: nx can never be 1.") end
+    if (ny==1 && nz>1) error("Invalid arguments: ny cannot be 1 if nz is greater than 1.") end
+    if (any((nxyz .== 1) .& (dims .>1 ))) error("Incoherent arguments: if nx, ny, or nz is 1, then the corresponding dimx, dimy or dimz must not be set (or set 0 or 1)."); end
+    if (any((nxyz .< 2 .* overlaps .- 1) .& (periods .> 0))) error("Incoherent arguments: if nx, ny, or nz is smaller than 2*overlaps[1]-1, 2*overlaps[2]-1 or 2*overlaps[3]-1, respectively, then the corresponding periodx, periody or periodz must not be set (or set 0)."); end
+    dims[(nxyz.==1).&(dims.==0)] .= 1;   # Setting any of nxyz to 1, means that the corresponding dimension must also be 1 in the global grid. Thus, the corresponding dims entry must be 1.
+    return nx,ny,nz, 
+        dimx, dimy, dimz, 
+        periodx, periody, periodz, 
+        origin, origin_on_vertex,
+        centerx, centery, centerz, 
+        overlaps, halowidths, disp, 
+        reorder, comm, 
+        device_type, select_device, quiet
 end
 
 

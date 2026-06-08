@@ -14,6 +14,13 @@ import ImplicitGlobalGrid: @require
         @test !GG.grid_is_initialized()
     end;
 
+    @testset "2. check default is reset" begin
+        init_global_grid(overlaps=(4, 4, 4), quiet=true, save_kwarg_defaults=true, init_MPI=false)
+        finalize_global_grid(finalize_MPI=false)
+        init_global_grid(init_MPI=false)
+        @test GG.default(:overlaps) == (2, 2, 2)
+    end 
+
     @testset "2. exceptions" begin
         @test_throws ErrorException finalize_global_grid();  # Finalize can never be before initialize.
     end;

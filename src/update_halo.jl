@@ -3,11 +3,12 @@ export update_halo!
 """
     update_halo!(A)
     update_halo!(A...)
+    update_halo!(A..., active_global_grid=gg)
 
 !!! note "Advanced"
         update_halo!(A, B, (A=C, halowidths=..., (A=D, halowidths=...), ...)
 
-Update the halo of the given GPU/CPU-array(s).
+Update the halo of the given GPU/CPU-array(s). If multiple global grids have been defined, the currently active global grid will be used. Optionally a global grid can be passed by argument, overriding the currently active grid.
 
 # Typical use cases:
     update_halo!(A)                                # Update the halo of the array A.
@@ -26,12 +27,17 @@ Update the halo of the given GPU/CPU-array(s).
     shell> export IGG_ROCMAWARE_MPI=1
     ```
 """
-function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellFieldConvertible, GGField}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...))
-    check_initialized();
+function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellFieldConvertible, GGField}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...), active_global_grid=global_grid())
+    check_initialized()
+    # If no global grid is active we swap the null grid with the argument passed one, if that one is null as well a error will be thrown
+    old = grid_is_initialized() ? global_grid() : GLOBAL_GRID_NULL
+    activate_global_grid(active_global_grid)
+    if !grid_is_initialized() error("No grid is active when calling update_halo!, activate a grid first or pass it as an argument.") end
     As = ((extract.(A)...)...,);
     fields = wrap_field.(As);
     check_fields(fields...);
     _update_halo!(fields...; dims=dims);  # Assignment of A to fields in the internal function _update_halo!() as vararg A can consist of multiple fields; A will be used for a single field in the following (The args of update_halo! must however be "A..." for maximal simplicity and elegance for the user).
+    activate_global_grid(old)
     return nothing
 end
 
@@ -102,8 +108,8 @@ let
 
     function free_update_halo_buffers()
         free_update_halo_cpubuffers()
-        if (cuda_enabled() && none(cudaaware_MPI()))     free_update_halo_cubuffers() end
-        if (amdgpu_enabled() && none(amdgpuaware_MPI())) free_update_halo_rocbuffers() end
+        if cuda_loaded() free_update_halo_cubuffers() end
+        if amdgpu_loaded() free_update_halo_rocbuffers() end
         GC.gc() #TODO: see how to modify this!
     end
 

@@ -51,6 +51,8 @@ include(joinpath("CUDAExt", "defaults.jl"))
 include(joinpath("PolyesterExt", "memcopy_polyester_default.jl"))
 
 ## Alphabetical include of files
+include("activate_global_grid.jl")
+include("create_global_grid.jl")
 include("finalize_global_grid.jl")
 include("gather.jl")
 include("init_global_grid.jl")

@@ -16,7 +16,7 @@ Gather an array `A` from each member of the Cartesian grid of MPI processes into
     The memory for the global array only needs to be allocated on the root process; the argument `A_global` can be `nothing` on the other processes.
 """
 function gather!(A::AbstractArray{T}, A_global::Union{AbstractArray{T,N},Nothing}; root::Integer=0) where {T,N}
-    check_initialized();
+    check_grid_is_initialized();
     gather!(A, A_global, comm(); root=root);
     return nothing
 end

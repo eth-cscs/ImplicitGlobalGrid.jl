@@ -15,6 +15,17 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
     @testset "1. select_device" begin
+        @testset "not initialized" begin
+            init_global_grid(init_MPI=false)
+            @test_throws ErrorException select_device()
+            finalize_global_grid(finalize_MPI=false)
+
+            init_global_grid(init_MPI=false)
+            gg = GG.GLOBAL_GRID_NULL
+            @test_throws ErrorException select_device(gg)
+            finalize_global_grid(finalize_MPI=false)
+        end
+
         @static if test_cuda && !test_amdgpu
             @testset "\"CUDA\"" begin
                 me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="CUDA");
