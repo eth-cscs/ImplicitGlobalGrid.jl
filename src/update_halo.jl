@@ -230,7 +230,7 @@ let
     function allocate_tasks_iwrite(fields::GGField...)
         if length(fields) > size(tasks,2)  # Note: for simplicity, we create a tasks for every field even if it is not an CPUField
             tasks = [tasks Array{Task}(undef, NNEIGHBORS_PER_DIM, length(fields)-size(tasks,2))];  # Create (additional) emtpy tasks.
-        end 
+        end
     end
 
     function iwrite_sendbufs!(n::Integer, dim::Integer, F::CPUField{T}, i::Integer) where T <: GGNumber  # Function to be called if A is a CPUField.
@@ -388,12 +388,12 @@ end
 function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, use_polyester::Bool) where T <: GGNumber
     if use_polyester && nthreads() > 1 && length(src) > 1 && !(T <: Complex)  # NOTE: Polyester does not yet support Complex numbers and copy reinterpreted arrays leads to bad performance.
         memcopy_polyester!(dst, src)
-    elseif IndexStyle(dst, src) === IndexLinear()  # Both operands index linearly (e.g. the x- and z-faces): flatten and do a contiguous-stride memcopy.
+    elseif IndexStyle(dst, src) === IndexLinear()  # Both operands index linearly (e.g. the x- and z-faces): flatten + contiguous-stride memcopy.
         dst_flat = view(dst,:)
         src_flat = view(src,:)
         memcopy_threads!(dst_flat, src_flat)
-    else  # At least one operand is IndexCartesian (the middle/y-face slice view(A,:,iy,:)): flattening it with view(.,:) would force a per-element linear->Cartesian index conversion (~25-30x slower on the CPU). Copy the shaped views directly so iteration stays contiguous along the inner (fastest) dimension.
-        copyto!(dst, src)
+    else  # At least one operand is IndexCartesian, flattening would force a per-element linear->Cartesian index conversion (~25-30x slower).
+        copyto!(dst, src) # Copy the views directly so iteration stays contiguous along the inner (fastest) dimension.
     end
 end
 
@@ -423,7 +423,7 @@ function check_fields(fields::GGField...)
     elseif length(invalid_halowidths) > 0
         error("The field at position $(invalid_halowidths[1]) has a halowidth less than 1.")
     end
-    
+
     # Raise an error if any of the given fields has no halo at all (in any dimension) - in this case there is no halo update to do and including the field in the call is inconsistent.
     no_halo = Int[];
     for i = 1:length(fields)
