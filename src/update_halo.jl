@@ -388,10 +388,12 @@ end
 function memcopy!(dst::AbstractArray{T}, src::AbstractArray{T}, use_polyester::Bool) where T <: GGNumber
     if use_polyester && nthreads() > 1 && length(src) > 1 && !(T <: Complex)  # NOTE: Polyester does not yet support Complex numbers and copy reinterpreted arrays leads to bad performance.
         memcopy_polyester!(dst, src)
-    else
+    elseif IndexStyle(dst, src) === IndexLinear()  # Both operands index linearly (e.g. the x- and z-faces): flatten and do a contiguous-stride memcopy.
         dst_flat = view(dst,:)
         src_flat = view(src,:)
         memcopy_threads!(dst_flat, src_flat)
+    else  # At least one operand is IndexCartesian (the middle/y-face slice view(A,:,iy,:)): flattening it with view(.,:) would force a per-element linear->Cartesian index conversion (~25-30x slower on the CPU). Copy the shaped views directly so iteration stays contiguous along the inner (fastest) dimension.
+        copyto!(dst, src)
     end
 end
 
