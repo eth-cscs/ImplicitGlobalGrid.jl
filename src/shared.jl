@@ -84,7 +84,7 @@ const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-
 """
     get_global_grid() :: GlobalGrid
 
-    Returns a deep copy of the currently active global grid. If no grid is active a GLOBAL_GRID_NULL will be returned, with negative nprocs. 
+    Returns a deep copy of the currently active global grid. If no grid is active a GLOBAL_GRID_NULL will be returned, with negative nprocs.
 """
 function get_global_grid end
 
@@ -112,7 +112,7 @@ let
 end
 
 
-let 
+let
     global  differ_default_args, set_default_args, reset_default_args, default
 
     _default_args::Dict{Symbol,Any}    = Dict([
@@ -134,7 +134,7 @@ let
         :comm          => MPI.COMM_WORLD,
         :device_type   => DEVICE_TYPE_AUTO, # as of now changing this between grids is disabled
         :select_device => true,             # as of now changing this between grids is disabled
-        :quiet         => false,        
+        :quiet         => false,
     ])
     DEFAULT_OF_DEFAULT_ARGS::Dict{Symbol,Any} = copy(_default_args) # This is used in the corner case of finalizing and reinitializing to reset the default arguments to their original values.
     # Check if the value set is not the same as the current default.
@@ -167,13 +167,13 @@ function normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, or
     if length(origin) != 3 error("Invalid argument: the length of the origin tuple must be at most 3.") end
     if (any(halowidths .< 1)) error("Invalid arguments: halowidths cannot be less than 1."); end
     if (any((overlaps .> 0) .& (halowidths .> overlaps.÷2))) error("Incoherent arguments: if overlap is greater than 0, then halowidth cannot be greater than overlap÷2, in each dimension."); end
-    return dimx, dimy, dimz, 
-        periodx, periody, periodz, 
-        origin, origin_on_vertex, 
-        centerx, centery, centerz, 
-        overlaps, halowidths, disp, 
-        reorder, comm, 
-        device_type, select_device, quiet 
+    return dimx, dimy, dimz,
+        periodx, periody, periodz,
+        origin, origin_on_vertex,
+        centerx, centery, centerz,
+        overlaps, halowidths, disp,
+        reorder, comm,
+        device_type, select_device, quiet
 end
 
 function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
@@ -196,13 +196,13 @@ function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz
     if (any((nxyz .== 1) .& (dims .>1 ))) error("Incoherent arguments: if nx, ny, or nz is 1, then the corresponding dimx, dimy or dimz must not be set (or set 0 or 1)."); end
     if (any((nxyz .< 2 .* overlaps .- 1) .& (periods .> 0))) error("Incoherent arguments: if nx, ny, or nz is smaller than 2*overlaps[1]-1, 2*overlaps[2]-1 or 2*overlaps[3]-1, respectively, then the corresponding periodx, periody or periodz must not be set (or set 0)."); end
     dims[(nxyz.==1).&(dims.==0)] .= 1;   # Setting any of nxyz to 1, means that the corresponding dimension must also be 1 in the global grid. Thus, the corresponding dims entry must be 1.
-    return nx,ny,nz, 
-        dimx, dimy, dimz, 
-        periodx, periody, periodz, 
+    return nx,ny,nz,
+        dims...,
+        periodx, periody, periodz,
         origin, origin_on_vertex,
-        centerx, centery, centerz, 
-        overlaps, halowidths, disp, 
-        reorder, comm, 
+        centerx, centery, centerz,
+        overlaps, halowidths, disp,
+        reorder, comm,
         device_type, select_device, quiet
 end
 
