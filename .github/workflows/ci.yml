@@ -60,22 +60,3 @@ jobs:
           flags: cpu
           use_oidc: true # NOTE: for pull requests from forks, the upload is done tokenless.
           fail_ci_if_error: false
-  # docs:
-  #   name: Documentation
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - uses: julia-actions/setup-julia@v1
-  #       with:
-  #         version: '1'
-  #     - uses: julia-actions/julia-buildpkg@v1
-  #     - uses: julia-actions/julia-docdeploy@v1
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-  #     - run: |
-  #         julia --project=docs -e '
-  #           using Documenter: DocMeta, doctest
-  #           using ImplicitGlobalGrid
-  #           DocMeta.setdocmeta!(ImplicitGlobalGrid, :DocTestSetup, :(using ImplicitGlobalGrid); recursive=true)
-  #           doctest(ImplicitGlobalGrid)'
