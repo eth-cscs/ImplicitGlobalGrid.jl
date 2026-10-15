@@ -17,9 +17,8 @@ Usage, examples and the API reference are found in the documentation:
 - [**dev**](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/dev): documentation of the `main` branch.
 
 ## Installation
-```julia-repl
-julia>]
-  pkg> add ImplicitGlobalGrid
+```julia
+import Pkg; Pkg.add("ImplicitGlobalGrid")
 ```
 
 ## Usage

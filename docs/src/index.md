@@ -30,9 +30,8 @@ The global computational grid is created *implicitly* from the number of process
 
 ## Installation
 ImplicitGlobalGrid can be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/) from the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/):
-```julia-repl
-julia>]
-  pkg> add ImplicitGlobalGrid
+```julia
+import Pkg; Pkg.add("ImplicitGlobalGrid")
 ```
 
 ## Dependencies
