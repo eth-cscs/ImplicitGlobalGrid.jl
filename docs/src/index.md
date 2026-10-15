@@ -8,10 +8,10 @@ hero:
   tagline: Close to ideal weak scaling on thousands of GPUs.
   actions:
     - theme: brand
-      text: Usage
+      text: Usage 🚀
       link: /usage
     - theme: alt
-      text: API reference
+      text: API reference 📚
       link: /api
     - theme: alt
       text: View on GitHub
