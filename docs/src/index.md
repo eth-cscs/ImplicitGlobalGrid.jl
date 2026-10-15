@@ -22,15 +22,6 @@ hero:
 ---
 ```
 
-```@raw html
-<style>
-/* Show the logo smaller than the hero image background, so that the background halo remains visible. */
-.VPHero .image-container .image-src { max-width: 104px; max-height: 104px; }
-@media (min-width: 640px) { .VPHero .image-container .image-src { max-width: 140px; max-height: 140px; } }
-@media (min-width: 960px) { .VPHero .image-container .image-src { max-width: 176px; max-height: 176px; } }
-</style>
-```
-
 ## What is ImplicitGlobalGrid.jl?
 
 ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
