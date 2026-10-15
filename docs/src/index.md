@@ -22,17 +22,20 @@ hero:
 ---
 ```
 
+```@raw html
+<style>
+/* Show the logo smaller than the hero image background, so that the background halo remains visible. */
+.VPHero .image-container .image-src { max-width: 104px; max-height: 104px; }
+@media (min-width: 640px) { .VPHero .image-container .image-src { max-width: 140px; max-height: 140px; } }
+@media (min-width: 960px) { .VPHero .image-container .image-src { max-width: 176px; max-height: 176px; } }
+</style>
+```
+
 ## What is ImplicitGlobalGrid.jl?
 
-ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs \[[1](https://pretalx.com/juliacon2019/talk/LGHLC3/), [2](https://pasc19.pasc-conference.org/program/schedule/presentation/?id=msa218&sess=sess144), [3](https://www.youtube.com/watch?v=vPsfZUqI4_0)\]:
+ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
 
-![Weak scaling Piz Daint](./assets/images/fig_parEff_HM3D_Julia_CUDA_all_Daint_extrapol.png)
-
-ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl](https://github.com/JuliaParallel/MPI.jl)) to perform halo updates close to hardware limit and leverages CUDA-aware or ROCm-aware MPI for GPU-applications. The communication can straightforwardly be hidden behind computation \[[1](https://pretalx.com/juliacon2019/talk/LGHLC3/), [3](https://www.youtube.com/watch?v=vPsfZUqI4_0)\] (how this can be done automatically when using ParallelStencil.jl is shown in \[[3](https://www.youtube.com/watch?v=vPsfZUqI4_0)\]; a general approach particularly suited for CUDA C applications is explained in \[[4](https://on-demand.gputechconf.com/gtc/2019/video/_/S9368/)\]).
-
-A particularity of ImplicitGlobalGrid is the automatic *implicit creation of the global computational grid* based on the number of processes the application is run with (and based on the process topology, which can be explicitly chosen by the user or automatically defined). As a consequence, the user only needs to write a code to solve his problem on one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform a single GPU/CPU application into a massively scaling Multi-GPU/CPU application**. See the [50-lines Multi-GPU example](@ref example-50-lines). 1-D, 2-D and 3-D grids are supported. Here is a sketch of the global grid that results from running a 2-D solver with 4 processes (P1-P4) (a 2x2 process topology is created by default in this case):
-
-![Implicit global grid](./assets/images/implicit_global_grid.png)
+The global computational grid is created *implicitly* from the number of processes the application is run with: the user writes a code for one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform it into a massively scaling Multi-GPU/CPU application**. Halo updates rely on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and can leverage CUDA-aware or ROCm-aware MPI. 1-D, 2-D and 3-D grids are supported. See the [Overview](overview.md) for more details.
 
 ## Installation
 ImplicitGlobalGrid can be installed directly with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/) from the [Julia REPL](https://docs.julialang.org/en/v1/stdlib/REPL/):
