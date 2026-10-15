@@ -25,6 +25,7 @@ cellarray_types          = ["CPU cell (B=0)", "CPU cell (B=1)"]
 gpu_array_types          = []
 gpu_cellarray_types      = []
 device_types             = ["auto"]
+celldevice_types         = ["auto", "auto"]
 gpu_device_types         = []
 allocators               = Function[zeros]
 cellallocators           = Function[cellzeros0, cellzeros1]
@@ -51,7 +52,8 @@ if test_cuda
     push!(gpu_array_types, "CUDA")
     # push!(gpu_cellarray_types, "CUDA cell (B=0)", "CUDA cell (B=1)")
     push!(device_types, "CUDA")
-    # push!(gpu_device_types, "CUDA")
+    push!(celldevice_types, "CUDA", "CUDA")
+    push!(gpu_device_types, "CUDA")
     push!(allocators, cuzeros)
     push!(cpu_allocators, zeros)
     push!(cpu_cellallocators, cellzeros0, cellzeros1)
@@ -68,8 +70,8 @@ end
 if test_amdgpu
     @define_ROCCellArray
     roczeros = AMDGPU.zeros
-    roccellzeros0(::Type{T}, dims::Integer...) where {T<:Number} = (A=ROCCellArray{Cell{T,0}}(undef, dims); A.data.=0.0; A)
-    roccellzeros1(::Type{T}, dims::Integer...) where {T<:Number} = (A=ROCCellArray{Cell{T,1}}(undef, dims); A.data.=0.0; A)
+    roccellzeros0(::Type{T}, dims::Integer...) where {T<:Number} = (A=ROCCellArray{Cell{T},0}(undef, dims); A.data.=0.0; A)
+    roccellzeros1(::Type{T}, dims::Integer...) where {T<:Number} = (A=ROCCellArray{Cell{T},1}(undef, dims); A.data.=0.0; A)
     roccellzeros0(dims::Integer...)                              = roccellzeros0(Float64, dims...)
     roccellzeros1(dims::Integer...)                              = roccellzeros1(Float64, dims...)
     push!(array_types, "AMDGPU")
@@ -77,7 +79,8 @@ if test_amdgpu
     push!(gpu_array_types, "AMDGPU")
     # push!(gpu_cellarray_types, "AMDGPU cell (B=0)", "AMDGPU cell (B=1)")
     push!(device_types, "AMDGPU")
-    # push!(gpu_device_types, "AMDGPU")
+    push!(celldevice_types, "AMDGPU", "AMDGPU")
+    push!(gpu_device_types, "AMDGPU")
     push!(allocators, roczeros)
     push!(cpu_allocators, zeros)
     push!(cpu_cellallocators, cellzeros0, cellzeros1)
@@ -99,7 +102,7 @@ CPUArrayConstructors_union = [CPUArrayConstructors... CPUCellArrayConstructors..
 # GPUArrayConstructors_union = [GPUArrayConstructors... GPUCellArrayConstructors...]
 array_types_union          = [array_types... cellarray_types...]
 # gpu_array_types_union      = [gpu_array_types... gpu_cellarray_types...]
-device_types_union         = [device_types... device_types... device_types...]
+device_types_union         = [device_types... celldevice_types...]
 # gpu_device_types_union     = [gpu_device_types... gpu_device_types... gpu_device_types...]
 
 ## Test setup
@@ -115,29 +118,29 @@ dy = 1.0
 dz = 1.0
 
 @testset "$(basename(@__FILE__)) (processes: $nprocs)" begin
-    # @testset "1. argument check (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types_union, device_types_union, allocators_union)
-    #     init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
-    #     P   = zeros(nx,  ny,  nz  );
-    #     Sxz = zeros(nx-2,ny-1,nz-2);
-    #     A   = zeros(nx-1,ny+2,nz+1);
-    #     A2  = A;
-    #     Z   = zeros(ComplexF64, nx-1,ny+2,nz+1);
-    #     Z2  = Z;
-    #     @test_throws ErrorException update_halo!(P, Sxz, A)                     # Error: Sxz has no halo.
-    #     @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)                # Error: Sxz and Sxz have no halo.
-    #     @test_throws ErrorException update_halo!(A, (A=P, halowidths=(1,0,1)))  # Error: P has an invalid halowidth (less than 1).
-    #     @test_throws ErrorException update_halo!(A, (A=P, halowidths=(2,2,2)))  # Error: P has no halo.
-    #     @test_throws ErrorException update_halo!((A=A, halowidths=(0,3,2)), (A=P, halowidths=(2,2,2)))  # Error: A and P have no halo.
-    #     if !occursin("cell", array_type)                                        # CellArrays do not support the following sanity checks:
-    #         @test_throws ErrorException update_halo!(P, A, A)                   # Error: A is given twice.
-    #         @test_throws ErrorException update_halo!(P, A, A2)                  # Error: A2 is duplicate of A (an alias; it points to the same memory).
-    #         @test_throws ErrorException update_halo!(P, A, A, A2)               # Error: the second A and A2 are duplicates of the first A.
-    #         @test_throws ErrorException update_halo!(Z, Z2)                     # Error: Z2 is duplicate of Z (an alias; it points to the same memory).
-    #     end
-    #     @test_throws ErrorException update_halo!(Z, P)                          # Error: P is of different type than Z.
-    #     @test_throws ErrorException update_halo!(Z, P, A)                       # Error: P and A are of different type than Z.
-    #     finalize_global_grid(finalize_MPI=false);
-    # end;
+    @testset "1. argument check (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types_union, device_types_union, allocators_union)
+        init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
+        P   = zeros(nx,  ny,  nz  );
+        Sxz = zeros(nx-2,ny-1,nz-2);
+        A   = zeros(nx-1,ny+2,nz+1);
+        A2  = A;
+        Z   = zeros(ComplexF64, nx-1,ny+2,nz+1);
+        Z2  = Z;
+        @test_throws ErrorException update_halo!(P, Sxz, A)                     # Error: Sxz has no halo.
+        @test_throws ErrorException update_halo!(P, Sxz, A, Sxz)                # Error: Sxz and Sxz have no halo.
+        @test_throws ErrorException update_halo!(A, (A=P, halowidths=(1,0,1)))  # Error: P has an invalid halowidth (less than 1).
+        @test_throws ErrorException update_halo!(A, (A=P, halowidths=(2,2,2)))  # Error: P has no halo.
+        @test_throws ErrorException update_halo!((A=A, halowidths=(0,3,2)), (A=P, halowidths=(2,2,2)))  # Error: A and P have no halo.
+        if !occursin("cell", array_type)                                        # CellArrays do not support the following sanity checks:
+            @test_throws ErrorException update_halo!(P, A, A)                   # Error: A is given twice.
+            @test_throws ErrorException update_halo!(P, A, A2)                  # Error: A2 is duplicate of A (an alias; it points to the same memory).
+            @test_throws ErrorException update_halo!(P, A, A, A2)               # Error: the second A and A2 are duplicates of the first A.
+            @test_throws ErrorException update_halo!(Z, Z2)                     # Error: Z2 is duplicate of Z (an alias; it points to the same memory).
+        end
+        @test_throws ErrorException update_halo!(Z, P)                          # Error: P is of different type than Z.
+        @test_throws ErrorException update_halo!(Z, P, A)                       # Error: P and A are of different type than Z.
+        finalize_global_grid(finalize_MPI=false);
+    end;
 
     @testset "2. buffer allocation (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
         init_global_grid(nx, ny, nz, periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
@@ -368,6 +371,20 @@ dz = 1.0
     end;
 
     @testset "3. data transfer components" begin
+        @testset "memcopy! (use_polyester: $use_polyester)" for use_polyester in (false, true) # NOTE: the Polyester code path is only taken if Julia is started with multiple threads.
+            src   = rand(nx, ny, nz);
+            dst   = zeros(nx, ny, nz);
+            GG.memcopy!(dst, src, use_polyester);
+            @test dst == src
+            dst  .= 0.0;
+            GG.memcopy!(view(dst, :, 2, :), view(src, :, 2, :), use_polyester);  # Copy of a y-face (Cartesian indexing).
+            @test dst[:, 2, :] == src[:, 2, :]
+            @test all(dst[:, [1; 3:end], :] .== 0.0)
+            src_c = rand(ComplexF64, nx, ny, nz);
+            dst_c = zeros(ComplexF64, nx, ny, nz);
+            GG.memcopy!(dst_c, src_c, use_polyester);                              # NOTE: Complex numbers are never copied with Polyester.
+            @test dst_c == src_c
+        end;
         @testset "iwrite_sendbufs! / iread_recvbufs!" begin
             @testset "sendranges / recvranges (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, overlaps=(2,2,3), quiet=true, init_MPI=false, device_type=device_type);
@@ -921,12 +938,14 @@ dz = 1.0
             end
         end;
         if (nprocs>1)
-            @testset "irecv_halo! / isend_halo (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators)
-                me, dims, nprocs, coords, comm = init_global_grid(nx, ny, nz; dimy=1, dimz=1, periodx=1, overlaps=(4,4,4), halowidths=(2,1,2), quiet=true, init_MPI=false, device_type=device_type);
-                P   = zeros(nx,ny,nz);
-                A   = zeros(nx,ny,nz);
+            @testset "irecv_halo! / isend_halo (arrays: $array_type, dim: $dim)" for (array_type, device_type, zeros) in zip(array_types, device_types, allocators), dim in 1:ndims_mpi
+                dimxyz  = [(d == dim) ? 0 : 1 for d=1:ndims_mpi]; # NOTE: all processes are placed along the dimension dim.
+                periods = [(d == dim) ? 1 : 0 for d=1:ndims_mpi];
+                nxyz    = (8, 8, 8);                                  # NOTE: periodicity requires a local size of at least 2*overlap-1 in every dimension.
+                me, dims, nprocs, coords, comm = init_global_grid(nxyz...; dimx=dimxyz[1], dimy=dimxyz[2], dimz=dimxyz[3], periodx=periods[1], periody=periods[2], periodz=periods[3], overlaps=(4,4,4), halowidths=(2,1,2), quiet=true, init_MPI=false, device_type=device_type);
+                P   = zeros(nxyz...);
+                A   = zeros(nxyz...);
                 P, A = GG.wrap_field.((P, A));
-                dim = 1;
                 GG.allocate_bufs(P, A);
                 for n = 1:nneighbors_per_dim
                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
@@ -1177,118 +1196,107 @@ dz = 1.0
                 @test (Vz == Vz_ref)
                 finalize_global_grid(finalize_MPI=false);
             end;
-            # @testset "1D (contiguous view)" begin
-            #     init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     P_buf = zeros(nx+2);
-            #     P_buf.= (eltype(P_buf)(-1.0),)
-            #     P     = @view P_buf[2:end-1];
-            #     P    .= eltype(P).([x_g(ix,dx,P) for ix=1:size(P,1)]);
-            #     P_ref = copy(P);
-            #     P[[1, end]] .= (eltype(P)(0.0),);
-            #     P     = Array(P);
-            #     P_ref = Array(P_ref);
-            #     @require !(P == P_ref) # DEBUG: CPUArray needed here and onwards as mapreduce! is failing on AMDGPU (see https://github.com/JuliaGPU/AMDGPU.jl/issues/210)
-            #     update_halo!(P);
-            #     @test (P == P_ref)
-            #     @test all(CPUArray(P_buf)[[1, end]] .== (eltype(P_buf)(-1.0),))
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
-            # @testset "3D (non-contiguous view)" begin
-            #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     Vz_buf = zeros(nx+2,ny+2,nz+3);
-            #     Vz_buf.= (eltype(Vz_buf)(-1.0),)
-            #     Vz     = @view Vz_buf[2:end-1,2:end-1,2:end-1];
-            #     Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
-            #     Vz_ref = copy(Vz);
-            #     Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !(Vz == Vz_ref)
-            #     update_halo!(Vz);
-            #     @test (Vz == Vz_ref)
-            #     @test all(CPUArray(Vz_buf)[[1, end],:,:] .== (eltype(Vz_buf)(-1.0),))
-            #     @test all(CPUArray(Vz_buf)[:,[1, end],:] .== (eltype(Vz_buf)(-1.0),))
-            #     @test all(CPUArray(Vz_buf)[:,:,[1, end]] .== (eltype(Vz_buf)(-1.0),))
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
-            # @testset "3D (changing datatype)" begin
-            #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
-            #     Vz_ref = copy(Vz);
-            #     Vx     = zeros(Float32,nx+1,ny,nz);
-            #     Vx    .= eltype(Vx).([z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)]);
-            #     Vx_ref = copy(Vx);
-            #     Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     Vx[[1, end],       :,       :] .= (eltype(Vx)(0.0),);
-            #     Vx[       :,[1, end],       :] .= (eltype(Vx)(0.0),);
-            #     Vx[       :,       :,[1, end]] .= (eltype(Vx)(0.0),);
-            #     Vx     = Array(Vx);
-            #     Vx_ref = Array(Vx_ref);
-            #     @require !all(Vx .== Vx_ref)
-            #     update_halo!(Vx);
-            #     @test all(Vx .== Vx_ref)
-            #     #TODO: added for GPU - quick fix:
-            #     Vz     = zer  os(nx,ny,nz+1);
-            #     Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
-            #     Vz_ref = copy(Vz);
-            #     Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
-            # @testset "3D (changing datatype) (Complex)" begin
-            #     init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
-            #     Vz_ref = copy(Vz);
-            #     Vx     = zeros(ComplexF64,nx+1,ny,nz);
-            #     Vx    .= eltype(Vx).([(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)]);
-            #     Vx_ref = copy(Vx);
-            #     Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     Vx[[1, end],       :,       :] .= (eltype(Vx)(0.0),);
-            #     Vx[       :,[1, end],       :] .= (eltype(Vx)(0.0),);
-            #     Vx[       :,       :,[1, end]] .= (eltype(Vx)(0.0),);
-            #     Vx     = Array(Vx);
-            #     Vx_ref = Array(Vx_ref);
-            #     @require !all(Vx .== Vx_ref)
-            #     update_halo!(Vx);
-            #     @test all(Vx .== Vx_ref)
-            #     #TODO: added for GPU - quick fix:
-            #     Vz     = zeros(nx,ny,nz+1);
-            #     Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
-            #     Vz_ref = copy(Vz);
-            #     Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
-            #     Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
-            #     Vz     = Array(Vz);
-            #     Vz_ref = Array(Vz_ref);
-            #     @require !all(Vz .== Vz_ref)
-            #     update_halo!(Vz);
-            #     @test all(Vz .== Vz_ref)
-            #     finalize_global_grid(finalize_MPI=false);
-            # end;
+            if !occursin("cell", array_type) # NOTE: views of CellArrays are not tested.
+                @testset "1D (contiguous view)" begin
+                    init_global_grid(nx, 1, 1; periodx=1, quiet=true, init_MPI=false, device_type=device_type);
+                    P_buf = zeros(nx+2);
+                    P_buf.= (eltype(P_buf)(-1.0),)
+                    P     = @view P_buf[2:end-1];
+                    P    .= eltype(P).([x_g(ix,dx,P) for ix=1:size(P,1)]);
+                    P_ref = CPUArray(P);
+                    P[[1, end]] .= (eltype(P)(0.0),);
+                    P_buf = Array(P_buf);                # NOTE: the view is created on the array of the tested type.
+                    P     = @view P_buf[2:end-1];
+                    @require !(CPUArray(P) == P_ref)
+                    update_halo!(P);
+                    @test (CPUArray(P) == P_ref)
+                    @test all(CPUArray(P_buf)[[1, end]] .== (eltype(P_buf)(-1.0),))
+                    finalize_global_grid(finalize_MPI=false);
+                end;
+                @testset "3D (non-contiguous view)" begin
+                    init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+                    Vz_buf = Array(zeros(nx+2,ny+2,nz+3));
+                    Vz     = @view Vz_buf[2:end-1,2:end-1,2:end-1];
+                    @test_throws ErrorException update_halo!(Vz) # Error: Vz is non-contiguous.
+                    finalize_global_grid(finalize_MPI=false);
+                end;
+            end
+            @testset "3D (changing datatype)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+                Vz     = zeros(nx,ny,nz+1);
+                Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
+                Vz_ref = copy(Vz);
+                Vx     = zeros(Float32,nx+1,ny,nz);
+                Vx    .= eltype(Vx).([z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)]);
+                Vx_ref = copy(Vx);
+                Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                @require !all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                update_halo!(Vz);
+                @test all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                Vx[[1, end],       :,       :] .= (eltype(Vx)(0.0),);
+                Vx[       :,[1, end],       :] .= (eltype(Vx)(0.0),);
+                Vx[       :,       :,[1, end]] .= (eltype(Vx)(0.0),);
+                Vx     = Array(Vx);
+                Vx_ref = Array(Vx_ref);
+                @require !all(CPUArray(Vx) .== CPUArray(Vx_ref))
+                update_halo!(Vx);
+                @test all(CPUArray(Vx) .== CPUArray(Vx_ref))
+                #TODO: added for GPU - quick fix:
+                Vz     = zeros(nx,ny,nz+1);
+                Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
+                Vz_ref = copy(Vz);
+                Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                @require !all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                update_halo!(Vz);
+                @test all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "3D (changing datatype) (Complex)" begin
+                init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+                Vz     = zeros(nx,ny,nz+1);
+                Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
+                Vz_ref = copy(Vz);
+                Vx     = zeros(ComplexF64,nx+1,ny,nz);
+                Vx    .= eltype(Vx).([(1+im)*(z_g(iz,dz,Vx)*1e2 + y_g(iy,dy,Vx)*1e1 + x_g(ix,dx,Vx)) for ix=1:size(Vx,1), iy=1:size(Vx,2), iz=1:size(Vx,3)]);
+                Vx_ref = copy(Vx);
+                Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                @require !all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                update_halo!(Vz);
+                @test all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                Vx[[1, end],       :,       :] .= (eltype(Vx)(0.0),);
+                Vx[       :,[1, end],       :] .= (eltype(Vx)(0.0),);
+                Vx[       :,       :,[1, end]] .= (eltype(Vx)(0.0),);
+                Vx     = Array(Vx);
+                Vx_ref = Array(Vx_ref);
+                @require !all(CPUArray(Vx) .== CPUArray(Vx_ref))
+                update_halo!(Vx);
+                @test all(CPUArray(Vx) .== CPUArray(Vx_ref))
+                #TODO: added for GPU - quick fix:
+                Vz     = zeros(nx,ny,nz+1);
+                Vz    .= eltype(Vz).([z_g(iz,dz,Vz)*1e2 + y_g(iy,dy,Vz)*1e1 + x_g(ix,dx,Vz) for ix=1:size(Vz,1), iy=1:size(Vz,2), iz=1:size(Vz,3)]);
+                Vz_ref = copy(Vz);
+                Vz[[1, end],       :,       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,[1, end],       :] .= (eltype(Vz)(0.0),);
+                Vz[       :,       :,[1, end]] .= (eltype(Vz)(0.0),);
+                Vz     = Array(Vz);
+                Vz_ref = Array(Vz_ref);
+                @require !all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                update_halo!(Vz);
+                @test all(CPUArray(Vz) .== CPUArray(Vz_ref))
+                finalize_global_grid(finalize_MPI=false);
+            end;
             @testset "3D (two fields simultaneously)" begin
                 init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
                 Vz     = zeros(nx,ny,nz+1);
