@@ -1,53 +1,41 @@
-using ImplicitGlobalGrid
 using Documenter
-using DocExtensions
-using DocExtensions.DocumenterExtensions
+using DocumenterVitepress
+using Markdown
+using ImplicitGlobalGrid
 
-const DOCSRC      = joinpath(@__DIR__, "src")
-const DOCASSETS   = joinpath(DOCSRC, "assets")
 const EXAMPLEROOT = joinpath(@__DIR__, "..", "examples")
 
-DocMeta.setdocmeta!(ImplicitGlobalGrid, :DocTestSetup, :(using ImplicitGlobalGrid); recursive=true)
+# Return the example script `file` as a Julia code block (used in the `@eval` blocks of the example pages).
+mdinclude(file) = Markdown.parse("```julia\n" * read(joinpath(EXAMPLEROOT, file), String) * "\n```")
 
 
-@info "Copy examples folder to assets..."
-mkpath(DOCASSETS)
-cp(EXAMPLEROOT, joinpath(DOCASSETS, "examples"); force=true)
-
-
-@info "Preprocessing .MD-files..."
-include("reflinks.jl")
-MarkdownExtensions.expand_reflinks(reflinks; rootdir=DOCSRC)
-
-
-@info "Building documentation website using Documenter.jl..."
+@info "Building documentation website using DocumenterVitepress.jl..."
 makedocs(;
-    modules  = [ImplicitGlobalGrid],
-    authors  = "Samuel Omlin, Ludovic Räss, Ivan Utkin",
-    repo     = "https://github.com/eth-cscs/ImplicitGlobalGrid.jl/blob/{commit}{path}#{line}",
-    sitename = "ImplicitGlobalGrid.jl",
-    format   = Documenter.HTML(;
-        prettyurls       = true,
-        canonical        = "https://omlins.github.io/ImplicitGlobalGrid.jl",
-        collapselevel    = 1,
-        sidebar_sitename = true,
-        edit_link        = "main",
+    modules   = [ImplicitGlobalGrid],
+    authors   = "Samuel Omlin, Ludovic Räss, Ivan Utkin",
+    sitename  = "ImplicitGlobalGrid.jl",
+    format    = DocumenterVitepress.MarkdownVitepress(
+        repo      = "github.com/eth-cscs/ImplicitGlobalGrid.jl",
+        devbranch = "main",
+        devurl    = "dev",
     ),
-    pages   = [
-        "Introduction"  => "index.md",
+    checkdocs = :exports,
+    pages     = [
+        "Home"          => "index.md",
         "Usage"         => "usage.md",
-        "Examples"      => [hide("..." => "examples.md"),
-                            "examples/diffusion3D_multigpu_CuArrays_novis.md",
-                            "examples/diffusion3D_multigpu_CuArrays_onlyvis.md",
-                           ],
+        "Examples"      => [
+            "examples/diffusion3D_multigpu_CuArrays_novis.md",
+            "examples/diffusion3D_multigpu_CuArrays_onlyvis.md",
+        ],
+        "Testing"       => "testing.md",
         "API reference" => "api.md",
     ],
 )
 
 
 @info "Deploying docs..."
-deploydocs(;
+DocumenterVitepress.deploydocs(;
     repo         = "github.com/eth-cscs/ImplicitGlobalGrid.jl",
-    push_preview = true,
     devbranch    = "main",
+    push_preview = true,
 )
