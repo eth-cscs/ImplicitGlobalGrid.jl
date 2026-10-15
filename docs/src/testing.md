@@ -1,13 +1,12 @@
 # Testing
 
 The test suite is run with the [Julia package manager](https://docs.julialang.org/en/v1/stdlib/Pkg/):
-```julia-repl
-julia>]
-  pkg> test ImplicitGlobalGrid
+```julia
+import Pkg; Pkg.test("ImplicitGlobalGrid")
 ```
 Each test file runs in its own Julia process. Test files can be selected by name:
 ```julia
-using Pkg; Pkg.test("ImplicitGlobalGrid"; test_args=["test_update_halo.jl"])
+import Pkg; Pkg.test("ImplicitGlobalGrid"; test_args=["test_update_halo.jl"])
 ```
 
 The GPU tests run if CUDA or AMDGPU is functional, and are skipped otherwise. The following environment variables control the test run:
@@ -24,17 +23,17 @@ For example, to run the multi-rank tests with 4 processes (on GPUs: on a GPU nod
 
 ```bash [CPUs]
 export IGG_TEST_NPROCS=4
-julia --project -e 'using Pkg; Pkg.test()'
+julia --project -e 'import Pkg; Pkg.test()'
 ```
 
 ```bash [Nvidia GPUs]
 export IGG_TEST_NPROCS=4 IGG_TEST_BACKEND=CUDA IGG_TEST_MPIEXEC="srun --overlap"
-julia --project -e 'using Pkg; Pkg.test()'
+julia --project -e 'import Pkg; Pkg.test()'
 ```
 
 ```bash [AMD GPUs]
 export IGG_TEST_NPROCS=4 IGG_TEST_BACKEND=AMDGPU IGG_TEST_MPIEXEC="srun --overlap"
-julia --project -e 'using Pkg; Pkg.test()'
+julia --project -e 'import Pkg; Pkg.test()'
 ```
 
 :::
