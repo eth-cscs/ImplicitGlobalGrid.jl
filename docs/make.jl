@@ -22,6 +22,7 @@ makedocs(;
     checkdocs = :exports,
     pages     = [
         "Home"          => "index.md",
+        "Overview"      => "overview.md",
         "Usage"         => "usage.md",
         "Examples"      => [
             "examples/diffusion3D_multigpu_CuArrays_novis.md",

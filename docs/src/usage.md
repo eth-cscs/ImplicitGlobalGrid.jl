@@ -65,7 +65,7 @@ update_halo!(A2; active_global_grid=gg2)    # Uses gg2.
 ```
 
 
-## [Straightforward in-situ visualization / monitoring](@id in-situ-usage)
+## [In-situ visualization / monitoring](@id in-situ-usage)
 ImplicitGlobalGrid provides a function to gather an array from each process into a one large array on a single process, assembled according to the global grid:
 - [`gather!`](@ref)
 

@@ -1,4 +1,4 @@
-# [Straightforward in-situ visualization / monitoring](@id in-situ-example)
+# [In-situ visualization / monitoring](@id in-situ-example)
 
 Thanks to the function [`gather!`](@ref), ImplicitGlobalGrid enables straightforward in-situ visualization or monitoring of Multi-GPU/CPU applications using e.g. the [Julia Plots package](https://github.com/JuliaPlots/Plots.jl) as shown in the following (the GR backend is used as it is particularly fast according to the [Julia Plots documentation](https://docs.juliaplots.org/latest/backends/)). It is enough to add a couple of lines to the [previous example](@ref example-50-lines) (omitted unmodified lines are represented with `#(...)`):
 
