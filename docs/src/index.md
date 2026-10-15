@@ -5,7 +5,7 @@ layout: home
 hero:
   name: ImplicitGlobalGrid.jl
   text: Distributed parallelization of stencil-based GPU and CPU applications
-  tagline: Close to ideal weak scaling on thousands of GPUs, with as little as three functions.
+  tagline: Close to ideal weak scaling on thousands of GPUs.
   actions:
     - theme: brand
       text: Usage
