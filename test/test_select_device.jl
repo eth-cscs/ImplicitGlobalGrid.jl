@@ -1,5 +1,4 @@
 # NOTE: All tests of this file can be run with any number of processes.
-push!(LOAD_PATH, "../src")
 using Test
 import MPI
 using CUDA, AMDGPU

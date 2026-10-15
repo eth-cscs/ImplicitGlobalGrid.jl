@@ -2,7 +2,6 @@
 # Nearly all of the functionality can however be verified with one single process
 # (thanks to the usage of periodic boundaries in most of the full halo update tests).
 
-push!(LOAD_PATH, "../src")
 using Test
 import MPI, Polyester
 using CUDA, AMDGPU
@@ -1044,12 +1043,12 @@ dz = 1.0
                 @require !(P == P_ref)
                 update_halo!(P);
                 @test all(CPUArray(P)[2:end-1,2:end-1,2:end-1] .== CPUArray(P_ref)[2:end-1,2:end-1,2:end-1])
-                if (coords[1] ==         0) @test all(CPUArray(P)[  1,  :,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[      1,2:end-1,2:end-1] .== P_ref[      1,2:end-1,2:end-1]); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
-                if (coords[1] == dims[1]-1) @test all(CPUArray(P)[end,  :,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[    end,2:end-1,2:end-1] .== P_ref[    end,2:end-1,2:end-1]); end
-                if (coords[2] ==         0) @test all(CPUArray(P)[  :,  1,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,      1,2:end-1] .== P_ref[2:end-1,      1,2:end-1]); end
-                if (coords[2] == dims[2]-1) @test all(CPUArray(P)[  :,end,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,    end,2:end-1] .== P_ref[2:end-1,    end,2:end-1]); end
-                if (coords[3] ==         0) @test all(CPUArray(P)[  :,  :,  1] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,2:end-1,      1] .== P_ref[2:end-1,2:end-1,      1]); end
-                if (coords[3] == dims[3]-1) @test all(CPUArray(P)[  :,  :,end] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,2:end-1,    end] .== P_ref[2:end-1,2:end-1,    end]); end
+                if (coords[1] ==         0) @test all(CPUArray(P)[  1,  :,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[      1,2:end-1,2:end-1] .== CPUArray(P_ref)[      1,2:end-1,2:end-1]); end  # Verifcation of corner values would be cumbersome here; it is already sufficiently covered in the periodic tests.
+                if (coords[1] == dims[1]-1) @test all(CPUArray(P)[end,  :,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[    end,2:end-1,2:end-1] .== CPUArray(P_ref)[    end,2:end-1,2:end-1]); end
+                if (coords[2] ==         0) @test all(CPUArray(P)[  :,  1,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,      1,2:end-1] .== CPUArray(P_ref)[2:end-1,      1,2:end-1]); end
+                if (coords[2] == dims[2]-1) @test all(CPUArray(P)[  :,end,  :] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,    end,2:end-1] .== CPUArray(P_ref)[2:end-1,    end,2:end-1]); end
+                if (coords[3] ==         0) @test all(CPUArray(P)[  :,  :,  1] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,2:end-1,      1] .== CPUArray(P_ref)[2:end-1,2:end-1,      1]); end
+                if (coords[3] == dims[3]-1) @test all(CPUArray(P)[  :,  :,end] .== (eltype(P)(0.0),)); else @test all(CPUArray(P)[2:end-1,2:end-1,    end] .== CPUArray(P_ref)[2:end-1,2:end-1,    end]); end
                 finalize_global_grid(finalize_MPI=false);
             end;
         end;
