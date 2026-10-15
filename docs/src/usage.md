@@ -23,21 +23,43 @@ Further tools: global indices ([`ix_g`](@ref), [`iy_g`](@ref), [`iz_g`](@ref)), 
 
 ## GPU support and device selection
 Support for Nvidia or AMD GPUs is activated by importing [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) or [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl) before ImplicitGlobalGrid:
-```julia
-using CUDA   # or: using AMDGPU
+
+:::code-group
+
+```julia [CPUs]
 using ImplicitGlobalGrid
 ```
+
+```julia [Nvidia GPUs]
+using CUDA
+using ImplicitGlobalGrid
+```
+
+```julia [AMD GPUs]
+using AMDGPU
+using ImplicitGlobalGrid
+```
+
+:::
+
 By default, [`init_global_grid`](@ref) selects the GPU corresponding to the node-local MPI rank (see [`select_device`](@ref)); every rank must then see all GPUs of its node. If the job launcher already binds one GPU per rank (e.g. Slurm `--gpus-per-task=1`), set `select_device=false`. To run on CPUs only while a GPU package is loaded, set `device_type="none"`.
 
 
 ## CUDA-/ROCm-aware MPI support
-If the system supports CUDA-aware MPI (for Nvidia GPUs) or ROCm-aware MPI (for AMD GPUs), it can be activated for ImplicitGlobalGrid by setting one of the following environment variables (at latest before the call to [`init_global_grid`](@ref)):
+If the system supports CUDA-aware MPI (for Nvidia GPUs) or ROCm-aware MPI (for AMD GPUs), it can be activated for ImplicitGlobalGrid by setting the following environment variable (at latest before the call to [`init_global_grid`](@ref)):
+
+:::code-group
+
+```bash [Nvidia GPUs]
+export IGG_CUDAAWARE_MPI=1
 ```
-shell> export IGG_CUDAAWARE_MPI=1
+
+```bash [AMD GPUs]
+export IGG_ROCMAWARE_MPI=1
 ```
-```
-shell> export IGG_ROCMAWARE_MPI=1
-```
+
+:::
+
 It can also be activated per dimension, see [Environment variables](@ref).
 
 
