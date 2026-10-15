@@ -18,3 +18,6 @@
   .VPHero .image-container .image-src { max-width: 176px; max-height: 176px; }
   .VPHero .image-container .image-bg  { width: 368px; height: 368px; }
 }
+
+/* Round the corners of the images in the page content (figures have an opaque white background). */
+.vp-doc img { border-radius: 12px; }
