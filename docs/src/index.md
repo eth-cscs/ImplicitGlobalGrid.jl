@@ -39,9 +39,9 @@ ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl](https://github.com/
 
 ## Contributors
 The principal contributors to [ImplicitGlobalGrid.jl](https://github.com/eth-cscs/ImplicitGlobalGrid.jl) are (ordered by the significance of the relative contributions):
-- Dr. Samuel Omlin ([@omlins](https://github.com/omlins)), CSCS - Swiss National Supercomputing Centre, ETH Zurich
+- Dr. Samuel Omlin ([@omlins](https://github.com/omlins)), CSCS (Swiss National Supercomputing Centre), ETH Zurich
 - Dr. Ludovic Räss ([@luraess](https://github.com/luraess)), Geocomputing Centre, University of Lausanne
-- Dr. Ivan Utkin ([@utkinis](https://github.com/utkinis)), Laboratory of Hydraulics, Hydrology, Glaciology - ETH Zurich
+- Dr. Ivan Utkin ([@utkinis](https://github.com/utkinis)), Laboratory of Hydraulics, Hydrology, Glaciology, ETH Zurich
 
 ## Questions, comments and discussions
 To discuss technical issues, please post on Julia Discourse in the [GPU topic](https://discourse.julialang.org/c/domain/gpu) or the [Julia at Scale topic](https://discourse.julialang.org/c/domain/parallel) or in the `#gpu` or `#hpc` channels on the [Julia Slack](https://julialang.org/slack/).
