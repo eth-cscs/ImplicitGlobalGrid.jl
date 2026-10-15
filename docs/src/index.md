@@ -54,9 +54,11 @@ The principal contributors to [ImplicitGlobalGrid.jl](https://github.com/eth-csc
 To discuss technical issues, please post on Julia Discourse in the [GPU topic](https://discourse.julialang.org/c/domain/gpu) or the [Julia at Scale topic](https://discourse.julialang.org/c/domain/parallel) or in the `#gpu` or `#hpc` channels on the [Julia Slack](https://julialang.org/slack/).
 To discuss numerical/domain-science issues, please post on Julia Discourse in the [Numerics topic](https://discourse.julialang.org/c/domain/numerics) or the [Modelling & Simulations topic](https://discourse.julialang.org/c/domain/models) or whichever other topic fits best your issue.
 
-## Your contributions
-This project welcomes your contribution! Have you developed an application with ImplicitGlobalGrid that could be featured as an example? Please contribute it to share it with the world (if your application uses also ParallelStencil then contribute it as a mini-app in the corresponding repository)! Are you missing a convenience feature (like [`gather!`](@ref))? Then write it using MPI and contribute it to ImplicitGlobalGrid! Are you missing a great feature in the core of ImplicitGlobalGrid? Maybe you can contribute yourself!
-Please open an issue to discuss your idea for a contribution beforehand. Furthermore, note that a pull request should always address an issue in its completeness. Moreover, pull requests should blend nicely into the existing project; common sense is the primary guide in this regard (community guideline documents, e.g. [ColPrac](https://github.com/SciML/ColPrac), can be consulted in addition for inspiration). We are looking forward to your contribution!
+## Contributing
+Contributions are welcome, be it new examples, convenience features or core improvements! Please open an issue to discuss your idea beforehand. A pull request should address an issue in its completeness and blend nicely into the existing project (community guidelines such as [ColPrac](https://github.com/SciML/ColPrac) can serve as inspiration).
+
+## Funding
+The development of this package is supported by the [GPU4GEO](https://pasc-ch.org/projects/2021-2024/gpu4geo/index.html) and [∂GPU4GEO](https://pasc-ch.org/projects/2025-2028/gpu4geo-differentiable-multi-physics-solvers-for-extreme-scale-geophysics-simulations-on-gpus/index.html) PASC projects. More information about the GPU4GEO project can be found on the [GPU4GEO website](https://GPU4GEO.org/).
 
 ## References
 \[1\] [Räss, L., Omlin, S., & Podladchikov, Y. Y. (2019). Porting a Massively Parallel Multi-GPU Application to Julia: a 3-D Nonlinear Multi-Physics Flow Solver. JuliaCon Conference, Baltimore, USA.](https://pretalx.com/juliacon2019/talk/LGHLC3/)
