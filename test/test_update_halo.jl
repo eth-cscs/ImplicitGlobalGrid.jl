@@ -974,7 +974,7 @@ dz = 1.0
                     reqs[2,n,2] = GG.isend_halo(n, dim, A, 2);
                 end
                 @test all(reqs .!= [MPI.REQUEST_NULL])
-                MPI.Waitall!(reqs[:]);
+                MPI.Waitall(reqs[:]);
                 for n = 1:nneighbors_per_dim
                     if (array_type=="CUDA" && GG.cudaaware_MPI(dim)) || (array_type=="AMDGPU" && GG.amdgpuaware_MPI(dim))
                         @test all(CPUArray(GG.gpurecvbuf(n,dim,1,P) .== 9.0))

@@ -76,14 +76,14 @@ function _update_halo!(fields::GGField...; dims=dims)
             error("Incoherent neighbors in dimension $dim: either all neighbors must equal to me, or none.")
         end
         for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields)  # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
-            if (reqs[i,nr,1]!=MPI.REQUEST_NULL) MPI.Wait!(reqs[i,nr,1]); end
+            if (reqs[i,nr,1]!=MPI.REQUEST_NULL) MPI.Wait(reqs[i,nr,1]); end
             if (has_neighbor(nr, dim) && neighbor(nr, dim)!=me()) iread_recvbufs!(nr, dim, fields[i], i); end  # Note: if neighbor(nr,dim) != me() is done directly in the sendrecv_halo_local loop above for better performance (thanks to pipelining)
         end
         for nr = NNEIGHBORS_PER_DIM:-1:1,  i = 1:length(fields) # Note: if there were indeed more than 2 neighbors per dimension; then one would need to make sure which neigbour would communicate with which.
             if has_neighbor(nr, dim) wait_iread(nr, fields[i], i); end
         end
         for ns = 1:NNEIGHBORS_PER_DIM
-            if (any(reqs[:,ns,2].!=[MPI.REQUEST_NULL])) MPI.Waitall!(reqs[:,ns,2]); end
+            if (any(reqs[:,ns,2].!=[MPI.REQUEST_NULL])) MPI.Waitall(reqs[:,ns,2]); end
         end
     end
 end
