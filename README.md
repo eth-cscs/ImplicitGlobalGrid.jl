@@ -37,3 +37,6 @@ Launch the script with the MPI launcher (see the [MPI.jl documentation](https://
 
 ## Questions, comments and discussions
 Please post on Julia Discourse in the [GPU topic](https://discourse.julialang.org/c/domain/gpu) or the [Julia at Scale topic](https://discourse.julialang.org/c/domain/parallel), or in the `#gpu` or `#hpc` channels on the [Julia Slack](https://julialang.org/slack/). Contributions are welcome; please open an issue to discuss your idea beforehand.
+
+## Funding
+The development of this package is supported by the [GPU4GEO](https://pasc-ch.org/projects/2021-2024/gpu4geo/index.html) and [∂GPU4GEO](https://pasc-ch.org/projects/2025-2028/gpu4geo-differentiable-multi-physics-solvers-for-extreme-scale-geophysics-simulations-on-gpus/index.html) PASC projects. More information about the GPU4GEO project can be found on the [GPU4GEO website](https://GPU4GEO.org/).
