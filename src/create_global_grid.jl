@@ -91,8 +91,8 @@ function create_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1;
         if (device_type in [DEVICE_TYPE_AMDGPU, DEVICE_TYPE_AUTO]) amdgpu_enabled = amdgpu_loaded() && amdgpu_functional() end # NOTE: amdgpu could be enabled/disabled depending on some additional criteria.
     end
     nprocs         = MPI.Comm_size(comm)
-    dims          .= MPI.Dims_create!(nprocs, dims)
-    comm_cart      = MPI.Cart_create(comm, dims, periods, reorder)
+    dims          .= MPI.Dims_create(nprocs, dims)
+    comm_cart      = MPI.Cart_create(comm, dims; periodic=periods, reorder)
     me             = MPI.Comm_rank(comm_cart)
     coords         = MPI.Cart_coords(comm_cart)
     neighbors      = fill(MPI.PROC_NULL, NNEIGHBORS_PER_DIM, NDIMS_MPI)
