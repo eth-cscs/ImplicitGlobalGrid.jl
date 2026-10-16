@@ -3,6 +3,7 @@
 [![Docs stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/stable)
 [![Docs dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/dev)
 [![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml)
+[![CSCS CI](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/badges/main/pipeline.svg?ignore_skipped=true)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)
 [![Coverage](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl)
 
 ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
