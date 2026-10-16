@@ -13,7 +13,6 @@ concurrency:
 permissions:
   actions: write  # Needed for julia-actions/cache to delete old caches.
   contents: read
-  id-token: write # Needed for the Codecov upload with OIDC (no token required).
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.nprocs }} process(es)${{ matrix.polyester && ' - Polyester' || '' }} - ${{ github.event_name }}
@@ -58,5 +57,5 @@ jobs:
         with:
           files: lcov.info
           flags: cpu
-          use_oidc: true # NOTE: for pull requests from forks, the upload is done tokenless.
+          token: ${{ secrets.CODECOV_TOKEN }} # NOTE: for pull requests from forks, the upload is done tokenless.
           fail_ci_if_error: false
