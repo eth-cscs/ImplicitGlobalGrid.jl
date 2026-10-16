@@ -1,4 +1,3 @@
-push!(LOAD_PATH, "../src")
 using Test
 import MPI, CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid

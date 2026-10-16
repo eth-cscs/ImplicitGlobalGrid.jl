@@ -84,7 +84,7 @@ const GLOBAL_GRID_NULL = GlobalGrid(GGInt[-1,-1,-1], GGInt[-1,-1,-1], GGInt[-1,-
 """
     get_global_grid() :: GlobalGrid
 
-    Returns a deep copy of the currently active global grid. If no grid is active a GLOBAL_GRID_NULL will be returned, with negative nprocs.
+Returns a deep copy of the currently active global grid. If no grid is active a GLOBAL_GRID_NULL will be returned, with negative nprocs.
 """
 function get_global_grid end
 
@@ -246,6 +246,7 @@ is_array(A::GGArray)                   = !(is_cuarray(A) || is_rocarray(A)) # TO
 extract(A::GGField)                = (A,)
 extract(A::GGFieldConvertible)     = (A,)
 extract(A::GGArray)                = (A,)
+extract(A::GGCellField)            = (NamedTuple{keys(A)}((array, A.halowidths)) for array in bitsarrays(A.A)) # NOTE: needed to resolve the ambiguity between extract(::GGField) and extract(::GGCellFieldConvertible).
 extract(A::GGCellFieldConvertible) = (NamedTuple{keys(A)}((array, A.halowidths)) for array in bitsarrays(A.A))
 extract(A::CellArray)              = bitsarrays(A)
 

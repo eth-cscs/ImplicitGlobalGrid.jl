@@ -1,5 +1,4 @@
 # NOTE: All tests of this file can be run with any number of processes.
-push!(LOAD_PATH, "../src")
 using Test
 import MPI
 using CUDA, AMDGPU
@@ -39,6 +38,14 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
                 @test gpu_id < length(CUDA.devices())
                 finalize_global_grid(finalize_MPI=false);
             end;
+            @testset "node-local mapping (CUDA)" begin
+                me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="CUDA");
+                gpu_id = select_device();
+                comm_l = MPI.Comm_split_type(MPI.COMM_WORLD, MPI.COMM_TYPE_SHARED, me)
+                @test CUDA.device() == CUDA.CuDevice(gpu_id)                 # The selected device is active.
+                @test allunique(MPI.Allgather(gpu_id, comm_l))              # Each process on a node uses a different device.
+                finalize_global_grid(finalize_MPI=false);
+            end;
         end
         @static if test_amdgpu && !test_cuda
             @testset "\"AMDGPU\"" begin
@@ -51,6 +58,14 @@ nprocs = MPI.Comm_size(MPI.COMM_WORLD); # NOTE: these tests can run with any num
                 me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="auto");
                 gpu_id = select_device();
                 @test gpu_id <= length(AMDGPU.devices())
+                finalize_global_grid(finalize_MPI=false);
+            end;
+            @testset "node-local mapping (AMDGPU)" begin
+                me, = init_global_grid(3, 4, 5; quiet=true, init_MPI=false, device_type="AMDGPU");
+                gpu_id = select_device();
+                comm_l = MPI.Comm_split_type(MPI.COMM_WORLD, MPI.COMM_TYPE_SHARED, me)
+                @test AMDGPU.device() == AMDGPU.devices()[gpu_id]           # The selected device is active.
+                @test allunique(MPI.Allgather(gpu_id, comm_l))              # Each process on a node uses a different device.
                 finalize_global_grid(finalize_MPI=false);
             end;
         end
