@@ -31,7 +31,7 @@ makedocs(;
         canonical        = "https://omlins.github.io/ImplicitGlobalGrid.jl",
         collapselevel    = 1,
         sidebar_sitename = true,
-        edit_link        = "master",
+        edit_link        = "main",
     ),
     pages   = [
         "Introduction"  => "index.md",
@@ -49,5 +49,5 @@ makedocs(;
 deploydocs(;
     repo         = "github.com/eth-cscs/ImplicitGlobalGrid.jl",
     push_preview = true,
-    devbranch    = "master",
+    devbranch    = "main",
 )

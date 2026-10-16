@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
     tags: '*'
   pull_request:
 concurrency:
@@ -10,49 +10,55 @@ concurrency:
   # Cancel intermediate builds: only if it is a pull request build.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
-env:
-  JULIA_NUM_THREADS: 2
+permissions:
+  actions: write  # Needed for julia-actions/cache to delete old caches.
+  contents: read
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.nprocs }} process(es)${{ matrix.polyester && ' - Polyester' || '' }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.version == 'pre' }}
+    env:
+      IGG_TEST_NPROCS: ${{ matrix.nprocs }}       # Number of MPI processes for the multi-rank test files (see test/runtests.jl).
+      IGG_USE_POLYESTER: ${{ matrix.polyester && '1' || '0' }}
+      JULIA_NUM_THREADS: ${{ matrix.threads }}
     strategy:
       fail-fast: false
       matrix:
         version:
-          - '1.9' # Minimum version supporting extensions
-          - '1.10' # Current LTS
+          - 'min' # Minimum supported version (from the Project.toml compat entry)
           - '1'   # Latest stable 1.x release of Julia
-          # - 'nightly'
         os:
           - ubuntu-latest
-          # - macOS-latest
-          # - windows-latest
         arch:
           - x64
+        nprocs:
+          - 1
+        polyester:
+          - false
+        threads:
+          - 2
+        include:
+          - {version: '1', os: ubuntu-latest, arch: x64, nprocs: 4, polyester: false, threads: 1}   # Multi-rank tests (MPI process topology 2x2x1)
+          - {version: '1', os: ubuntu-latest, arch: x64, nprocs: 8, polyester: false, threads: 1}   # Multi-rank tests (MPI process topology 2x2x2)
+          - {version: '1', os: ubuntu-latest, arch: x64, nprocs: 1, polyester: true,  threads: 4}   # Polyester code path for the CPU halo copies
+          - {version: 'pre', os: ubuntu-latest, arch: x64, nprocs: 1, polyester: false, threads: 2} # Upcoming Julia release (allowed to fail)
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/cache@v6
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: cpu
+          token: ${{ secrets.CODECOV_TOKEN }} # NOTE: for pull requests from forks, the upload is done tokenless.
+          fail_ci_if_error: false
   # docs:
   #   name: Documentation
   #   runs-on: ubuntu-latest

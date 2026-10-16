@@ -246,6 +246,7 @@ is_array(A::GGArray)                   = !(is_cuarray(A) || is_rocarray(A)) # TO
 extract(A::GGField)                = (A,)
 extract(A::GGFieldConvertible)     = (A,)
 extract(A::GGArray)                = (A,)
+extract(A::GGCellField)            = (NamedTuple{keys(A)}((array, A.halowidths)) for array in bitsarrays(A.A)) # NOTE: needed to resolve the ambiguity between extract(::GGField) and extract(::GGCellFieldConvertible).
 extract(A::GGCellFieldConvertible) = (NamedTuple{keys(A)}((array, A.halowidths)) for array in bitsarrays(A.A))
 extract(A::CellArray)              = bitsarrays(A)
 
