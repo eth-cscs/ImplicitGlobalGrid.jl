@@ -3,15 +3,12 @@ include:
 
 stages:
   - single-rank
-  - multi-rank # NOTE: only run if the single-rank tests pass.
+  - multi-rank # Runs only if the single-rank tests pass.
 
-# The job script runs on the first allocated node, outside of any job step: Pkg.test runs there in the julia uenv (uenv run), and every
-# test file is launched as a job step with srun (IGG_TEST_MPIEXEC, see test/runtests.jl), which mounts the same uenv and can use all
-# allocated nodes. NOTE: job steps nested in a step (srun within srun) are restricted to the nodes of the enclosing step.
-# IGG selects the GPU of each process by its node-local rank (select_device), so no per-task GPU binding is requested: every process
-# sees all GPUs of its node.
-# Julia uses a dedicated, persistent depot for this CI ($SCRATCH/.julia-igg-ci). NOTE: it is set with `env` after uenv run, as the
-# juliaup view of the uenv sets JULIA_DEPOT_PATH itself; the job steps inherit it.
+# Pkg.test runs on the first node in the uenv; each test file is a job step (srun, not nested in a step, so it can span all nodes).
+# No per-task GPU binding: IGG selects the GPU of each process by its node-local rank.
+# JULIA_DEPOT_PATH (dedicated CI depot) is set after `uenv run`, as the juliaup view overrides it; TMPDIR is on $SCRATCH, as the
+# Pkg.test environment must be visible on all nodes (/tmp is node-local).
 .gh200:
   extends: .baremetal-runner-daint-gh200
   variables:
@@ -23,8 +20,9 @@ stages:
     IGG_TEST_MPIEXEC: 'srun'
     IGG_TEST_FILES: ''                 # Test files to run (default: all).
   script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp
     - |
-      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci julia --project --startup-file=no -e '
+      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci TMPDIR=$CI_PROJECT_DIR/.tmp julia --project --startup-file=no -e '
         using Pkg
         Pkg.instantiate()
         Pkg.test(; coverage=true, test_args=String.(split(get(ENV, "IGG_TEST_FILES", ""))))'
