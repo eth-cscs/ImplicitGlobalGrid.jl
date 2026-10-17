@@ -1,4 +1,3 @@
-push!(LOAD_PATH, "../src")
 using Test
 import MPI, CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
@@ -154,18 +153,20 @@ dz = 1.0
         # Akin to 2. gather! 1D
 
         init_global_grid(save_kwarg_defaults=true, overlaps=(0,0,0), quiet=true, init_MPI=false);
-        dims = [1, 1, 1]
         P   = zeros(nx);
-        P_g = zeros(nx*dims[1]);
-        
+        P_g = zeros(nx);
+
         @test_throws ErrorException gather!(P, P_g);
 
         gg = create_global_grid(nx, 1, 1);
         activate_global_grid(gg)
-        me = get_global_grid().me
+        me, dims = gg.me, gg.dims
+        P_g = (me == 0) ? zeros(nx*dims[1]) : nothing
         P  .= [x_g(ix,dx,P) for ix=1:size(P,1)];
-        P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
-        P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
+        if (me == 0)
+            P_g_ref = [x_g(ix,dx,P_g) for ix=1:size(P_g,1)];
+            P_g_ref .= -P_g_ref[1] .+ P_g_ref;  # NOTE: We add the first value of P_g_ref to have it start at 0.0.
+        end
 
         gather!(P, P_g);
         if (me == 0) @test all(P_g .== P_g_ref) end
