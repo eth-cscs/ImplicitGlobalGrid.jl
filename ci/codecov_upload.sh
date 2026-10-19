@@ -28,7 +28,7 @@ curl -fsSL -o codecov "https://cli.codecov.io/latest/$platform/codecov" &&
 curl -fsSL -o codecov.SHA256SUM "https://cli.codecov.io/latest/$platform/codecov.SHA256SUM" &&
 sha256sum -c codecov.SHA256SUM && chmod +x codecov || { echo "Codecov CLI download failed: skipping the Codecov upload."; exit 0; }
 
-./codecov --verbose upload-process --disable-search --fail-on-error \
+./codecov upload-process --disable-search --fail-on-error \
     --git-service github --slug "$slug" --sha "${CI_COMMIT_SHA}" "${ref_args[@]}" \
     --flag "$flag" --name "$flag: ${CI_JOB_NAME}" --file lcov.info --token "$CODECOV_TOKEN" ||
     echo "Codecov upload failed (ignored)."
