@@ -38,7 +38,7 @@ julia --project -e 'import Pkg; Pkg.test()'
 
 :::
 
-As the tests select the GPU by node-local MPI rank, every rank must see all GPUs of its node (no per-task GPU binding).
+As the tests select the GPU by node-local MPI rank, every rank must see all GPUs of its node (no per-task GPU binding). On multiple nodes, the temporary directory used by `Pkg.test` must be on a filesystem shared by all nodes (e.g. `export TMPDIR=$SCRATCH/tmp`), as the default `/tmp` is node-local.
 
 ## Continuous integration
 
