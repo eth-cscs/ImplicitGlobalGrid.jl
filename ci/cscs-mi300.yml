@@ -1,0 +1,37 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+# Pkg.test runs on the allocated node in the uenv, which provides ROCm (the uenv has no Julia: Julia builds for AMD GPUs of the CI user).
+# No per-task GPU binding: IGG selects the GPU of each process by its node-local rank.
+# One process: the test files are run without MPI launcher (singleton MPI initialization with MPICH_jll).
+# FI_PROVIDER is set after `uenv run`, as the view sets FI_PROVIDER=cxi, which MPICH_jll cannot use; JULIA_DEPOT_PATH is a dedicated
+# x86 CI depot.
+.mi300:
+  extends: .baremetal-runner-beverin-mi300
+  variables:
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_TIMELIMIT: '00:45:00'
+    UENV: '56ebb909a6164680'                  # prgenv-gnu/7.2.3 (ROCm 7.2.3)
+    JULIA: '/users/lraess/julia_amd/julia_amd-1.13'  # Same Julia version as GH200 (juliaup release channel).
+    JULIA_AMDGPU_DISABLE_ARTIFACTS: '1'       # Use the ROCm of the uenv.
+    JULIA_AMDGPU_CORE_MUST_LOAD: '1'
+    JULIA_AMDGPU_HIP_MUST_LOAD: '1'
+    IGG_TEST_BACKEND: 'AMDGPU'                # Fail instead of skipping the GPU tests if AMDGPU is not functional.
+    IGG_TEST_FILES: ''                        # Test files to run (default: all).
+  script:
+    - |
+      uenv run $UENV --view=default -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci-beverin FI_PROVIDER=tcp $JULIA --project --startup-file=no -e '
+        using Pkg
+        Pkg.instantiate()
+        Pkg.test(; coverage=true, test_args=String.(split(get(ENV, "IGG_TEST_FILES", ""))))'
+    - |
+      JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci-beverin $JULIA --startup-file=no -e '
+        using Pkg
+        Pkg.activate(; temp=true)
+        Pkg.add("CoverageTools")
+        using CoverageTools
+        LCOV.writefile("lcov.info", vcat(process_folder("src"), process_folder("ext")))'
+    - bash ci/codecov_upload.sh mi300
+
+mi300 - 1 rank:
+  extends: .mi300
