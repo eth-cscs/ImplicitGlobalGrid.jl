@@ -44,5 +44,6 @@ As the tests select the GPU by node-local MPI rank, every rank must see all GPUs
 
 - **GitHub Actions** (CPU): Julia `min`, `1` and `pre` on one process, the multi-rank tests on 4 and 8 processes, and the Polyester code path with multiple threads (`.github/workflows/ci.yml`).
 - **CSCS CI on Alps** (Nvidia GH200 GPUs): the full test suite on one process, the multi-rank tests on 1 node × 4 processes (with and without CUDA-aware MPI) and on 2 nodes × 4 processes, and the Polyester code path (`ci/cscs-gh200.yml`; [pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)). The multi-rank jobs only run if the single-process job passes.
+- **CSCS CI on Beverin** (AMD MI250X GPUs): the full test suite on one process (`ci/cscs-mi250.yml`).
 
-Coverage of all jobs is uploaded to [Codecov](https://app.codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl) (flags `cpu` and `gh200`).
+Coverage of all jobs is uploaded to [Codecov](https://app.codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl) (flags `cpu`, `gh200` and `mi250`).
