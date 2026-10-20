@@ -113,13 +113,13 @@ Return the global x-coordinate for the index `ix` in the local array `A` (`dx` i
 - `wrap_periodic::Bool=true`: whether to wrap the coordinate at the periodic boundaries (default: `true`).
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> lx=4; nx=3; ny=3; nz=3;
 
 julia> init_global_grid(nx, ny, nz);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> dx = lx/(nx_g()-1)
 2.0
@@ -183,13 +183,13 @@ Return the global y-coordinate for the index `iy` in the local array `A` (`dy` i
 - `wrap_periodic::Bool=true`: whether to wrap the coordinate at the periodic boundaries (default: `true`).
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> ly=4; nx=3; ny=3; nz=3;
 
 julia> init_global_grid(nx, ny, nz);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> dy = ly/(ny_g()-1)
 2.0
@@ -198,7 +198,7 @@ julia> A  = zeros(nx,ny,nz);
 
 julia> Vy = zeros(nx,ny+1,nz);
 
-julia> [y_g(iy, dy, A) for iy=1:size(A, 1)]
+julia> [y_g(iy, dy, A) for iy=1:size(A, 2)]
 3-element Vector{Float64}:
  0.0
  2.0
@@ -253,13 +253,13 @@ Return the global z-coordinate for the index `iz` in the local array `A` (`dz` i
 - `wrap_periodic::Bool=true`: whether to wrap the coordinate at the periodic boundaries (default: `true`).
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> lz=4; nx=3; ny=3; nz=3;
 
 julia> init_global_grid(nx, ny, nz);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> dz = lz/(nz_g()-1)
 2.0
@@ -268,7 +268,7 @@ julia> A  = zeros(nx,ny,nz);
 
 julia> Vz = zeros(nx,ny,nz+1);
 
-julia> [z_g(iz, dz, A) for iz=1:size(A, 1)]
+julia> [z_g(iz, dz, A) for iz=1:size(A, 3)]
 3-element Vector{Float64}:
  0.0
  2.0
@@ -332,13 +332,13 @@ Return the global x-index for the local index `ix` in the local array `A`.
 - `wrap_periodic::Bool=true`: whether to wrap the index at the periodic boundaries (default: `true`). If `wrap_periodic=false`, the global index can be negative or bigger than the size of the global grid.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> nx=5; ny=3; nz=3;
 
 julia> init_global_grid(nx, ny, nz, periodx=1);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> A  = zeros(nx,ny,nz);
 
@@ -390,13 +390,13 @@ Return the global y-index for the local index `iy` in the local array `A`.
 - `wrap_periodic::Bool=true`: whether to wrap the index at the periodic boundaries (default: `true`). If `wrap_periodic=false`, the global index can be negative or bigger than the size of the global grid.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> nx=3; ny=5; nz=3;
 
 julia> init_global_grid(nx, ny, nz, periody=1);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> A  = zeros(nx,ny,nz);
 
@@ -448,13 +448,13 @@ Return the global z-index for the local index `iz` in the local array `A`.
 - `wrap_periodic::Bool=true`: whether to wrap the index at the periodic boundaries (default: `true`). If `wrap_periodic=false`, the global index can be negative or bigger than the size of the global grid.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> nx=3; ny=3; nz=5;
 
 julia> init_global_grid(nx, ny, nz, periodz=1);
-Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1)
+Global grid: 3x3x3 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> A  = zeros(nx,ny,nz);
 
@@ -540,13 +540,13 @@ Return the local extents in each dimension of the array `A` or of an array of le
 - `coords::Tuple{Int,Int,Int}`: the coordinates of the process for which the local extents is requested. The default is the coordinates of the current process.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> nx=5; ny=5; nz=7;
 
 julia> init_global_grid(nx, ny, nz; periodz=1);
-Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1)
+Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> extents()
 (1:5, 1:5, 2:6)
@@ -673,13 +673,13 @@ Return the global extents in each dimension of the array `A` or of an array of l
 - `coords::Tuple{Int,Int,Int}`: the coordinates of the process for which the global extents is requested. The default is the coordinates of the current process.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> lx=8; ly=8; lz=8; nx=5; ny=5; nz=7;
 
 julia> init_global_grid(nx, ny, nz; periodz=1);
-Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1)
+Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> extents_g()
 (1:5, 1:5, 1:5)
@@ -700,7 +700,7 @@ julia> dx, dy, dz = lx/(nx_g()-1), ly/(ny_g()-1), lz/(nz_g()-1)
 (2.0, 2.0, 2.0)
 
 julia> extents_g(; dxyz=(dx, dy, dz))
-(0.0:2.0:8.0, 0.0:2.0:8.0, 1.0:2.0:7.0)
+(0.0:2.0:8.0, 0.0:2.0:8.0, 0.0:2.0:8.0)
 
 julia> extents_g(; dxyz=(dx, dy, dz), fix_global_boundaries=false)
 (0.0:2.0:8.0, 0.0:2.0:8.0, -2.0:2.0:10.0)
@@ -764,13 +764,13 @@ Return a metadata grid containing the results of the function `f` applied to eac
 - `dims::Tuple{Int,Int,Int}`: the dimensions of the imaginary grid to use instead of the global grid.
 
 # Examples
-```jldoctest
+```julia-repl
 julia> using ImplicitGlobalGrid
 
 julia> lx=8; ly=8; lz=8; nx=5; ny=5; nz=7;
 
 julia> init_global_grid(nx, ny, nz; periodz=1);
-Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1)
+Global grid: 5x5x5 (nprocs: 1, dims: 1x1x1; device support: none)
 
 julia> dx, dy, dz = lx/(nx_g()-1), ly/(ny_g()-1), lz/(nz_g()-1)
 (2.0, 2.0, 2.0)
@@ -880,7 +880,7 @@ tic
 
 Return the elapsed time from chronometer (since the last call to `tic`) when all processes have reached this point.
 
-!!! warnings
+!!! warning
     Every call to toc has to be executed after a call to tic. Calling toc before tic leads to undefined behaviour (likely an MPI error). 
 
     The chronometer may currently add an overhead of multiple 10th of miliseconds at the first usage.

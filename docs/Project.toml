@@ -1,3 +1,12 @@
 [deps]
-DocExtensions = "cbdad009-89f1-4e05-85a0-06b07b50707d"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
+ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
+Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[sources]
+ImplicitGlobalGrid = {path = ".."}
+
+[compat]
+Documenter = "1"
+DocumenterVitepress = "0.3"
