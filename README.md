@@ -3,13 +3,10 @@
 [![Docs stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/stable)
 [![Docs dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/dev)
 [![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml)
+[![CSCS CI](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/badges/main/pipeline.svg?ignore_skipped=true)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)
 [![Coverage](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl)
 
-ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
-
-The global computational grid is created *implicitly* from the number of processes the application is run with: the user writes a code for one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform it into a massively scaling Multi-GPU/CPU application**. Halo updates rely on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and can leverage CUDA-aware or ROCm-aware MPI. 1-D, 2-D and 3-D grids are supported.
-
-![Implicit global grid](docs/src/assets/images/implicit_global_grid.png)
+ImplicitGlobalGrid renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling on thousands of GPUs. The global grid is created *implicitly* from the number of processes: write the code for one GPU/CPU, and **as little as three functions can be enough to turn it into a massively scaling Multi-GPU/CPU application**. Halo updates rely on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and can leverage CUDA-aware or ROCm-aware MPI; 1-D, 2-D and 3-D grids are supported. Background, contributors and references are in the [documentation](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/stable).
 
 ## Documentation
 Usage, examples and the API reference are found in the documentation:

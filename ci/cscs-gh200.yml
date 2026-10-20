@@ -1,0 +1,68 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+stages:
+  - single-rank
+  - multi-rank # Runs only if the single-rank tests pass.
+
+# Pkg.test runs on the first node in the uenv; each test file is a job step (srun, not nested in a step, so it can span all nodes).
+# No per-task GPU binding: IGG selects the GPU of each process by its node-local rank.
+# JULIA_DEPOT_PATH (dedicated CI depot) is set after `uenv run`, as the juliaup view overrides it; TMPDIR is on $SCRATCH, as the
+# Pkg.test environment must be visible on all nodes (/tmp is node-local).
+.gh200:
+  extends: .baremetal-runner-daint-gh200
+  variables:
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_TIMELIMIT: '00:30:00'
+    JULIA_UENV: 'julia/26.3:v1'
+    JULIA_CUDA_USE_COMPAT: 'false'
+    IGG_TEST_BACKEND: 'CUDA'           # Fail instead of skipping the GPU tests if CUDA is not functional.
+    IGG_TEST_MPIEXEC: 'srun'
+    IGG_TEST_FILES: ''                 # Test files to run (default: all).
+  script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - |
+      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci TMPDIR=$CI_PROJECT_DIR/.tmp julia --project --startup-file=no -e '
+        using Pkg
+        Pkg.instantiate()
+        Pkg.test(; coverage=true, test_args=String.(split(get(ENV, "IGG_TEST_FILES", ""))))'
+    - |
+      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci julia --startup-file=no -e '
+        using Pkg
+        Pkg.activate(; temp=true)
+        Pkg.add("CoverageTools")
+        using CoverageTools
+        LCOV.writefile("lcov.info", vcat(process_folder("src"), process_folder("ext")))'
+    - bash ci/codecov_upload.sh gh200
+
+gh200 - 1 rank:
+  extends: .gh200
+  stage: single-rank
+
+gh200 - 1 node, 4 ranks:
+  extends: .gh200
+  stage: multi-rank
+  parallel:
+    matrix:
+      - IGG_CUDAAWARE_MPI: ['0', '1']
+  variables:
+    IGG_TEST_NPROCS: 4
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+
+gh200 - 2 nodes, 8 ranks:
+  extends: .gh200
+  stage: multi-rank
+  variables:
+    SLURM_JOB_NUM_NODES: 2
+    SLURM_NTASKS_PER_NODE: 4
+    IGG_TEST_NPROCS: 8
+    IGG_CUDAAWARE_MPI: '1'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+
+gh200 - 1 rank, Polyester:
+  extends: .gh200
+  stage: multi-rank
+  variables:
+    IGG_USE_POLYESTER: '1'
+    JULIA_NUM_THREADS: 8
+    IGG_TEST_FILES: 'test_update_halo.jl'
