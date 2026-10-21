@@ -1,4 +1,5 @@
 using Documenter
+using DocumenterCitations
 using DocumenterVitepress
 using Markdown
 using ImplicitGlobalGrid
@@ -7,6 +8,8 @@ const EXAMPLEROOT = joinpath(@__DIR__, "..", "examples")
 
 # Return the example script `file` as a Julia code block (used in the `@eval` blocks of the example pages).
 mdinclude(file) = Markdown.parse("```julia\n" * read(joinpath(EXAMPLEROOT, file), String) * "\n```")
+
+const bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style=:numeric)
 
 
 @info "Building documentation website using DocumenterVitepress.jl..."
@@ -20,6 +23,7 @@ makedocs(;
         devurl    = "dev",
     ),
     checkdocs = :exports,
+    plugins   = [bib],
     pages     = [
         "Home"          => "index.md",
         "Overview"      => "overview.md",
@@ -30,6 +34,7 @@ makedocs(;
         ],
         "Testing"       => "testing.md",
         "API reference" => "api.md",
+        "References"    => "references.md",
     ],
 )
 
