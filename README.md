@@ -7,6 +7,7 @@
 [![Beverin MI250](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/badges/main/pipeline.svg?ignore_skipped=true&key_text=Beverin%20MI250&key_width=92)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/-/pipelines)
 [![Beverin MI300](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/badges/main/pipeline.svg?ignore_skipped=true&key_text=Beverin%20MI300&key_width=92)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/-/pipelines)
 [![Coverage](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl)
+[![DOI](https://proceedings.juliacon.org/papers/10.21105/jcon.00137/status.svg)](https://doi.org/10.21105/jcon.00137)
 
 ImplicitGlobalGrid renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling on thousands of GPUs. The global grid is created *implicitly* from the number of processes: write the code for one GPU/CPU, and **as little as three functions can be enough to turn it into a massively scaling Multi-GPU/CPU application**. Halo updates rely on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and can leverage CUDA-aware or ROCm-aware MPI; 1-D, 2-D and 3-D grids are supported. Background, contributors and references are in the [documentation](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/stable).
 
