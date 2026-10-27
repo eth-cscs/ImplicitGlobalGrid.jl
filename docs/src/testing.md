@@ -47,4 +47,6 @@ As the tests select the GPU by node-local MPI rank, every rank must see all GPUs
   - [Daint](https://docs.cscs.ch/clusters/daint/) (Nvidia GH200 GPUs): the full test suite on one process, the multi-rank tests on 1 node × 4 processes (with and without CUDA-aware MPI) and on 2 nodes × 4 processes, and the Polyester code path (`ci/cscs-gh200.yml`; [pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)). The multi-rank jobs only run if the single-process job passes.
   - [Beverin](https://docs.cscs.ch/clusters/beverin/) (AMD MI250X and MI300A GPUs): the full test suite on one process, on each GPU type (`ci/cscs-mi250.yml`, `ci/cscs-mi300.yml`; [MI250X pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/-/pipelines), [MI300A pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/-/pipelines)).
 
+  The README badges of the CSCS CI are generated from its commit statuses by the workflow `.github/workflows/CSCSBadges.yml` (branch `badges`).
+
 Coverage of all jobs is uploaded to [Codecov](https://app.codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl) (flags `cpu`, `gh200`, `mi250` and `mi300`).
