@@ -3,9 +3,9 @@
 [![Docs stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/stable)
 [![Docs dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://eth-cscs.github.io/ImplicitGlobalGrid.jl/dev)
 [![CI](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/actions/workflows/ci.yml)
-[![Daint GH200](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/badges/main/pipeline.svg?ignore_skipped=true&key_text=Daint%20GH200&key_width=82)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)
-[![Beverin MI250](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/badges/main/pipeline.svg?ignore_skipped=true&key_text=Beverin%20MI250&key_width=92)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/-/pipelines)
-[![Beverin MI300](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/badges/main/pipeline.svg?ignore_skipped=true&key_text=Beverin%20MI300&key_width=92)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/-/pipelines)
+[![Daint GH200](https://raw.githubusercontent.com/eth-cscs/ImplicitGlobalGrid.jl/badges/cscs-gh200.svg)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253668/-/pipelines)
+[![Beverin MI250](https://raw.githubusercontent.com/eth-cscs/ImplicitGlobalGrid.jl/badges/cscs-mi250.svg)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/-/pipelines)
+[![Beverin MI300](https://raw.githubusercontent.com/eth-cscs/ImplicitGlobalGrid.jl/badges/cscs-mi300.svg)](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/-/pipelines)
 [![Coverage](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl)
 [![DOI](https://proceedings.juliacon.org/papers/10.21105/jcon.00137/status.svg)](https://doi.org/10.21105/jcon.00137)
 
