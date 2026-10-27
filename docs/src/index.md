@@ -62,7 +62,7 @@ features:
 
 ## What is ImplicitGlobalGrid.jl?
 
-ImplicitGlobalGrid is an outcome of a collaboration of the Swiss National Supercomputing Centre, ETH Zurich (Dr. Samuel Omlin) with Stanford University and the Geocomputing Centre, University of Lausanne (Dr. Ludovic Räss and Prof. Yuri Podladchikov). It renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
+ImplicitGlobalGrid renders the distributed parallelization of stencil-based GPU and CPU applications on a regular staggered grid almost trivial and enables close to ideal weak scaling of real-world applications on thousands of GPUs.
 
 The global computational grid is created *implicitly* from the number of processes the application is run with: the user writes a code for one GPU/CPU (*local grid*); then, **as little as three functions can be enough to transform it into a massively scaling Multi-GPU/CPU application**. Halo updates rely on [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and can leverage CUDA-aware or ROCm-aware MPI. 1-D, 2-D and 3-D grids are supported. See the [Overview](overview.md) for more details.
 
@@ -75,18 +75,15 @@ import Pkg; Pkg.add("ImplicitGlobalGrid")
 ## Dependencies
 ImplicitGlobalGrid relies on the Julia MPI wrapper ([MPI.jl](https://github.com/JuliaParallel/MPI.jl)) and [CellArrays.jl](https://github.com/omlins/CellArrays.jl); GPU support is provided through package extensions for the Julia CUDA package ([CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) [Besard2019TPDS, Besard2019AES](@cite)) and the Julia AMDGPU package ([AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl)), and multi-threaded CPU halo copies through [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl).
 
-## Contributors
-The principal contributors to [ImplicitGlobalGrid.jl](https://github.com/eth-cscs/ImplicitGlobalGrid.jl) are (ordered by the significance of the relative contributions):
-- Dr. Samuel Omlin ([@omlins](https://github.com/omlins)), CSCS (Swiss National Supercomputing Centre), ETH Zurich
-- Dr. Ludovic Räss ([@luraess](https://github.com/luraess)), Geocomputing Centre, University of Lausanne
-- Dr. Ivan Utkin ([@utkinis](https://github.com/utkinis)), Laboratory of Hydraulics, Hydrology, Glaciology, ETH Zurich
-
 ## Questions, comments and discussions
 To discuss technical issues, please post on Julia Discourse in the [GPU topic](https://discourse.julialang.org/c/domain/gpu) or the [Julia at Scale topic](https://discourse.julialang.org/c/domain/parallel) or in the `#gpu` or `#hpc` channels on the [Julia Slack](https://julialang.org/slack/).
 To discuss numerical/domain-science issues, please post on Julia Discourse in the [Numerics topic](https://discourse.julialang.org/c/domain/numerics) or the [Modelling & Simulations topic](https://discourse.julialang.org/c/domain/models) or whichever other topic fits best your issue.
 
 ## Contributing
 Contributions are welcome, be it new examples, convenience features or core improvements! Please open an issue to discuss your idea beforehand. A pull request should address an issue in its completeness and blend nicely into the existing project (community guidelines such as [ColPrac](https://github.com/SciML/ColPrac) can serve as inspiration).
+
+## Authors
+ImplicitGlobalGrid originated from a collaboration of the Swiss National Supercomputing Centre (CSCS), ETH Zurich with Stanford University and the Geocomputing Centre, University of Lausanne (Prof. Yuri Podladchikov). It is developed by Samuel Omlin ([@omlins](https://github.com/omlins), CSCS, ETH Zurich), Ludovic Räss ([@luraess](https://github.com/luraess), University of Lausanne) and Ivan Utkin ([@utkinis](https://github.com/utkinis), ETH Zurich).
 
 ## Citing
 If you use ImplicitGlobalGrid in your work, please cite [OmlinRaessUtkin2024](@cite). The BibTeX entry and further publications are found in the [References](references.md).
