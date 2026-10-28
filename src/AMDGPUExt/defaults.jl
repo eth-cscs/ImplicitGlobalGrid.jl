@@ -16,7 +16,8 @@ function init_rocbufs_arrays end
 function init_rocbufs end
 function reinterpret_rocbufs end
 function reallocate_undersized_rocbufs end
-function reregister_rocbufs end
+function register_unregistered_rocbufs end
+function unregister_rocbufs end
 function get_rocsendbufs_raw end
 function get_rocrecvbufs_raw end
 function allocate_rocstreams end

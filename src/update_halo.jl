@@ -141,9 +141,11 @@ let
                 if amdgpu_enabled() reinterpret_rocbufs(T, i, n); end
             end
             max_halo_elems = maximum((size(A,1)*size(A,2)*halowidths[3], size(A,1)*size(A,3)*halowidths[2], size(A,2)*size(A,3)*halowidths[1]));
-            reallocate_undersized_hostbufs(T, i, max_halo_elems, A);
-            if (is_cuarray(A) && any(cudaaware_MPI())) reallocate_undersized_cubufs(T, i, max_halo_elems) end
-            if (is_rocarray(A) && any(amdgpuaware_MPI())) reallocate_undersized_rocbufs(T, i, max_halo_elems) end
+            reallocate_undersized_hostbufs(T, i, max_halo_elems);
+            if (is_cuarray(A)  && any(cudaaware_MPI()))    reallocate_undersized_cubufs(T, i, max_halo_elems) end
+            if (is_rocarray(A) && any(amdgpuaware_MPI()))  reallocate_undersized_rocbufs(T, i, max_halo_elems) end
+            if (is_cuarray(A)  && none(cudaaware_MPI()))   register_unregistered_cubufs(i, sendbufs_raw, recvbufs_raw) end   # Without GPU-aware MPI, the GPU buffers are the host buffers registered for the GPU (page-locked and mapped to device memory to ensure optimal access performance from kernels or with 3-D memcopy). The host buffers must be registered (again) if they are not (anymore), e.g. because they were (re)allocated for a CPU array (see reallocate_undersized_hostbufs).
+            if (is_rocarray(A) && none(amdgpuaware_MPI())) register_unregistered_rocbufs(i, sendbufs_raw, recvbufs_raw) end  # ...
         end
     end
 
@@ -165,12 +167,12 @@ let
         if (eltype(recvbufs_raw[i][n]) != T) recvbufs_raw[i][n] = reinterpret(T, recvbufs_raw[i][n]); end
     end
 
-    function reallocate_undersized_hostbufs(T::DataType, i::Integer, max_halo_elems::Integer, A::GGArray)
+    function reallocate_undersized_hostbufs(T::DataType, i::Integer, max_halo_elems::Integer)
         if (length(sendbufs_raw[i][1]) < max_halo_elems)
             for n = 1:NNEIGHBORS_PER_DIM
+                if cuda_enabled()   unregister_cubufs(i, n);  end  # The host buffers to be replaced must be unregistered from the GPU before they are freed (the GPU buffers wrapping them would be dangling otherwise); they are registered again when a GPU array requires it (see allocate_bufs).
+                if amdgpu_enabled() unregister_rocbufs(i, n); end  # ...
                 reallocate_bufs(T, i, n, max_halo_elems);
-                if (is_cuarray(A) && none(cudaaware_MPI())) reregister_cubufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # Host memory is page-locked (and mapped to device memory) to ensure optimal access performance (from kernel or with 3-D memcopy).
-                if (is_rocarray(A) && none(amdgpuaware_MPI())) reregister_rocbufs(T, i, n, sendbufs_raw, recvbufs_raw); end  # ...
             end
             GC.gc(); # Too small buffers had been replaced with larger ones; free the now unused memory.
         end

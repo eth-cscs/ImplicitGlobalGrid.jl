@@ -35,6 +35,10 @@ Base.eltype(A::ROCField)        = Base.eltype(A.A)
 ##---------------
 ## AMDGPU functions
 
-function ImplicitGlobalGrid.register(::Type{<:ROCArray},buf::Array{T}) where T <: GGNumber
-    return unsafe_wrap(ROCArray, pointer(buf), size(buf))
+function ImplicitGlobalGrid.register(::Type{<:ROCArray},buf::AbstractArray{T}) where T <: GGNumber  # NOTE: buf is a host buffer, i.e. an Array or a reinterpretation of it (see reinterpret_bufs).
+    if hostbuf_pinned(buf) error("the host buffer to be registered for the GPU is already page-locked (pinned) host memory, which is not supported.") end  # NOTE: the wrapping ROCArray would not track such a registration and could hipHostFree the memory when freed (own=true).
+    return unsafe_wrap(ROCArray, pointer(buf), size(buf); own=true) # NOTE: the host memory is page-locked (hipHostRegister) and unregistered when the wrapping ROCArray is freed (own=true); AMDGPU may release the registration only once the last wrapper of the memory is finalized and the device is done with it, i.e. the caller must keep buf alive until then (see unregister_rocbufs).
 end
+
+hostbuf_pinned(buf::AbstractArray)     = isdefined(AMDGPU.Mem, :is_pinned)     && AMDGPU.Mem.is_pinned(Ptr{Cvoid}(pointer(buf)))      # NOTE: the memory state can only be queried with AMDGPU internals; if they are not available, no check is done.
+hostbuf_registered(buf::AbstractArray) = !isdefined(AMDGPU.Mem, :is_registered) || AMDGPU.Mem.is_registered(Ptr{Cvoid}(pointer(buf)))  # NOTE: if the registration state cannot be queried, a buffer is considered registered (i.e. it is kept alive until the end of the session).
