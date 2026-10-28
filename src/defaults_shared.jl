@@ -15,10 +15,6 @@ function gpurecvbuf_flat end
 function write_d2x! end
 function read_x2d! end
 
-#TODO: remove once the corresponding changes were also done AMDGPU
-function write_d2h_async! end
-function read_h2d_async! end
-
 function write_d2x_async! end
 function read_x2d_async! end
 

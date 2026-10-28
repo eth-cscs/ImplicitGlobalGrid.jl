@@ -11,7 +11,7 @@ import MPI
 @static if (DEVICE_TYPE_AMDGPU in SUPPORTED_DEVICE_TYPES) import AMDGPU end
 
 excludedfiles  = ["test_excluded.jl"];
-multirankfiles = ["test_finalize_global_grid.jl", "test_gather.jl", "test_select_device.jl", "test_update_halo.jl"];
+multirankfiles = ["test_finalize_global_grid.jl", "test_gather.jl", "test_select_device.jl", "test_update_halo.jl", "test_update_halo_streams.jl"];
 
 function runtests()
     juliacmd  = Base.julia_cmd() # NOTE: julia_cmd() forwards the options of this process (e.g. --code-coverage and --check-bounds set by Pkg.test) to the test processes.

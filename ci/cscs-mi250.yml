@@ -65,4 +65,4 @@ mi250 - 1 node, 4 ranks:
     IGG_CI_MPI: 'system'
     SLURM_NTASKS_PER_NODE: 4
     IGG_TEST_NPROCS: 4
-    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'

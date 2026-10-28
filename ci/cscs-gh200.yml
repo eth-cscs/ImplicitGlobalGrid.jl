@@ -54,7 +54,7 @@ gh200 - 1 node, 4 ranks:
   variables:
     IGG_CI_PRIVATE_DEPOT: '1'
     IGG_TEST_NPROCS: 4
-    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'
 
 gh200 - 2 nodes, 8 ranks:
   extends: .gh200
@@ -65,7 +65,7 @@ gh200 - 2 nodes, 8 ranks:
     SLURM_NTASKS_PER_NODE: 4
     IGG_TEST_NPROCS: 8
     IGG_CUDAAWARE_MPI: '1'
-    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'
 
 gh200 - 1 rank, Polyester:
   extends: .gh200
