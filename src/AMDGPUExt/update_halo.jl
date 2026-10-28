@@ -8,7 +8,8 @@ ImplicitGlobalGrid.init_rocbufs_arrays(args...) = init_rocbufs_arrays(args...)
 ImplicitGlobalGrid.init_rocbufs(args...) = init_rocbufs(args...)
 ImplicitGlobalGrid.reinterpret_rocbufs(args...) = reinterpret_rocbufs(args...)
 ImplicitGlobalGrid.reallocate_undersized_rocbufs(args...) = reallocate_undersized_rocbufs(args...)
-ImplicitGlobalGrid.reregister_rocbufs(args...) = reregister_rocbufs(args...)
+ImplicitGlobalGrid.register_unregistered_rocbufs(args...) = register_unregistered_rocbufs(args...)
+ImplicitGlobalGrid.unregister_rocbufs(args...) = unregister_rocbufs(args...)
 ImplicitGlobalGrid.get_rocsendbufs_raw(args...) = get_rocsendbufs_raw(args...)
 ImplicitGlobalGrid.get_rocrecvbufs_raw(args...) = get_rocrecvbufs_raw(args...)
 ImplicitGlobalGrid.gpusendbuf(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpusendbuf(n,dim,i,A)
@@ -17,16 +18,22 @@ ImplicitGlobalGrid.gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCF
 ImplicitGlobalGrid.gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::ROCField{T}) where {T <: GGNumber} = gpurecvbuf_flat(n,dim,i,A)
 
 let
-    global free_update_halo_rocbuffers, init_rocbufs_arrays, init_rocbufs, reinterpret_rocbufs, reregister_rocbufs, reallocate_undersized_rocbufs
+    global free_update_halo_rocbuffers, init_rocbufs_arrays, init_rocbufs, reinterpret_rocbufs, register_unregistered_rocbufs, unregister_rocbufs, reallocate_undersized_rocbufs
     global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat
     rocsendbufs_raw = nothing
     rocrecvbufs_raw = nothing
-    # INFO: no need for roc host buffers
+    rocsendbufs_raw_h = nothing  # The host buffers registered for the GPU (nothing where not registered).
+    rocrecvbufs_raw_h = nothing
+    retired_hostbufs  = []       # Host buffers whose GPU wrappers were freed, kept alive until their registration is released: AMDGPU releases the registration only once the last wrapper of the memory is finalized and the device is done with it (i.e. possibly later than the call to unsafe_free!); if the memory were freed and reused before, the new owner would find it registered (with the wrong size).
 
     function free_update_halo_rocbuffers()
+        if !isnothing(rocsendbufs_raw_h)
+            for i = 1:length(rocsendbufs_raw_h), n = 1:NNEIGHBORS_PER_DIM
+                unregister_rocbufs(i, n);  # Release the registration of the host buffers, keeping them alive until it is released.
+            end
+        end
         free_rocbufs(rocsendbufs_raw)
         free_rocbufs(rocrecvbufs_raw)
-        # INFO: no need for roc host buffers
         reset_roc_buffers()
     end
 
@@ -40,14 +47,16 @@ let
         end
     end
 
-    # INFO: no need for roc host buffers
-    # function unregister_rocbufs(bufs)
-    # end
-
     function reset_roc_buffers()
         rocsendbufs_raw = nothing
         rocrecvbufs_raw = nothing
-        # INFO: no need for roc host buffers
+        rocsendbufs_raw_h = nothing
+        rocrecvbufs_raw_h = nothing
+        prune_retired_hostbufs();  # NOTE: the retired host buffers whose registration is not yet released are kept.
+    end
+
+    function prune_retired_hostbufs()
+        filter!(hostbuf_registered, retired_hostbufs);
     end
 
 
@@ -56,13 +65,15 @@ let
     function init_rocbufs_arrays()
         rocsendbufs_raw = Array{Array{Any,1},1}();
         rocrecvbufs_raw = Array{Array{Any,1},1}();
-        # INFO: no need for roc host buffers
+        rocsendbufs_raw_h = Array{Array{Any,1},1}();
+        rocrecvbufs_raw_h = Array{Array{Any,1},1}();
     end
 
     function init_rocbufs(T::DataType, fields::GGField...)
         while (length(rocsendbufs_raw) < length(fields)) push!(rocsendbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
         while (length(rocrecvbufs_raw) < length(fields)) push!(rocrecvbufs_raw, [ROCArray{T}(undef,0), ROCArray{T}(undef,0)]); end
-        # INFO: no need for roc host buffers
+        while (length(rocsendbufs_raw_h) < length(fields)) push!(rocsendbufs_raw_h, [nothing, nothing]); end
+        while (length(rocrecvbufs_raw_h) < length(fields)) push!(rocrecvbufs_raw_h, [nothing, nothing]); end
     end
 
     function reinterpret_rocbufs(T::DataType, i::Integer, n::Integer)
@@ -83,10 +94,21 @@ let
         rocrecvbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
-    function reregister_rocbufs(T::DataType, i::Integer, n::Integer, sendbufs_raw, recvbufs_raw)
-        # INFO: no need for roc host buffers
-        rocsendbufs_raw[i][n] = register(ROCArray,sendbufs_raw[i][n]);
-        rocrecvbufs_raw[i][n] = register(ROCArray,recvbufs_raw[i][n]);
+    # Register the host buffers of field i for the GPU (page-locked) if they are not registered (anymore), wrapping them into GPU buffers. NOTE: the host buffers can be reinterpreted (see reinterpret_bufs); the registration is pointer based and the GPU buffers get the current element type of the host buffers.
+    function register_unregistered_rocbufs(i::Integer, sendbufs_raw, recvbufs_raw)
+        for n = 1:NNEIGHBORS_PER_DIM
+            if isnothing(rocsendbufs_raw_h[i][n]) rocsendbufs_raw[i][n] = register(ROCArray,sendbufs_raw[i][n]); rocsendbufs_raw_h[i][n] = sendbufs_raw[i][n]; end
+            if isnothing(rocrecvbufs_raw_h[i][n]) rocrecvbufs_raw[i][n] = register(ROCArray,recvbufs_raw[i][n]); rocrecvbufs_raw_h[i][n] = recvbufs_raw[i][n]; end
+        end
+    end
+
+    # Unregister the host buffers n of field i from the GPU if they are registered: freeing the GPU buffers wrapping them releases the registration (own=true, see register), possibly later (see retired_hostbufs); the GPU buffers are replaced with empty GPU buffers (they would be dangling once the host buffers are freed).
+    function unregister_rocbufs(i::Integer, n::Integer)
+        if (!isnothing(rocsendbufs_raw_h) && i <= length(rocsendbufs_raw_h))
+            if !isnothing(rocsendbufs_raw_h[i][n]) T = eltype(rocsendbufs_raw[i][n]); AMDGPU.unsafe_free!(rocsendbufs_raw[i][n]); rocsendbufs_raw[i][n] = ROCArray{T}(undef,0); push!(retired_hostbufs, rocsendbufs_raw_h[i][n]); rocsendbufs_raw_h[i][n] = nothing; end
+            if !isnothing(rocrecvbufs_raw_h[i][n]) T = eltype(rocrecvbufs_raw[i][n]); AMDGPU.unsafe_free!(rocrecvbufs_raw[i][n]); rocrecvbufs_raw[i][n] = ROCArray{T}(undef,0); push!(retired_hostbufs, rocrecvbufs_raw_h[i][n]); rocrecvbufs_raw_h[i][n] = nothing; end
+            prune_retired_hostbufs();
+        end
     end
 
 

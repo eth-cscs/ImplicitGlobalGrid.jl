@@ -367,6 +367,52 @@ dz = 1.0
                 @test all(size(recvbuf(n,dim,1,Z_hw))[dim] .== Z_hw.halowidths[dim])
             end
         end;
+        @testset "GPU buffers after CPU arrays used the same buffer slot (issue #140)" begin
+            if array_type in ["CUDA", "AMDGPU"]
+                gpuaware = (array_type=="CUDA") ? any(GG.cudaaware_MPI()) : any(GG.amdgpuaware_MPI());
+                P_cpu = GG.wrap_field(Base.zeros(nx,   ny,   nz  ));                                       # Same size as P (CPU array).
+                Q_cpu = GG.wrap_field(Base.zeros(nx+3, ny+3, nz+3));                                       # Larger halo than P (CPU array): forces a reallocation of the host buffers.
+                Q     = GG.wrap_field(zeros(nx+3, ny+3, nz+3));
+                # The CPU array sizes the host buffers of the slot before the GPU array uses it:
+                GG.free_update_halo_buffers();
+                GG.allocate_bufs(P_cpu);
+                GG.allocate_bufs(P);
+                for dim = 1:ndims(P), n = 1:nneighbors_per_dim
+                    @test length(GG.gpusendbuf(n,dim,1,P)) == prod(size(P)[1:ndims(P).!=dim])
+                    @test length(GG.gpurecvbuf(n,dim,1,P)) == prod(size(P)[1:ndims(P).!=dim])
+                end
+                # The GPU array registers the host buffers of the slot, then a larger CPU array replaces them: the GPU buffers must wrap the current host buffers for the following (smaller and larger) GPU arrays:
+                GG.free_update_halo_buffers();
+                GG.allocate_bufs(P);
+                GG.allocate_bufs(Q_cpu);
+                GG.allocate_bufs(P);
+                for dim = 1:ndims(P), n = 1:nneighbors_per_dim
+                    @test length(GG.gpusendbuf(n,dim,1,P)) == prod(size(P)[1:ndims(P).!=dim])
+                    @test length(GG.gpurecvbuf(n,dim,1,P)) == prod(size(P)[1:ndims(P).!=dim])
+                    if !gpuaware                                                                           # Without GPU-aware MPI, the GPU buffers are the host buffers (registered for the GPU): what is written to the host buffers must be visible through the GPU buffers.
+                        GG.sendbuf_flat(n,dim,1,P) .= eltype(P)( n*dim);
+                        GG.recvbuf_flat(n,dim,1,P) .= eltype(P)(-n*dim);
+                        @test all(CPUArray(GG.gpusendbuf_flat(n,dim,1,P)) .== eltype(P)( n*dim))
+                        @test all(CPUArray(GG.gpurecvbuf_flat(n,dim,1,P)) .== eltype(P)(-n*dim))
+                    end
+                end
+                GG.allocate_bufs(Q);
+                for dim = 1:ndims(Q), n = 1:nneighbors_per_dim
+                    @test length(GG.gpusendbuf(n,dim,1,Q)) == prod(size(Q)[1:ndims(Q).!=dim])
+                    @test length(GG.gpurecvbuf(n,dim,1,Q)) == prod(size(Q)[1:ndims(Q).!=dim])
+                end
+                # The host buffers are reinterpreted for another element type before the GPU array requires them (B contains Float32; P_cpu Float64):
+                GG.free_update_halo_buffers();
+                GG.allocate_bufs(P_cpu);
+                GG.allocate_bufs(B);
+                for dim = 1:ndims(B), n = 1:nneighbors_per_dim
+                    @test length(GG.gpusendbuf(n,dim,1,B)) == prod(size(B)[1:ndims(B).!=dim])
+                    @test length(GG.gpurecvbuf(n,dim,1,B)) == prod(size(B)[1:ndims(B).!=dim])
+                    @test eltype(GG.gpusendbuf(n,dim,1,B)) == Float32
+                    @test eltype(GG.gpurecvbuf(n,dim,1,B)) == Float32
+                end
+            end
+        end;
         finalize_global_grid(finalize_MPI=false);
     end;
 
@@ -1347,6 +1393,65 @@ dz = 1.0
                 @test (Vx == Vx_ref)
                 finalize_global_grid(finalize_MPI=false);
             end;
+        end;
+    end;
+
+    @testset "5. halo update (buffers used before for other arrays) (arrays: $array_type)" for (array_type, device_type, zeros, Array, CPUArray) in zip(array_types_union, device_types_union, cpu_allocators_union, ArrayConstructors_union, CPUArrayConstructors_union)
+        @testset "3D (CPU array of the same size used the buffers before)" begin                          # issue #140
+            init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+            P_cpu = zeros(nx, ny, nz);
+            update_halo!(P_cpu);                                                                           # The CPU array sizes the host buffers of the slot.
+            P     = zeros(nx, ny, nz);
+            P    .= eltype(P).([z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
+            P_ref = copy(P);
+            P[[1, end],       :,       :] .= (eltype(P)(0.0),);
+            P[       :,[1, end],       :] .= (eltype(P)(0.0),);
+            P[       :,       :,[1, end]] .= (eltype(P)(0.0),);
+            P     = Array(P);
+            P_ref = Array(P_ref);
+            @require !(P == P_ref)
+            update_halo!(P);
+            @test (P == P_ref)
+            finalize_global_grid(finalize_MPI=false);
+        end;
+        @testset "3D (buffers reallocated for a larger CPU array in between)" begin
+            init_global_grid(nx, ny, nz; periodx=1, periody=1, periodz=1, quiet=true, init_MPI=false, device_type=device_type);
+            P     = zeros(nx, ny, nz);
+            P    .= eltype(P).([z_g(iz,dz,P)*1e2 + y_g(iy,dy,P)*1e1 + x_g(ix,dx,P) for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)]);
+            P_ref = copy(P);
+            P[[1, end],       :,       :] .= (eltype(P)(0.0),);
+            P[       :,[1, end],       :] .= (eltype(P)(0.0),);
+            P[       :,       :,[1, end]] .= (eltype(P)(0.0),);
+            P     = Array(P);
+            P_ref = Array(P_ref);
+            @require !(P == P_ref)
+            update_halo!(P);                                                                               # The array sizes the host buffers of the slot (and registers them for the GPU if it is a GPU array).
+            @test (P == P_ref)
+            Q_cpu = zeros(nx+3, ny+3, nz+3);
+            update_halo!(Q_cpu);                                                                           # The larger CPU array replaces the host buffers of the slot.
+            P2     = zeros(nx, ny, nz);
+            P2    .= eltype(P2).([z_g(iz,dz,P2)*1e2 + y_g(iy,dy,P2)*1e1 + x_g(ix,dx,P2) for ix=1:size(P2,1), iy=1:size(P2,2), iz=1:size(P2,3)]);
+            P2_ref = copy(P2);
+            P2[[1, end],       :,       :] .= (eltype(P2)(0.0),);
+            P2[       :,[1, end],       :] .= (eltype(P2)(0.0),);
+            P2[       :,       :,[1, end]] .= (eltype(P2)(0.0),);
+            P2     = Array(P2);
+            P2_ref = Array(P2_ref);
+            @require !(P2 == P2_ref)
+            update_halo!(P2);                                                                              # The array must use the current host buffers (not the replaced ones).
+            @test (P2 == P2_ref)
+            Q     = zeros(nx+3, ny+3, nz+3);
+            Q    .= eltype(Q).([z_g(iz,dz,Q)*1e2 + y_g(iy,dy,Q)*1e1 + x_g(ix,dx,Q) for ix=1:size(Q,1), iy=1:size(Q,2), iz=1:size(Q,3)]);
+            Q_ref = copy(Q);
+            Q[[1, end],       :,       :] .= (eltype(Q)(0.0),);
+            Q[       :,[1, end],       :] .= (eltype(Q)(0.0),);
+            Q[       :,       :,[1, end]] .= (eltype(Q)(0.0),);
+            Q     = Array(Q);
+            Q_ref = Array(Q_ref);
+            @require !(Q == Q_ref)
+            update_halo!(Q);                                                                               # The larger array must get buffers of sufficient size.
+            @test (Q == Q_ref)
+            finalize_global_grid(finalize_MPI=false);
         end;
     end;
 end;

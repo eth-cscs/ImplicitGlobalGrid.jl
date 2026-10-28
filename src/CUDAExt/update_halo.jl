@@ -8,7 +8,8 @@ ImplicitGlobalGrid.init_cubufs_arrays(args...) = init_cubufs_arrays(args...)
 ImplicitGlobalGrid.init_cubufs(args...) = init_cubufs(args...)
 ImplicitGlobalGrid.reinterpret_cubufs(args...) = reinterpret_cubufs(args...)
 ImplicitGlobalGrid.reallocate_undersized_cubufs(args...) = reallocate_undersized_cubufs(args...)
-ImplicitGlobalGrid.reregister_cubufs(args...) = reregister_cubufs(args...)
+ImplicitGlobalGrid.register_unregistered_cubufs(args...) = register_unregistered_cubufs(args...)
+ImplicitGlobalGrid.unregister_cubufs(args...) = unregister_cubufs(args...)
 ImplicitGlobalGrid.get_cusendbufs_raw(args...) = get_cusendbufs_raw(args...)
 ImplicitGlobalGrid.get_curecvbufs_raw(args...) = get_curecvbufs_raw(args...)
 ImplicitGlobalGrid.gpusendbuf(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpusendbuf(n,dim,i,A)
@@ -17,7 +18,7 @@ ImplicitGlobalGrid.gpusendbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuFi
 ImplicitGlobalGrid.gpurecvbuf_flat(n::Integer, dim::Integer, i::Integer, A::CuField{T}) where {T <: GGNumber} = gpurecvbuf_flat(n,dim,i,A)
 
 let
-    global free_update_halo_cubuffers, init_cubufs_arrays, init_cubufs, reinterpret_cubufs, reregister_cubufs, reallocate_undersized_cubufs
+    global free_update_halo_cubuffers, init_cubufs_arrays, init_cubufs, reinterpret_cubufs, register_unregistered_cubufs, unregister_cubufs, reallocate_undersized_cubufs
     global gpusendbuf, gpurecvbuf, gpusendbuf_flat, gpurecvbuf_flat
     cusendbufs_raw = nothing
     curecvbufs_raw = nothing
@@ -27,8 +28,8 @@ let
     function free_update_halo_cubuffers()
         free_cubufs(cusendbufs_raw)
         free_cubufs(curecvbufs_raw)
-        unregister_cubufs(cusendbufs_raw_h)
-        unregister_cubufs(curecvbufs_raw_h)
+        unregister_all_cubufs(cusendbufs_raw_h)
+        unregister_all_cubufs(curecvbufs_raw_h)
         reset_cu_buffers()
     end
 
@@ -42,7 +43,7 @@ let
         end
     end
 
-    function unregister_cubufs(bufs)
+    function unregister_all_cubufs(bufs)
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
@@ -94,11 +95,20 @@ let
         curecvbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
-    function reregister_cubufs(T::DataType, i::Integer, n::Integer, sendbufs_raw, recvbufs_raw)
-        if (isa(cusendbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; end # It is always initialized registered... if (cusendbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-        if (isa(curecvbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; end # It is always initialized registered... if (curecvbufs_raw_h[i][n].bytesize > 32*sizeof(T))
-        cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(CuArray,sendbufs_raw[i][n]);
-        curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(CuArray,recvbufs_raw[i][n]);
+    # Register the host buffers of field i for the GPU (page-locked and mapped to device memory) if they are not registered (anymore), wrapping them into GPU buffers. NOTE: the host buffers can be reinterpreted (see reinterpret_bufs); the registration is pointer based and the GPU buffers get the current element type of the host buffers.
+    function register_unregistered_cubufs(i::Integer, sendbufs_raw, recvbufs_raw)
+        for n = 1:NNEIGHBORS_PER_DIM
+            if !isa(cusendbufs_raw_h[i][n],CUDA.HostMemory) cusendbufs_raw[i][n], cusendbufs_raw_h[i][n] = register(CuArray,sendbufs_raw[i][n]); end
+            if !isa(curecvbufs_raw_h[i][n],CUDA.HostMemory) curecvbufs_raw[i][n], curecvbufs_raw_h[i][n] = register(CuArray,recvbufs_raw[i][n]); end
+        end
+    end
+
+    # Unregister the host buffers n of field i from the GPU if they are registered, replacing the GPU buffers wrapping them with empty GPU buffers (they would be dangling once the host buffers are freed).
+    function unregister_cubufs(i::Integer, n::Integer)
+        if (!isnothing(cusendbufs_raw_h) && i <= length(cusendbufs_raw_h))
+            if (isa(cusendbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(cusendbufs_raw_h[i][n]); cusendbufs_raw_h[i][n] = []; cusendbufs_raw[i][n] = CuArray{eltype(cusendbufs_raw[i][n])}(undef,0); end
+            if (isa(curecvbufs_raw_h[i][n],CUDA.HostMemory)) CUDA.unregister(curecvbufs_raw_h[i][n]); curecvbufs_raw_h[i][n] = []; curecvbufs_raw[i][n] = CuArray{eltype(curecvbufs_raw[i][n])}(undef,0); end
+        end
     end
 
 

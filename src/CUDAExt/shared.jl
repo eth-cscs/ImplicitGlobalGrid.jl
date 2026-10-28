@@ -35,8 +35,8 @@ Base.eltype(A::CuField)        = Base.eltype(A.A)
 ##---------------
 ## CUDA functions
 
-function ImplicitGlobalGrid.register(::Type{<:CuArray},buf::Array{T}) where T <: GGNumber
-    rbuf = CUDA.register(CUDA.HostMemory, pointer(buf), sizeof(buf), CUDA.MEMHOSTREGISTER_DEVICEMAP);
+function ImplicitGlobalGrid.register(::Type{<:CuArray},buf::AbstractArray{T}) where T <: GGNumber  # NOTE: buf is a host buffer, i.e. an Array or a reinterpretation of it (see reinterpret_bufs).
+    rbuf = CUDA.register(CUDA.HostMemory, pointer(buf), length(buf)*sizeof(T), CUDA.MEMHOSTREGISTER_DEVICEMAP); # NOTE: sizeof(buf) does not give the size of the data if buf is a reinterpreted array.
     rbuf_d = convert(CuPtr{T}, rbuf);
     return unsafe_wrap(CuArray, rbuf_d, size(buf)), rbuf;
 end
