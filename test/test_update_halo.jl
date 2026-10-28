@@ -556,7 +556,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @static if test_cuda || test_amdgpu
-                @testset "write_d2x! / write_d2h_async! / read_x2d! / read_h2d_async! (arrays: $array_type)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
+                @testset "write_d2x! / write_d2x_async! / write_d2h_async! / read_x2d! / read_x2d_async! / read_h2d_async! (arrays: $array_type)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
                     init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
                     P  = zeros(nx,  ny,  nz  );
                     P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
@@ -579,9 +579,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+                        GG.write_d2x_async!(false, buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                         # (dim=2)
@@ -600,9 +600,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+                        GG.write_d2x_async!(false, buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                         # (dim=3)
@@ -621,9 +621,9 @@ dz = 1.0
                         buf .= 0.0;
                         P2  .= 0.0;
                         custream = stream();
-                        GG.write_d2h_async!(buf, P, ranges, custream); CUDA.synchronize();
+                        GG.write_d2x_async!(false, buf, P, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, custream); CUDA.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                     elseif array_type == "AMDGPU"
