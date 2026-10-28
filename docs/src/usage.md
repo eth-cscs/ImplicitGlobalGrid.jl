@@ -64,6 +64,9 @@ export IGG_ROCMAWARE_MPI=1
 
 It can also be activated per dimension, see [Environment variables](@ref).
 
+!!! note "ROCm-aware MPI with Cray MPICH"
+    With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `MPICH_GPU_IPC_ENABLED=0` (the IPC path of the transport layer fails with device memory; see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
+
 
 ## [Multi-threaded CPU halo copies](@id usage-polyester)
 Halo copies of CPU arrays can be multi-threaded with [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) by importing it before ImplicitGlobalGrid, setting `IGG_USE_POLYESTER=1` and starting Julia with multiple threads (e.g. `julia -t 4`):

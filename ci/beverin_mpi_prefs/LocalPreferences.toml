@@ -1,0 +1,13 @@
+# MPI.jl preferences for the Beverin CI jobs (CSCS): the cray-mpich of the uenv (prgenv-gnu) instead of MPICH_jll, launched with srun.
+# Used by stacking this folder on the load path (JULIA_LOAD_PATH=:$CI_PROJECT_DIR/ci/beverin_mpi_prefs) inside the uenv with its
+# default view (which sets FI_PROVIDER=cxi); Pkg.test forwards the preferences because MPIPreferences is a test dependency.
+# The uenv links the ROCm GPU transport layer (libmpi_gtl_hsa) into libmpi.so, so no preload is needed; GPU support is enabled at run
+# time with MPICH_GPU_SUPPORT_ENABLED=1 (and MPICH_GPU_IPC_ENABLED=0 is currently required, see docs/src/usage.md).
+[MPIPreferences]
+_format = "1.1"
+abi = "MPICH"
+binary = "system"
+cclibs = []
+libmpi = "/user-environment/env/default/lib/libmpi.so"
+mpiexec = ["srun"]
+preloads = []

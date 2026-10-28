@@ -1,31 +1,48 @@
 include:
   - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
 
-# Pkg.test runs on the allocated node in the uenv, which provides ROCm (the uenv has no Julia: Julia builds for AMD GPUs of the CI user).
-# No per-task GPU binding: IGG selects the GPU of each process by its node-local rank.
-# One process: the test files are run without MPI launcher (singleton MPI initialization with MPICH_jll).
-# FI_PROVIDER is set after `uenv run`, as the view sets FI_PROVIDER=cxi, which MPICH_jll cannot use; JULIA_DEPOT_PATH is a dedicated
-# x86 CI depot.
+stages:
+  - single-rank
+  - multi-rank # Runs only if the single-rank tests pass.
+
+# Pkg.test runs on the allocated node in the uenv, which provides ROCm and cray-mpich (the uenv has no Julia: Julia builds for AMD GPUs
+# of the CI user). No per-task GPU binding: IGG selects the GPU of each process by its node-local rank.
+# Single-rank job (IGG_CI_MPI=jll): the test files run without MPI launcher (singleton MPI initialization with MPICH_jll); FI_PROVIDER
+# is set after `uenv run`, as the view sets FI_PROVIDER=cxi, which MPICH_jll cannot use.
+# Multi-rank jobs (IGG_CI_MPI=system): MPI.jl uses the cray-mpich of the uenv through the preferences in ci/beverin_mpi_prefs (stacked
+# on the load path); each test file is a job step (srun). The ROCm-aware variant needs MPICH_GPU_SUPPORT_ENABLED=1 and, currently,
+# MPICH_GPU_IPC_ENABLED=0 (see docs/src/usage.md). JULIA_DEPOT_PATH is a dedicated x86 CI depot, in front of which the multi-rank jobs
+# put a job-local depot (IGG_CI_PRIVATE_DEPOT=1), as on GH200: they run concurrently. TMPDIR is on $SCRATCH (as on GH200).
 .mi300:
   extends: .baremetal-runner-beverin-mi300
   variables:
     SLURM_JOB_NUM_NODES: 1
     SLURM_TIMELIMIT: '00:45:00'
-    UENV: '56ebb909a6164680'                  # prgenv-gnu/7.2.3 (ROCm 7.2.3)
+    UENV: '56ebb909a6164680'                  # prgenv-gnu/7.2.3 (ROCm 7.2.3, cray-mpich 9.1.0)
     JULIA: '/users/lraess/julia_amd/julia_amd-1.13'  # Same Julia version as GH200 (juliaup release channel).
     JULIA_AMDGPU_DISABLE_ARTIFACTS: '1'       # Use the ROCm of the uenv.
     JULIA_AMDGPU_CORE_MUST_LOAD: '1'
     JULIA_AMDGPU_HIP_MUST_LOAD: '1'
     IGG_TEST_BACKEND: 'AMDGPU'                # Fail instead of skipping the GPU tests if AMDGPU is not functional.
     IGG_TEST_FILES: ''                        # Test files to run (default: all).
+    IGG_CI_PRIVATE_DEPOT: '0'                 # 1: compiled caches go to a job-local depot stacked on the CI depot (for jobs running concurrently).
+    IGG_CI_MPI: 'jll'                         # jll: MPICH_jll without launcher (single rank); system: cray-mpich of the uenv, launcher srun.
   script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp
     - |
-      uenv run $UENV --view=default -- env JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci-beverin FI_PROVIDER=tcp $JULIA --project --startup-file=no -e '
+      DEPOT=$SCRATCH/.julia-igg-ci-beverin; [ "$IGG_CI_PRIVATE_DEPOT" = 1 ] && DEPOT=$CI_PROJECT_DIR/.julia:$DEPOT
+      MPIENV="FI_PROVIDER=tcp"
+      if [ "$IGG_CI_MPI" = system ]; then
+        MPIENV="JULIA_LOAD_PATH=:$CI_PROJECT_DIR/ci/beverin_mpi_prefs IGG_TEST_MPIEXEC=srun"
+        [ "${IGG_ROCMAWARE_MPI:-0}" = 1 ] && MPIENV="$MPIENV MPICH_GPU_SUPPORT_ENABLED=1 MPICH_GPU_IPC_ENABLED=0"
+      fi
+      uenv run $UENV --view=default -- env JULIA_DEPOT_PATH=$DEPOT TMPDIR=$CI_PROJECT_DIR/.tmp $MPIENV $JULIA --project --startup-file=no -e '
         using Pkg
         Pkg.instantiate()
         Pkg.test(; coverage=true, test_args=String.(split(get(ENV, "IGG_TEST_FILES", ""))))'
     - |
-      JULIA_DEPOT_PATH=$SCRATCH/.julia-igg-ci-beverin $JULIA --startup-file=no -e '
+      DEPOT=$SCRATCH/.julia-igg-ci-beverin; [ "$IGG_CI_PRIVATE_DEPOT" = 1 ] && DEPOT=$CI_PROJECT_DIR/.julia:$DEPOT
+      JULIA_DEPOT_PATH=$DEPOT $JULIA --startup-file=no -e '
         using Pkg
         Pkg.activate(; temp=true)
         Pkg.add("CoverageTools")
@@ -35,3 +52,17 @@ include:
 
 mi300 - 1 rank:
   extends: .mi300
+  stage: single-rank
+
+mi300 - 1 node, 4 ranks:
+  extends: .mi300
+  stage: multi-rank
+  parallel:
+    matrix:
+      - IGG_ROCMAWARE_MPI: ['0', '1']
+  variables:
+    IGG_CI_PRIVATE_DEPOT: '1'
+    IGG_CI_MPI: 'system'
+    SLURM_NTASKS_PER_NODE: 4
+    IGG_TEST_NPROCS: 4
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'

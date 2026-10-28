@@ -25,6 +25,7 @@ let
     rocsendbufs_raw_h = nothing  # The host buffers registered for the GPU (nothing where not registered).
     rocrecvbufs_raw_h = nothing
     retired_hostbufs  = []       # Host buffers whose GPU wrappers were freed, kept alive until their registration is released: AMDGPU releases the registration only once the last wrapper of the memory is finalized and the device is done with it (i.e. possibly later than the call to unsafe_free!); if the memory were freed and reused before, the new owner would find it registered (with the wrong size).
+    hipmalloc_ptrs    = Set{Ptr{Cvoid}}()  # Device buffers allocated with hipMalloc by alloc_rocbuf (IGG owns them; freed with hipFree by free_rocbuf!).
 
     function free_update_halo_rocbuffers()
         if !isnothing(rocsendbufs_raw_h)
@@ -41,8 +42,30 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if is_rocarray(bufs[i][n]) AMDGPU.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end # DEBUG: unsafe_free should be managed in AMDGPU
+                    if is_rocarray(bufs[i][n]) free_rocbuf!(bufs[i][n]); bufs[i][n] = []; end
                 end
+            end
+        end
+    end
+
+    # Allocate a zeroed device buffer of nelems elements of type T with plain hipMalloc, i.e. outside the AMDGPU.jl memory pool.
+    # NOTE: the device buffers used for ROCm-aware MPI must not come from the AMDGPU.jl memory pool (hipMallocFromPoolAsync, behind ROCArray{T}(undef,...), AMDGPU.zeros, ...): the GPU transport layer of Cray MPICH (libmpi_gtl_hsa) does not recognize pool memory as device memory (IPC path: abort `gtlt_hsa_get_mem_handle: Assertion seg_info != NULL`; non-IPC path: segmentation fault in a CPU memcpy on the device pointer; verified with cray-mpich 9.1.0 / ROCm 7.2.3 on MI300A and MI250X, from Julia and from C). AMDGPU.jl has no option to bypass the pool (unlike CUDA.jl's JULIA_CUDA_MEMORY_POOL=none); once it provides one, this can go back to AMDGPU.zeros for the AMDGPU.jl versions providing it (version check). The wrapping ROCArray does not own the memory (own=false); the buffer is freed explicitly with free_rocbuf!.
+    function alloc_rocbuf(T::DataType, nelems::Integer)
+        ptr = Ref{Ptr{Cvoid}}(C_NULL)
+        AMDGPU.HIP.hipMalloc(ptr, nelems*sizeof(T))
+        push!(hipmalloc_ptrs, ptr[])
+        buf = unsafe_wrap(ROCArray, Ptr{T}(ptr[]), (Int(nelems),); own=false)
+        fill!(buf, zero(T)); AMDGPU.synchronize()  # NOTE: synchronizes the task-local stream, on which fill! was enqueued.
+        return buf
+    end
+
+    # Free a device buffer allocated with alloc_rocbuf (hipFree, after synchronizing the task-local stream; a reinterpreted wrapper of such a buffer shares its pointer and is handled the same) or allocated by AMDGPU.jl (unsafe_free!).
+    # NOTE: the callers (free_update_halo_rocbuffers, reallocate_rocbufs) run when no halo update is in progress, i.e. after all streams used by IGG have been synchronized, and the only reference to the buffer is the slot being freed or replaced (reinterpret_rocbufs rewrites the slot).
+    function free_rocbuf!(buf)
+        if is_rocarray(buf)
+            p = (length(buf) > 0) ? Ptr{Cvoid}(pointer(buf)) : C_NULL
+            if (p != C_NULL && p in hipmalloc_ptrs) AMDGPU.synchronize(); AMDGPU.HIP.hipFree(p); delete!(hipmalloc_ptrs, p)
+            else AMDGPU.unsafe_free!(buf)
             end
         end
     end
@@ -90,8 +113,9 @@ let
     end
 
     function reallocate_rocbufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
-        rocsendbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
-        rocrecvbufs_raw[i][n] = AMDGPU.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
+        free_rocbuf!(rocsendbufs_raw[i][n]); free_rocbuf!(rocrecvbufs_raw[i][n]);  # NOTE: buffers allocated with alloc_rocbuf are not freed by the GC.
+        rocsendbufs_raw[i][n] = alloc_rocbuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
+        rocrecvbufs_raw[i][n] = alloc_rocbuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
     # Register the host buffers of field i for the GPU (page-locked) if they are not registered (anymore), wrapping them into GPU buffers. NOTE: the host buffers can be reinterpreted (see reinterpret_bufs); the registration is pointer based and the GPU buffers get the current element type of the host buffers.
