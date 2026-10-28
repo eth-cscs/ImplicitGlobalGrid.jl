@@ -10,7 +10,7 @@
 # multiple processes, the GPU-aware MPI setting of the environment is used (IGG_CUDAAWARE_MPI / IGG_ROCMAWARE_MPI).
 
 using Test
-import MPI
+import MPI, Polyester  # NOTE: Polyester must be loaded for the CPU halo update when IGG_USE_POLYESTER=1 (as in test_update_halo.jl).
 using CUDA, AMDGPU
 using ImplicitGlobalGrid; GG = ImplicitGlobalGrid
 
