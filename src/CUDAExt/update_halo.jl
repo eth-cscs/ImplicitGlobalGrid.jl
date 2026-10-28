@@ -161,14 +161,15 @@ let
     function iwrite_sendbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
-            if dim == 1 || cudaaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), custreams[n,i]);
+                sendbuf = cudaaware_MPI(dim) ? gpusendbuf_flat(n,dim,i,F) : sendbuf_flat(n,dim,i,F);
+                write_d2x_async!(cudaaware_MPI(dim), sendbuf, A, sendranges(n,dim,F), custreams[n,i]);
             end
         end
     end
@@ -190,14 +191,15 @@ let
     function iread_recvbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where T <: GGNumber
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
-            if dim == 1 || cudaaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @cuda blocks=nblocks threads=nthreads stream=custreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), custreams[n,i]);
+                recvbuf = cudaaware_MPI(dim) ? gpurecvbuf_flat(n,dim,i,F) : recvbuf_flat(n,dim,i,F);
+                read_x2d_async!(cudaaware_MPI(dim), recvbuf, A, recvranges(n,dim,F), custreams[n,i]);
             end
         end
     end
@@ -226,10 +228,11 @@ function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::CuDeviceArray{T}, A::CuDeviceA
     return nothing
 end
 
-# Write to the send buffer on the host from the array on the device (d2h).
-function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyCuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+# Write to the send buffer on the host or device from the array on the device (d2x).
+function ImplicitGlobalGrid.write_d2x_async!(cudaware::Bool, sendbuf::AbstractArray{T}, A::AnyCuArray{T}, sendranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    dstMemoryType = cudaware ? CUDA.DeviceMemory : CUDA.HostMemory    
     CUDA.unsafe_copy3d!(
-        pointer(sendbuf), CUDA.HostMemory, pointer(A), CUDA.DeviceMemory,
+        pointer(sendbuf), dstMemoryType, pointer(A), CUDA.DeviceMemory,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
         srcPitch=sizeof(T)*size(A,1), srcHeight=size(A,2),
@@ -238,10 +241,11 @@ function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyCu
     )
 end
 
-# Read from the receive buffer on the host and store on the array on the device (h2d).
-function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::AnyCuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+# Read from the receive buffer on the host or device and store on the array on the device (x2d).
+function ImplicitGlobalGrid.read_x2d_async!(cudaware::Bool, recvbuf::AbstractArray{T}, A::AnyCuArray{T}, recvranges::Array{UnitRange{T2},1}, custream::CuStream) where T <: GGNumber where T2 <: Integer
+    srcMemoryType = cudaware ? CUDA.DeviceMemory : CUDA.HostMemory
     CUDA.unsafe_copy3d!(
-        pointer(A), CUDA.DeviceMemory, pointer(recvbuf), CUDA.HostMemory,
+        pointer(A), CUDA.DeviceMemory, pointer(recvbuf), srcMemoryType,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
         srcPitch=sizeof(T)*length(recvranges[1]), srcHeight=length(recvranges[2]),
@@ -254,7 +258,7 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function ImplicitGlobalGrid.gpumemcopy!(dst::CuArray{T}, src::CuArray{T}) where T <: GGNumber
-    @inbounds CUDA.copyto!(dst, src)
+function ImplicitGlobalGrid.gpumemcopy!(dst::AnyCuArray{T}, src::AnyCuArray{T}) where T <: GGNumber
+    copyto!(dst, src)
 end
 
