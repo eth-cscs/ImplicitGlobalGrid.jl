@@ -65,7 +65,7 @@ export IGG_ROCMAWARE_MPI=1
 It can also be activated per dimension, see [Environment variables](@ref).
 
 !!! note "ROCm-aware MPI with Cray MPICH"
-    With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `MPICH_GPU_IPC_ENABLED=0` (the IPC path of the transport layer fails with device memory; see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
+    With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `HSA_ENABLE_IPC_MODE_LEGACY=1`: the GPU IPC path of the transport layer (between processes on the same node) fails with the default IPC mode of the ROCm runtime (observed with ROCm 7.2.3 and Cray MPICH 9.1.0). Alternatively, `MPICH_GPU_IPC_ENABLED=0` disables this path (see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
 
 
 ## [Asynchronous halo updates and overlap with computation](@id usage-stream-ordering)
