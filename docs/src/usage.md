@@ -68,6 +68,52 @@ It can also be activated per dimension, see [Environment variables](@ref).
     With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `MPICH_GPU_IPC_ENABLED=0` (the IPC path of the transport layer fails with device memory; see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
 
 
+## [Asynchronous halo updates and overlap with computation](@id usage-stream-ordering)
+For GPU arrays, [`update_halo!`](@ref) performs the halo update on streams of its own (non-blocking, with high priority), independently of the task-local stream on which CUDA.jl and AMDGPU.jl enqueue work by default. This is by design: it makes it straightforward to overlap the halo update with computation. The contract is:
+
+- `update_halo!` does not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream.
+- Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!`, must therefore be synchronized before the call.
+- `update_halo!` returns only once the halo update is complete: no synchronization is needed after the call.
+
+:::code-group
+
+```julia [Nvidia GPUs]
+@cuda blocks=nb threads=nt compute!(A, B)    # Enqueued on the task-local stream.
+CUDA.synchronize()                            # Complete it before the halo update.
+update_halo!(A)
+```
+
+```julia [AMD GPUs]
+@roc gridsize=nb groupsize=nt compute!(A, B) # Enqueued on the task-local stream.
+AMDGPU.synchronize()                          # Complete it before the halo update.
+update_halo!(A)
+```
+
+```julia [KernelAbstractions]
+compute!(backend)(A, B; ndrange=size(A))
+KernelAbstractions.synchronize(backend)
+update_halo!(A)
+```
+
+:::
+
+To overlap the halo update with computation, compute the boundary regions of the arrays first and synchronize, then launch the computation of the inner points on another stream without synchronizing, update the halos and finally synchronize that stream:
+
+```julia
+@cuda blocks=nb_b threads=nt stream=s_boundary compute_boundaries!(A, B)
+CUDA.synchronize(s_boundary)
+@cuda blocks=nb_i threads=nt stream=s_inner compute_inner_points!(A, B)
+update_halo!(A)                               # Runs while the inner points are computed.
+CUDA.synchronize(s_inner)
+```
+
+The macro `@hide_communication` of [ParallelStencil.jl](https://github.com/omlins/ParallelStencil.jl) implements this pattern.
+
+!!! note "Limitations"
+    - Synchronizing all work issued before the call is the responsibility of the caller, including work issued on other streams or from other tasks. `update_halo!` is not designed to be called concurrently from multiple tasks.
+    - With CUDA.jl ≥ 6.3, arrays keep track of the stream that last used them. This orders some operations of `update_halo!` after preceding work on the array (the kernels used for dimension 1), but not others (the memory copies used for dimensions 2 and 3): do not rely on it, synchronize before the call. The same tracking can also serialize an intended overlap (see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)).
+
+
 ## [Multi-threaded CPU halo copies](@id usage-polyester)
 Halo copies of CPU arrays can be multi-threaded with [Polyester.jl](https://github.com/JuliaSIMD/Polyester.jl) by importing it before ImplicitGlobalGrid, setting `IGG_USE_POLYESTER=1` and starting Julia with multiple threads (e.g. `julia -t 4`):
 ```julia

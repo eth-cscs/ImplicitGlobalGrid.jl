@@ -45,6 +45,7 @@ using ImplicitGlobalGrid
         qz    .= -lam.*d_zi(T)./dz;                                                           # ...                               q_z   = -λ δT/δz
         dTedt .= 1.0./inn(Cp).*(-d_xa(qx)./dx .- d_ya(qy)./dy .- d_za(qz)./dz);               # Conservation of energy:           δT/δt = 1/cₚ (-δq_x/δx - δq_y/dy - δq_z/dz)
         T[2:end-1,2:end-1,2:end-1] .= inn(T) .+ dt.*dTedt;                                    # Update of temperature             T_new = T_old + δT/δt
+        CUDA.synchronize();                                                                   # Complete the computations above (update_halo! does not synchronize with them)
         update_halo!(T);                                                                      # Update the halo of T
     end
 
