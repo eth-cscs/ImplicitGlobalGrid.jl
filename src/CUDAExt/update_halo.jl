@@ -186,11 +186,13 @@ let
 end
 
 let
-    global iread_recvbufs!, allocate_custreams_iread, wait_iread
+    global iread_recvbufs!, allocate_custreams_iread, wait_iread, custream_iread
 
     custreams = Array{CuStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
     wait_iread(n::Integer, A::CuField{T}, i::Integer) where T <: GGNumber = CUDA.synchronize(custreams[n,i]; blocking=true);
+
+    custream_iread(n::Integer, i::Integer) = custreams[n,i];  # The stream on which the receive buffer n of field i is unpacked (iread_recvbufs!).
 
     function allocate_custreams_iread(fields::GGField...)
         if length(fields) > size(custreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a CuField
@@ -268,7 +270,13 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function ImplicitGlobalGrid.gpumemcopy!(dst::AnyCuArray{T}, src::AnyCuArray{T}) where T <: GGNumber
-    copyto!(dst, src)
+# Copy the send buffer src into the receive buffer dst of field i (local exchange), enqueued on the stream on which dst is subsequently unpacked (iread_recvbufs!(nr,...)), so that the unpack is ordered after the copy (on the task-local stream, nothing would order them).
+# NOTE: a device-to-device copy of raw pointers rather than copyto! under CUDA.stream!: the latter costs 35-90 us more per call of update_halo! (6 local copies, GH200, CUDA.jl 6.2-6.5). With CUDA.jl >= 6.3, taking the pointers outside an operation submitted by CUDA.jl hands the ownership of IGG's buffers to the task-local stream (as it happens already in write_d2x_async!/read_x2d_async! and in MPI), which is idle during the halo update when the caller follows the contract of update_halo!.
+function ImplicitGlobalGrid.gpumemcopy!(dst::AnyCuArray{T}, src::AnyCuArray{T}, nr::Integer, i::Integer) where T <: GGNumber
+    if length(dst) != length(src) error("gpumemcopy!: the receive and send buffers differ in length.") end  # NOTE: should never happen (both are views of the halo size of the same field and dimension).
+    GC.@preserve dst src begin
+        Base.unsafe_copyto!(pointer(dst), pointer(src), length(src); stream=custream_iread(nr,i), async=true)
+    end
+    return dst
 end
 

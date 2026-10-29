@@ -556,7 +556,7 @@ dz = 1.0
                 finalize_global_grid(finalize_MPI=false);
             end;
             @static if test_cuda || test_amdgpu
-                @testset "write_d2x! / write_d2x_async! / write_d2h_async! / read_x2d! / read_x2d_async! / read_h2d_async! (arrays: $array_type)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
+                @testset "write_d2x! / write_d2x_async! / read_x2d! / read_x2d_async! (arrays: $array_type)" for (array_type, device_type, gpuzeros, GPUArray) in zip(gpu_array_types, gpu_device_types, gpu_allocators, GPUArrayConstructors)
                     init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
                     P  = zeros(nx,  ny,  nz  );
                     P .= [iz*1e2 + iy*1e1 + ix for ix=1:size(P,1), iy=1:size(P,2), iz=1:size(P,3)];
@@ -583,6 +583,12 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with CUDA-aware MPI)
+                        P2   .= 0.0;
+                        GG.write_d2x_async!(true, buf_g, P, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                         # (dim=2)
                         dim = 2;
@@ -604,6 +610,12 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with CUDA-aware MPI)
+                        P2   .= 0.0;
+                        GG.write_d2x_async!(true, buf_g, P, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                         # (dim=3)
                         dim = 3
@@ -625,6 +637,12 @@ dz = 1.0
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
                         GG.read_x2d_async!(false, buf, P2, ranges, custream); CUDA.synchronize();
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with CUDA-aware MPI)
+                        P2   .= 0.0;
+                        GG.write_d2x_async!(true, buf_g, P, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, custream); CUDA.synchronize();
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         CUDA.unregister(buf_h);
                     elseif array_type == "AMDGPU"
                         # (dim=1)
@@ -642,11 +660,17 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+                        rocstream = AMDGPU.HIPStream(); AMDGPU.synchronize();                        # The copies below run on rocstream: complete the work on the task-local stream first.
+                        GG.write_d2x_async!(false, buf, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with ROCm-aware MPI)
+                        P2   .= 0.0; AMDGPU.synchronize();
+                        GG.write_d2x_async!(true, buf_g, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.unsafe_free!(buf_d);
                         # (dim=2)
                         dim = 2;
@@ -663,11 +687,17 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+                        rocstream = AMDGPU.HIPStream(); AMDGPU.synchronize();                        # The copies below run on rocstream: complete the work on the task-local stream first.
+                        GG.write_d2x_async!(false, buf, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with ROCm-aware MPI)
+                        P2   .= 0.0; AMDGPU.synchronize();
+                        GG.write_d2x_async!(true, buf_g, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.unsafe_free!(buf_d);
                         # (dim=3)
                         dim = 3
@@ -684,11 +714,17 @@ dz = 1.0
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         buf .= 0.0;
                         P2  .= 0.0;
-                        rocstream = AMDGPU.HIPStream();
-                        GG.write_d2h_async!(buf, P, ranges, rocstream); AMDGPU.synchronize();
+                        rocstream = AMDGPU.HIPStream(); AMDGPU.synchronize();                        # The copies below run on rocstream: complete the work on the task-local stream first.
+                        GG.write_d2x_async!(false, buf, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
-                        GG.read_h2d_async!(buf, P2, ranges, rocstream); AMDGPU.synchronize();
+                        GG.read_x2d_async!(false, buf, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
                         @test all(buf[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
+                        buf_g = gpuzeros(eltype(P), size(buf));                                    # (device buffer, as used with ROCm-aware MPI)
+                        P2   .= 0.0; AMDGPU.synchronize();
+                        GG.write_d2x_async!(true, buf_g, P, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P[ranges[1],ranges[2],ranges[3]][:]))
+                        GG.read_x2d_async!(true, buf_g, P2, ranges, rocstream); AMDGPU.synchronize(rocstream);
+                        @test all(Array(buf_g)[:] .== Array(P2[ranges[1],ranges[2],ranges[3]][:]))
                         AMDGPU.unsafe_free!(buf_d);
                     end
                     finalize_global_grid(finalize_MPI=false);

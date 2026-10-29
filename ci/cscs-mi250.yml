@@ -11,7 +11,7 @@ stages:
 # is set after `uenv run`, as the view sets FI_PROVIDER=cxi, which MPICH_jll cannot use.
 # Multi-rank jobs (IGG_CI_MPI=system): MPI.jl uses the cray-mpich of the uenv through the preferences in ci/beverin_mpi_prefs (stacked
 # on the load path); each test file is a job step (srun). The ROCm-aware variant needs MPICH_GPU_SUPPORT_ENABLED=1 and, currently,
-# MPICH_GPU_IPC_ENABLED=0 (see docs/src/usage.md). JULIA_DEPOT_PATH is a dedicated x86 CI depot, in front of which the multi-rank jobs
+# HSA_ENABLE_IPC_MODE_LEGACY=1 (see docs/src/usage.md). JULIA_DEPOT_PATH is a dedicated x86 CI depot, in front of which the multi-rank jobs
 # put a job-local depot (IGG_CI_PRIVATE_DEPOT=1), as on GH200: they run concurrently. TMPDIR is on $SCRATCH (as on GH200).
 .mi250:
   extends: .baremetal-runner-beverin-mi200
@@ -34,7 +34,7 @@ stages:
       MPIENV="FI_PROVIDER=tcp"
       if [ "$IGG_CI_MPI" = system ]; then
         MPIENV="JULIA_LOAD_PATH=:$CI_PROJECT_DIR/ci/beverin_mpi_prefs IGG_TEST_MPIEXEC=srun"
-        [ "${IGG_ROCMAWARE_MPI:-0}" = 1 ] && MPIENV="$MPIENV MPICH_GPU_SUPPORT_ENABLED=1 MPICH_GPU_IPC_ENABLED=0"
+        [ "${IGG_ROCMAWARE_MPI:-0}" = 1 ] && MPIENV="$MPIENV MPICH_GPU_SUPPORT_ENABLED=1 HSA_ENABLE_IPC_MODE_LEGACY=1"
       fi
       uenv run $UENV --view=default -- env JULIA_DEPOT_PATH=$DEPOT TMPDIR=$CI_PROJECT_DIR/.tmp $MPIENV $JULIA --project --startup-file=no -e '
         using Pkg
@@ -65,4 +65,4 @@ mi250 - 1 node, 4 ranks:
     IGG_CI_MPI: 'system'
     SLURM_NTASKS_PER_NODE: 4
     IGG_TEST_NPROCS: 4
-    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'

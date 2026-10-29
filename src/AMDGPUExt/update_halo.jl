@@ -196,25 +196,28 @@ let
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
-            if dim == 1 || amdgpuaware_MPI(dim) # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the 3-D memcopy does not perform well for this extremely strided case).
                 ranges = sendranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] write_d2x!(gpusendbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                write_d2h_async!(sendbuf_flat(n,dim,i,F), A, sendranges(n,dim,F), rocstreams[n,i]);
+                sendbuf = amdgpuaware_MPI(dim) ? gpusendbuf_flat(n,dim,i,F) : sendbuf_flat(n,dim,i,F);
+                write_d2x_async!(amdgpuaware_MPI(dim), sendbuf, A, sendranges(n,dim,F), rocstreams[n,i]);
             end
         end
     end
 end
 
 let
-    global iread_recvbufs!, allocate_rocstreams_iread, wait_iread
+    global iread_recvbufs!, allocate_rocstreams_iread, wait_iread, rocstream_iread
 
     rocstreams = Array{AMDGPU.HIPStream}(undef, NNEIGHBORS_PER_DIM, 0)
 
     wait_iread(n::Integer, A::ROCField{T}, i::Integer) where T <: GGNumber = AMDGPU.synchronize(rocstreams[n,i]; blocking=true);
+
+    rocstream_iread(n::Integer, i::Integer) = rocstreams[n,i];  # The stream on which the receive buffer n of field i is unpacked (iread_recvbufs!).
 
     function allocate_rocstreams_iread(fields::GGField...)
         if length(fields) > size(rocstreams,2)  # Note: for simplicity, we create a stream for every field even if it is not a ROCField
@@ -226,14 +229,15 @@ let
         A, halowidths = F;
         if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
             # DEBUG: the follow section needs perf testing
-            if dim == 1 || amdgpuaware_MPI(dim)  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the CUDA 3-D memcopy does not perform well for this extremely strided case).
+            if dim == 1  # Use a custom copy kernel for the first dimension to obtain a good copy performance (the 3-D memcopy does not perform well for this extremely strided case).
                 ranges = recvranges(n, dim, F);
                 nthreads = (dim==1) ? (1, 32, 1) : (32, 1, 1);
                 halosize = [r[end] - r[1] + 1 for r in ranges];
                 nblocks  = Tuple(ceil.(Int, halosize./nthreads));
                 @roc gridsize=nblocks groupsize=nthreads stream=rocstreams[n,i] read_x2d!(gpurecvbuf(n,dim,i,F), A, ranges[1], ranges[2], ranges[3], dim);
             else
-                read_h2d_async!(recvbuf_flat(n,dim,i,F), A, recvranges(n,dim,F), rocstreams[n,i]);
+                recvbuf = amdgpuaware_MPI(dim) ? gpurecvbuf_flat(n,dim,i,F) : recvbuf_flat(n,dim,i,F);
+                read_x2d_async!(amdgpuaware_MPI(dim), recvbuf, A, recvranges(n,dim,F), rocstreams[n,i]);
             end
         end
     end
@@ -263,31 +267,31 @@ function ImplicitGlobalGrid.read_x2d!(gpurecvbuf::ROCDeviceArray{T}, A::ROCDevic
     return nothing
 end
 
-# Write to the send buffer on the host from the array on the device (d2h).
-function ImplicitGlobalGrid.write_d2h_async!(sendbuf::AbstractArray{T}, A::AnyROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
-    buf_view = reshape(sendbuf, Tuple(length.(sendranges)))
+# Write to the send buffer on the host or device from the array on the device (d2x).
+function ImplicitGlobalGrid.write_d2x_async!(rocmaware::Bool, sendbuf::AbstractArray{T}, A::AnyROCArray{T}, sendranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    dstMemoryType = rocmaware ? AMDGPU.Mem.HIPBuffer : AMDGPU.Mem.HostBuffer
     AMDGPU.Mem.unsafe_copy3d!(
-        pointer(sendbuf), AMDGPU.Mem.HostBuffer,
+        pointer(sendbuf), dstMemoryType,
         pointer(A), AMDGPU.Mem.HIPBuffer,
         length(sendranges[1]), length(sendranges[2]), length(sendranges[3]);
         srcPos=(sendranges[1][1], sendranges[2][1], sendranges[3][1]),
-        dstPitch=sizeof(T) * size(buf_view, 1), dstHeight=size(buf_view, 2),
+        dstPitch=sizeof(T) * length(sendranges[1]), dstHeight=length(sendranges[2]),
         srcPitch=sizeof(T) * size(A, 1), srcHeight=size(A, 2),
         async=true, stream=rocstream
     )
     return nothing
 end
 
-# Read from the receive buffer on the host and store on the array on the device (h2d).
-function ImplicitGlobalGrid.read_h2d_async!(recvbuf::AbstractArray{T}, A::AnyROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
-    buf_view = reshape(recvbuf, Tuple(length.(recvranges)))
+# Read from the receive buffer on the host or device and store on the array on the device (x2d).
+function ImplicitGlobalGrid.read_x2d_async!(rocmaware::Bool, recvbuf::AbstractArray{T}, A::AnyROCArray{T}, recvranges::Array{UnitRange{T2},1}, rocstream::AMDGPU.HIPStream) where T <: GGNumber where T2 <: Integer
+    srcMemoryType = rocmaware ? AMDGPU.Mem.HIPBuffer : AMDGPU.Mem.HostBuffer
     AMDGPU.Mem.unsafe_copy3d!(
         pointer(A), AMDGPU.Mem.HIPBuffer,
-        pointer(recvbuf), AMDGPU.Mem.HostBuffer,
+        pointer(recvbuf), srcMemoryType,
         length(recvranges[1]), length(recvranges[2]), length(recvranges[3]);
         dstPos=(recvranges[1][1], recvranges[2][1], recvranges[3][1]),
         dstPitch=sizeof(T) * size(A, 1), dstHeight=size(A, 2),
-        srcPitch=sizeof(T) * size(buf_view, 1), srcHeight=size(buf_view, 2),
+        srcPitch=sizeof(T) * length(recvranges[1]), srcHeight=length(recvranges[2]),
         async=true, stream=rocstream
     )
     return nothing
@@ -297,6 +301,12 @@ end
 ##------------------------------
 ## FUNCTIONS TO SEND/RECV FIELDS
 
-function ImplicitGlobalGrid.gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}) where T <: GGNumber
-    @inbounds AMDGPU.copyto!(dst, src)
+# Copy the send buffer src into the receive buffer dst of field i (local exchange), enqueued on the stream on which dst is subsequently unpacked (iread_recvbufs!(nr,...)), so that the unpack is ordered after the copy (on the task-local stream, nothing would order them).
+# NOTE: a device-to-device copy of raw pointers rather than copyto! under AMDGPU.stream!(f, stream): before AMDGPU.jl 2.10, the latter does not switch the stream (f runs on the task-local stream). The buffers are IGG's own device buffers (allocated by alloc_rocbuf), and AMDGPU.jl does not track the streams using an array, so using raw pointers has no side effects.
+function ImplicitGlobalGrid.gpumemcopy!(dst::ROCArray{T}, src::ROCArray{T}, nr::Integer, i::Integer) where T <: GGNumber
+    if length(dst) != length(src) error("gpumemcopy!: the receive and send buffers differ in length.") end  # NOTE: should never happen (both are views of the halo size of the same field and dimension).
+    GC.@preserve dst src begin
+        AMDGPU.HIP.hipMemcpyDtoDAsync(pointer(dst), pointer(src), length(src)*sizeof(T), rocstream_iread(nr,i))
+    end
+    return dst
 end

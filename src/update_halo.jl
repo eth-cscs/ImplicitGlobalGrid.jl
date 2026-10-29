@@ -26,6 +26,9 @@ Update the halo of the given GPU/CPU-array(s). If multiple global grids have bee
     ```shell
     shell> export IGG_ROCMAWARE_MPI=1
     ```
+
+!!! note "Asynchronous execution on GPUs"
+    For GPU arrays, `update_halo!` performs the halo update on streams of its own (non-blocking, with high priority) and does not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream. This enables overlapping the halo update with computation (see e.g. `@hide_communication` of ParallelStencil.jl). Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!` or ideally the computation of only the boundary regions of these arrays, must therefore be synchronized before the call, e.g. with `CUDA.synchronize()`, `AMDGPU.synchronize()` or `KernelAbstractions.synchronize(backend)` (`@parallel` of ParallelStencil.jl synchronizes automatically). `update_halo!` returns only once the halo update is complete. See [Asynchronous halo updates and overlap with computation](@ref usage-stream-ordering).
 """
 function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellFieldConvertible, GGField}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...), active_global_grid=global_grid())
     check_initialized()
@@ -373,9 +376,9 @@ function sendrecv_halo_local(n::Integer, dim::Integer, F::GGField, i::Integer)
     if ol(dim,A) >= 2*halowidths[dim] # There is only a halo and thus a halo update if the overlap is at least 2 times the halowidth...
         if (cudaaware_MPI(dim) && is_cuarray(A)) || (amdgpuaware_MPI(dim) && is_rocarray(A))
             if n == 1
-                gpumemcopy!(gpurecvbuf_flat(2,dim,i,F), gpusendbuf_flat(1,dim,i,F));
+                gpumemcopy!(gpurecvbuf_flat(2,dim,i,F), gpusendbuf_flat(1,dim,i,F), 2, i);  # NOTE: the copy is enqueued on the stream that subsequently unpacks the receive buffer (iread_recvbufs!(2,dim,F,i)), which orders the unpack after the copy.
             elseif n == 2
-                gpumemcopy!(gpurecvbuf_flat(1,dim,i,F), gpusendbuf_flat(2,dim,i,F));
+                gpumemcopy!(gpurecvbuf_flat(1,dim,i,F), gpusendbuf_flat(2,dim,i,F), 1, i);
             end
         else
             if n == 1
