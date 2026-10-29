@@ -133,7 +133,8 @@ let
         :reorder       => 1,
         :comm          => MPI.COMM_WORLD,
         :device_type   => DEVICE_TYPE_AUTO, # as of now changing this between grids is disabled
-        :select_device => true,             # as of now changing this between grids is disabled
+        :select_device => true,              # as of now changing this between grids is disabled
+        :auto_task_sync => false,            # as of now changing this between grids is disabled
         :quiet         => false,
     ])
     DEFAULT_OF_DEFAULT_ARGS::Dict{Symbol,Any} = copy(_default_args) # This is used in the corner case of finalizing and reinitializing to reset the default arguments to their original values.
@@ -153,7 +154,7 @@ end
 
     Validates and normalizes the input arguments for implicit global grid creation.
 """
-function normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+function normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet)
     # Signature includes all params for easy extensibility of checks
     dims              = [dimx, dimy, dimz];
     periods           = Int64.([periodx, periody, periodz]);
@@ -167,19 +168,20 @@ function normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, or
     if length(origin) != 3 error("Invalid argument: the length of the origin tuple must be at most 3.") end
     if (any(halowidths .< 1)) error("Invalid arguments: halowidths cannot be less than 1."); end
     if (any((overlaps .> 0) .& (halowidths .> overlaps.÷2))) error("Incoherent arguments: if overlap is greater than 0, then halowidth cannot be greater than overlap÷2, in each dimension."); end
+    if !(auto_task_sync isa Bool) error("Invalid arguments: auto_task_sync must be true or false."); end
     return dimx, dimy, dimz,
         periodx, periody, periodz,
         origin, origin_on_vertex,
         centerx, centery, centerz,
         overlaps, halowidths, disp,
         reorder, comm,
-        device_type, select_device, quiet
+        device_type, select_device, auto_task_sync, quiet
 end
 
-function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet)
     # Signature includes all params for easy extensibility of checks
     # Checks without grid size
-    dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet = normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+    dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet = normalize_input(dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet)
     dims              = [dimx, dimy, dimz];
     nxyz              = [nx, ny, nz];
     periods           = [periodx, periody, periodz];
@@ -203,7 +205,7 @@ function normalize_input(nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz
         centerx, centery, centerz,
         overlaps, halowidths, disp,
         reorder, comm,
-        device_type, select_device, quiet
+        device_type, select_device, auto_task_sync, quiet
 end
 
 
