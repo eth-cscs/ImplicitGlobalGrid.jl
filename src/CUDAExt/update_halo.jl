@@ -154,6 +154,7 @@ ImplicitGlobalGrid.iwrite_sendbufs!(n::Integer, dim::Integer, F::CuField{T}, i::
 ImplicitGlobalGrid.iread_recvbufs!(n::Integer, dim::Integer, F::CuField{T}, i::Integer) where {T <: GGNumber} = iread_recvbufs!(n,dim,F,i)
 ImplicitGlobalGrid.wait_iwrite(n::Integer, A::CuField{T}, i::Integer) where {T <: GGNumber} = wait_iwrite(n,A,i)
 ImplicitGlobalGrid.wait_iread(n::Integer, A::CuField{T}, i::Integer) where {T <: GGNumber} = wait_iread(n,A,i)
+ImplicitGlobalGrid.cuda_task_local_sync() = CUDA.synchronize()
 
 let
     global iwrite_sendbufs!, allocate_custreams_iwrite, wait_iwrite
