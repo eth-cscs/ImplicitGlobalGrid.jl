@@ -66,3 +66,15 @@ mi300 - 1 node, 4 ranks:
     SLURM_NTASKS_PER_NODE: 4
     IGG_TEST_NPROCS: 4
     IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'
+
+mi300 - 2 nodes, 8 ranks:
+  extends: .mi300
+  stage: multi-rank
+  variables:
+    IGG_CI_PRIVATE_DEPOT: '1'
+    IGG_CI_MPI: 'system'
+    SLURM_JOB_NUM_NODES: 2
+    SLURM_NTASKS_PER_NODE: 4
+    IGG_TEST_NPROCS: 8
+    IGG_ROCMAWARE_MPI: '1'
+    IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'
