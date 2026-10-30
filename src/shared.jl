@@ -133,8 +133,8 @@ let
         :reorder       => 1,
         :comm          => MPI.COMM_WORLD,
         :device_type   => DEVICE_TYPE_AUTO, # as of now changing this between grids is disabled
-        :select_device => true,              # as of now changing this between grids is disabled
-        :auto_task_sync => false,            # as of now changing this between grids is disabled
+        :select_device => true,             # as of now changing this between grids is disabled
+        :auto_task_sync => false,           # as of now changing this between grids is disabled
         :quiet         => false,
     ])
     DEFAULT_OF_DEFAULT_ARGS::Dict{Symbol,Any} = copy(_default_args) # This is used in the corner case of finalizing and reinitializing to reset the default arguments to their original values.
