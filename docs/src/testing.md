@@ -48,5 +48,6 @@ As the tests select the GPU by node-local MPI rank, every rank must see all GPUs
   - [Beverin](https://docs.cscs.ch/clusters/beverin/) (AMD MI250X and MI300A GPUs): the full test suite on one process and the multi-rank tests on 1 node × 4 processes (with and without ROCm-aware MPI, using the cray-mpich of the system through the preferences in `ci/beverin_mpi_prefs`), on each GPU type (`ci/cscs-mi250.yml`, `ci/cscs-mi300.yml`; [MI250X pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253669/-/pipelines), [MI300A pipelines](https://gitlab.com/cscs-ci/ci-testing/webhook-ci/mirrors/1939427232800723/3544630643253670/-/pipelines)).
 
   The README badges of the CSCS CI are generated from its commit statuses by the workflow `.github/workflows/CSCSBadges.yml` (branch `badges`).
+- **Stack check** (`ci/cscs-stack.yml`, `ci/probes`): the [behaviour per version](@ref stream-semantics-versions), `update_halo!` and `@hide_communication` of ParallelStencil with an old and the latest version of CUDA.jl and AMDGPU.jl. It runs weekly (`.github/workflows/StackCheck.yml` pushes main to the branch `stack-check`) and with the PR comment `cscs-ci run stack`; a failure opens an issue.
 
 Coverage of all jobs is uploaded to [Codecov](https://app.codecov.io/gh/eth-cscs/ImplicitGlobalGrid.jl) (flags `cpu`, `gh200`, `mi250` and `mi300`).
