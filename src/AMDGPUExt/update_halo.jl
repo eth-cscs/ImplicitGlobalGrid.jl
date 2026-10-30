@@ -178,6 +178,7 @@ ImplicitGlobalGrid.iwrite_sendbufs!(n::Integer, dim::Integer, F::ROCField{T}, i:
 ImplicitGlobalGrid.iread_recvbufs!(n::Integer, dim::Integer, F::ROCField{T}, i::Integer) where {T <: GGNumber} = iread_recvbufs!(n,dim,F,i)
 ImplicitGlobalGrid.wait_iwrite(n::Integer, A::ROCField{T}, i::Integer) where {T <: GGNumber} = wait_iwrite(n,A,i)
 ImplicitGlobalGrid.wait_iread(n::Integer, A::ROCField{T}, i::Integer) where {T <: GGNumber} = wait_iread(n,A,i)
+ImplicitGlobalGrid.rocm_task_local_sync() = AMDGPU.synchronize()
 
 let
     global iwrite_sendbufs!, allocate_rocstreams_iwrite, wait_iwrite
