@@ -21,3 +21,4 @@ function unregister_cubufs end
 function get_cusendbufs_raw end
 function get_curecvbufs_raw end
 function allocate_custreams end
+function cuda_task_local_sync end

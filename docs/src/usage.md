@@ -71,8 +71,8 @@ It can also be activated per dimension, see [Environment variables](@ref).
 ## [Asynchronous halo updates and overlap with computation](@id usage-stream-ordering)
 For GPU arrays, [`update_halo!`](@ref) performs the halo update on streams of its own (non-blocking, with high priority), independently of the task-local stream on which CUDA.jl and AMDGPU.jl enqueue work by default. This is by design: it makes it straightforward to overlap the halo update with computation. The contract is:
 
-- `update_halo!` does not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream.
-- Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!` or ideally the computation of only the boundary regions of these arrays, must therefore be synchronized before the call.
+- `update_halo!` does, by default, not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream (automatic synchronization of the task-local stream can be activated in the call to `init_global_grid` with the keyword `auto_task_sync=true`; the synchronization then covers only the task-local stream).
+- Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!` or ideally the computation of only the boundary regions of these arrays, must therefore be synchronized before the call by default.
 - `update_halo!` returns only once the halo update is complete: no synchronization is needed after the call.
 
 :::code-group
