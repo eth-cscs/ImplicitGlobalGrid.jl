@@ -28,7 +28,7 @@ Update the halo of the given GPU/CPU-array(s). If multiple global grids have bee
     ```
 
 !!! note "Asynchronous execution on GPUs"
-    For GPU arrays, `update_halo!` performs the halo update on streams of its own (non-blocking, with high priority) and does not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream. This enables overlapping the halo update with computation (see e.g. `@hide_communication` of ParallelStencil.jl). Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!` or ideally the computation of only the boundary regions of these arrays, must therefore be synchronized before the call, e.g. with `CUDA.synchronize()`, `AMDGPU.synchronize()` or `KernelAbstractions.synchronize(backend)` (`@parallel` of ParallelStencil.jl synchronizes automatically). `update_halo!` returns only once the halo update is complete. See [Asynchronous halo updates and overlap with computation](@ref usage-stream-ordering).
+    For GPU arrays, `update_halo!` performs the halo update on streams of its own (non-blocking, with high priority) and does, by default, not synchronize with work enqueued before the call, neither on the task-local stream nor on any other stream (automatic synchronization of the task-local stream can be activated in the call to `init_global_grid` with the keyword `auto_task_sync=true`). This enables overlapping the halo update with computation (see e.g. `@hide_communication` of ParallelStencil.jl). Work that must not run at the same time as the halo update, typically the computation of the arrays passed to `update_halo!` or ideally the computation of only the boundary regions of these arrays, must therefore be synchronized before the call, e.g. with `CUDA.synchronize()`, `AMDGPU.synchronize()` or `KernelAbstractions.synchronize(backend)` (`@parallel` of ParallelStencil.jl synchronizes automatically). `update_halo!` returns only once the halo update is complete. See [Asynchronous halo updates and overlap with computation](@ref usage-stream-ordering).
 """
 function update_halo!(A::Union{GGArray, GGFieldConvertible, GGCellArray, GGCellFieldConvertible, GGField}...; dims=(NDIMS_MPI,(1:NDIMS_MPI-1)...), active_global_grid=global_grid())
     check_initialized()
@@ -46,6 +46,10 @@ end
 
 function _update_halo!(fields::GGField...; dims=dims)
     if (!cuda_enabled() && !amdgpu_enabled() && !all_arrays(fields...)) error("not all arrays are CPU arrays, but no GPU extension is loaded.") end #NOTE: in the following, it is only required to check for `cuda_enabled()`/`amdgpu_enabled()` when the context does not imply `any_cuarray(fields...)` or `is_cuarray(A)` or the corresponding for AMDGPU. # NOTE: the case where only one of the two extensions are loaded, but an array dad would be for the other extension is passed is very unlikely and therefore not explicitly checked here (but could be added later).
+    if (default(:auto_task_sync)) #NOTE: By default, the halo exchange is overlapped with the computation in the task-local stream; however, if auto_task_sync is set true, waiting for the latter ensures that all kernels writing the arrays have finished before the halos are packed.
+        if any_cuarray(fields...) cuda_task_local_sync(); end
+        if any_rocarray(fields...) rocm_task_local_sync(); end
+    end
     allocate_bufs(fields...);
     if any_array(fields...) allocate_tasks(fields...); end
     if any_cuarray(fields...) allocate_custreams(fields...); end
