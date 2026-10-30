@@ -4,6 +4,7 @@ DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
 ImplicitGlobalGrid = "4d7a3746-15be-11ea-1130-334b0c4f5fa0"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
 ImplicitGlobalGrid = {path = ".."}

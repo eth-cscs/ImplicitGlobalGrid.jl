@@ -5,3 +5,4 @@ lcov.info
 docs/build/
 docs/node_modules/
 docs/package-lock.json
+.stack/
