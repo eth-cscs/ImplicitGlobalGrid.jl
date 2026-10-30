@@ -19,3 +19,6 @@ function write_d2x_async! end
 function read_x2d_async! end
 
 function gpumemcopy! end
+
+function cuda_task_local_sync end
+function rocm_task_local_sync end
