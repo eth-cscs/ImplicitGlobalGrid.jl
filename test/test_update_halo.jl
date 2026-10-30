@@ -1490,6 +1490,18 @@ dz = 1.0
             finalize_global_grid(finalize_MPI=false);
         end;
     end;
+
+    @testset "6. auto_task_sync (arrays: $array_type)" for (array_type, device_type, zeros) in zip(array_types_union, device_types_union, allocators_union)
+        init_global_grid(nx, ny, nz; quiet=true, init_MPI=false, device_type=device_type);
+        P = zeros(nx,  ny,  nz  );
+        update_halo!(P);
+        @test GG.default(:auto_task_sync) == false
+        finalize_global_grid(finalize_MPI=false);
+        init_global_grid(nx, ny, nz; auto_task_sync=true, quiet=true, init_MPI=false, device_type=device_type);
+        update_halo!(P);
+        @test GG.default(:auto_task_sync) == true
+        finalize_global_grid(finalize_MPI=false);
+    end;
 end;
 
 ## Test tear down
