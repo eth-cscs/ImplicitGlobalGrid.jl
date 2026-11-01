@@ -8,12 +8,12 @@ CUDA.jl (from v6.3) and AMDGPU.jl moreover record the stream that last used an a
 - It prevents overlapping the computation of an array with the update of its halo. To overlap them, disable it for the arrays concerned and order the work explicitly:
 
 ```julia
-CUDA.enable_synchronization!(A, false)   # AMDGPU.enable_synchronization!(A, false) with AMDGPU.jl ≥ FILL
+CUDA.enable_synchronization!(A, false)   # AMDGPU.enable_synchronization!(A, false) with AMDGPU.jl ≥ 2.11
 # ... computation of A on another stream, update_halo!(A), synchronization of that stream ...
 CUDA.enable_synchronization!(A, true)
 ```
 
-`@hide_communication` and `@overlap` of [ParallelStencil.jl](https://github.com/omlins/ParallelStencil.jl) do this automatically (from ParallelStencil FILL on).
+`@hide_communication` and `@overlap` of [ParallelStencil.jl](https://github.com/omlins/ParallelStencil.jl) do this automatically (from ParallelStencil 0.17.2 on).
 
 
 ## [Behaviour per version](@id stream-semantics-versions)

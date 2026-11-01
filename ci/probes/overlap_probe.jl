@@ -9,7 +9,7 @@
 #   communication (the cost of the split computation); hide: @hide_communication.
 #   hidden = (seq - hide) / min(comp, comm); hidden_split = (split + comm - hide) / min(split, comm), which does not count the cost of the
 #   split computation: about 1 = communication fully hidden; about 0 or below = serialized.
-#   bkopt: the GPU package provides enable_synchronization!; psopt: ParallelStencil suspends the implicit synchronization in @hide_communication.
+#   bkopt: the GPU package provides enable_synchronization!; psopt: ParallelStencil suspends the implicit synchronization in @hide_communication (from 0.17.2 on).
 # Env: PROBE_BACKEND=CUDA|AMDGPU (default CUDA), PROBE_N (default 256; a list, e.g. "256 512", runs each), PROBE_NT (default 20), PROBE_REPS
 # (default 3), PROBE_DIMS (default "1 2 3 0"). GPU-aware MPI: IGG_CUDAAWARE_MPI / IGG_ROCMAWARE_MPI as usual. Everything runs inside functions (ParallelStencil 0.17
 # emits swap assignments to the kernel arguments after @parallel calls, omlins/ParallelStencil.jl#243).
@@ -23,7 +23,7 @@ using ParallelStencil, ParallelStencil.FiniteDifferences3D
 using ImplicitGlobalGrid, MPI, Printf
 const GPU   = getfield(Main, BACKEND)
 const BKOPT = isdefined(GPU, :enable_synchronization!)
-const PSOPT = isdefined(ParallelStencil.ParallelKernel, :suspend_implicit_sync)
+const PSOPT = pkgversion(ParallelStencil) >= v"0.17.2"
 const NREPS = parse(Int, get(ENV, "PROBE_REPS", "3"))
 @eval @init_parallel_stencil($BACKEND, Float64, 3)
 
