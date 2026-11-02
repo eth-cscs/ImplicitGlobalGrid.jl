@@ -65,7 +65,7 @@ export IGG_ROCMAWARE_MPI=1
 It can also be activated per dimension, see [Environment variables](@ref).
 
 !!! note "ROCm-aware MPI with Cray MPICH"
-    With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `HSA_ENABLE_IPC_MODE_LEGACY=1`: the GPU IPC path of the transport layer (between processes on the same node) fails with the default IPC mode of the ROCm runtime (observed with ROCm 7.2.3 and Cray MPICH 9.1.0). Alternatively, `MPICH_GPU_IPC_ENABLED=0` disables this path (see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
+    With Cray MPICH (HPE Cray EX systems with AMD GPUs), ImplicitGlobalGrid allocates the device buffers it uses for ROCm-aware MPI outside the AMDGPU.jl memory pool (with `hipMalloc`), because the GPU transport layer of Cray MPICH does not recognize pool memory as device memory. ROCm-aware MPI requires `MPICH_GPU_SUPPORT_ENABLED=1` and, currently, `HSA_ENABLE_IPC_MODE_LEGACY=1`: the GPU IPC path of the transport layer (between processes on the same node) fails with the default IPC mode of the ROCm runtime (observed with ROCm 7.2.3 and Cray MPICH 9.1.0). Alternatively, `MPICH_GPU_IPC_ENABLED=0` disables this path, but the exchange between processes on the same node is then much slower (see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)). Your own arrays are never passed to MPI by ImplicitGlobalGrid, so no change is needed in your code.
 
 
 ## [Asynchronous halo updates and overlap with computation](@id usage-stream-ordering)
@@ -107,11 +107,11 @@ update_halo!(A)                               # Runs while the inner points are 
 CUDA.synchronize(s_inner)
 ```
 
-The macro `@hide_communication` of [ParallelStencil.jl](https://github.com/omlins/ParallelStencil.jl) implements this pattern.
+With CUDA.jl ≥ 6.3 and AMDGPU.jl, this only overlaps if the implicit synchronization of `A` is disabled (see [GPU streams and synchronization](@ref stream-semantics)). The macro `@hide_communication` of [ParallelStencil.jl](https://github.com/omlins/ParallelStencil.jl) implements this pattern.
 
 !!! note "Limitations"
     - Synchronizing all work issued before the call is the responsibility of the caller, including work issued on other streams or from other tasks. `update_halo!` is not designed to be called concurrently from multiple tasks.
-    - With CUDA.jl ≥ 6.3, arrays keep track of the stream that last used them. This orders some operations of `update_halo!` after preceding work on the array (the kernels used for dimension 1), but not others (the memory copies used for dimensions 2 and 3): do not rely on it, synchronize before the call. The same tracking can also serialize an intended overlap (see [issue #143](https://github.com/eth-cscs/ImplicitGlobalGrid.jl/issues/143)).
+    - With CUDA.jl ≥ 6.3 and AMDGPU.jl, arrays keep track of the stream that last used them; see [GPU streams and synchronization](@ref stream-semantics) for what this means for `update_halo!`.
 
 
 ## [Multi-threaded CPU halo copies](@id usage-polyester)
