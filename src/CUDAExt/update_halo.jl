@@ -24,6 +24,7 @@ let
     curecvbufs_raw = nothing
     cusendbufs_raw_h = nothing
     curecvbufs_raw_h = nothing
+    cumalloc_mems    = Dict{CuPtr{Cvoid},CUDA.DeviceMemory}()  # Device buffers allocated with cuMemAlloc by alloc_cubuf (IGG owns them; freed with cuMemFree by free_cubuf!).
 
     function free_update_halo_cubuffers()
         free_cubufs(cusendbufs_raw)
@@ -37,8 +38,29 @@ let
         if (bufs !== nothing)
             for i = 1:length(bufs)
                 for n = 1:length(bufs[i])
-                    if is_cuarray(bufs[i][n]) CUDA.unsafe_free!(bufs[i][n]); bufs[i][n] = []; end
+                    if is_cuarray(bufs[i][n]) free_cubuf!(bufs[i][n]); bufs[i][n] = []; end
                 end
+            end
+        end
+    end
+
+    # Allocate a zeroed device buffer of nelems elements of type T with plain cuMemAlloc, i.e. outside the CUDA.jl memory pool.
+    # NOTE: the device buffers used for CUDA-aware MPI must not come from the CUDA.jl memory pool (cuMemAllocAsync, behind CuArray{T}(undef,...), CUDA.zeros, ...): the GPU transport layers of the MPI implementations (Cray MPICH GTL, UCX cuda_ipc) exchange data between the processes of a node with the legacy CUDA IPC API (cuIpcGetMemHandle), which rejects stream-ordered (pool) memory whatever the export handle type of the pool (verified with Cray MPICH 8.1.32 on GH200: `cuIpcGetMemHandle: invalid argument` → MPI error "Invalid count" in MPIDI_CRAY_Common_lmt_export_mem). Until now, this required JULIA_CUDA_MEMORY_POOL=none, i.e. no memory pool for the whole application. The wrapping CuArray does not own the memory (own=false); the buffer is freed explicitly with free_cubuf!.
+    function alloc_cubuf(T::DataType, nelems::Integer)
+        mem = CUDADrv.alloc(CUDA.DeviceMemory, nelems*sizeof(T); async=false)
+        cumalloc_mems[pointer(mem)] = mem
+        buf = unsafe_wrap(CuArray, convert(CuPtr{T}, mem), (Int(nelems),); own=false)
+        fill!(buf, zero(T)); CUDA.synchronize()  # NOTE: synchronizes the task-local stream, on which fill! was enqueued.
+        return buf
+    end
+
+    # Free a device buffer allocated with alloc_cubuf (cuMemFree, which waits for the device to be idle; a reinterpreted wrapper of such a buffer shares its pointer and is handled the same) or allocated by CUDA.jl (unsafe_free!).
+    # NOTE: the callers (free_update_halo_cubuffers, reallocate_cubufs) run when no halo update is in progress and the only reference to the buffer is the slot being freed or replaced (reinterpret_cubufs rewrites the slot).
+    function free_cubuf!(buf)
+        if is_cuarray(buf)
+            p = (length(buf) > 0) ? convert(CuPtr{Cvoid}, pointer(buf)) : CuPtr{Cvoid}(0)
+            if haskey(cumalloc_mems, p) CUDADrv.free(pop!(cumalloc_mems, p))
+            else CUDA.unsafe_free!(buf)
             end
         end
     end
@@ -91,8 +113,9 @@ let
     end
 
     function reallocate_cubufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
-        cusendbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
-        curecvbufs_raw[i][n] = CUDA.zeros(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
+        free_cubuf!(cusendbufs_raw[i][n]); free_cubuf!(curecvbufs_raw[i][n]);  # NOTE: buffers allocated with alloc_cubuf are not freed by the GC.
+        cusendbufs_raw[i][n] = alloc_cubuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
+        curecvbufs_raw[i][n] = alloc_cubuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
 
     # Register the host buffers of field i for the GPU (page-locked and mapped to device memory) if they are not registered (anymore), wrapping them into GPU buffers. NOTE: the host buffers can be reinterpreted (see reinterpret_bufs); the registration is pointer based and the GPU buffers get the current element type of the host buffers.

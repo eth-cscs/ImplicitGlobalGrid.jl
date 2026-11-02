@@ -3,6 +3,8 @@ import ImplicitGlobalGrid: GGArray, GGField, GGNumber, halosize, ol, cudaaware_M
 import ImplicitGlobalGrid: NNEIGHBORS_PER_DIM, GG_ALLOC_GRANULARITY
 using CUDA
 
+const CUDADrv = isdefined(CUDA, :CUDACore) ? CUDA.CUDACore : CUDA  # Module holding the driver-level memory API of CUDA.jl (alloc, free): CUDACore since CUDA.jl 6, CUDA before.
+
 
 ##------
 ## TYPES
