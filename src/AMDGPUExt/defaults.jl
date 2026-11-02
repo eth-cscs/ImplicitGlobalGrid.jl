@@ -21,3 +21,4 @@ function unregister_rocbufs end
 function get_rocsendbufs_raw end
 function get_rocrecvbufs_raw end
 function allocate_rocstreams end
+function rocm_task_local_sync end

@@ -6,8 +6,9 @@
 # with and without GPU-aware MPI; local exchange (periodic dimension with one process) or MPI), i.e. that all operations of update_halo!
 # are correctly ordered among each other. Unlike in test_update_halo.jl, the arrays and halos are large and the preceding kernel is long,
 # so that a missing ordering would show.
-# With one process, the halo update is local in all dimensions and needs no MPI: the GPU-aware variant is then always tested too. With
-# multiple processes, the GPU-aware MPI setting of the environment is used (IGG_CUDAAWARE_MPI / IGG_ROCMAWARE_MPI).
+# The second testset is the same halo update preceded by the same long kernel, but with automatic synchronization of the task-local stream
+# activated in the call to init_global_grid with the keyword auto_task_sync=true (the caller does not synchronize before the call):
+# the kernel is enqueued on the task-local stream, the synchronization is done by update_halo! itself and covers only that stream.
 
 using Test
 import MPI, Polyester  # NOTE: Polyester must be loaded for the CPU halo update when IGG_USE_POLYESTER=1 (as in test_update_halo.jl).
@@ -80,6 +81,28 @@ nit  = 6
                     fill_slowly!(A, T(k));
                     synchronize_all(A);                  # The contract: the caller synchronizes before the call.
                     update_halo!(A);                     # NOTE: no synchronization after the call: update_halo! returns once the halo update is complete.
+                    stale += count(!=(T(k)), A)          # All elements must hold k: the inner points from the kernel, the halos from the (periodic) neighbors (non-periodic boundaries keep the value of the kernel).
+                end
+                @test stale == 0
+            end;
+            finalize_global_grid(finalize_MPI=false);
+        end
+    end;
+
+    @testset "2. halo update after a kernel (auto_task_sync=true) (arrays: $array_type)" for (array_type, device_type, zeros, n, ol, aware_variants) in zip(array_types, device_types, allocators, sizes, overlaps, gpuaware)
+        for aware in aware_variants, d = 1:3
+            env = isnothing(aware) ? () : ("IGG_CUDAAWARE_MPI" => string(Int(aware)), "IGG_ROCMAWARE_MPI" => string(Int(aware)))
+            withenv(env...) do
+                init_global_grid(n, n, n; periodx=(d==1), periody=(d==2), periodz=(d==3), overlaps=(ol, ol, ol), quiet=true, init_MPI=false, device_type=device_type, auto_task_sync=true);
+            end
+            gpuaware_d = (array_type == "CUDA") ? GG.cudaaware_MPI(d) : (array_type == "AMDGPU") ? GG.amdgpuaware_MPI(d) : false
+            exchange   = all(GG.neighbors(d) .== GG.me()) ? "local" : "MPI"
+            @testset "dimension $d periodic ($exchange exchange, GPU-aware MPI: $gpuaware_d)" begin
+                A     = zeros(T, n, n, n);
+                stale = 0
+                for k = 1:nit
+                    fill_slowly!(A, T(k));
+                    update_halo!(A);                     # NOTE: no synchronization before or after the call: the automatic synchronization of the task-local stream is done by update_halo! itself.
                     stale += count(!=(T(k)), A)          # All elements must hold k: the inner points from the kernel, the halos from the (periodic) neighbors (non-periodic boundaries keep the value of the kernel).
                 end
                 @test stale == 0

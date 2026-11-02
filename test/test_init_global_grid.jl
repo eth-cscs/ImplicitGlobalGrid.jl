@@ -146,6 +146,37 @@ nz = 1;
         @test_throws ErrorException init_global_grid(save_kwarg_defaults=true, overlaps=(4,3,2), halowidths=(2,2,1), quiet=true, init_MPI=false); # Error: halowidths[2]==2 while overlaps[2]==3.
         @test_throws ErrorException init_global_grid(save_kwarg_defaults=true, origin=(0.0, 0.0, 0.0, 0.0), quiet=true, init_MPI=false); # Error: origin length > 3
     end;
+
+    @testset "8. auto_task_sync" begin
+        @testset "default" begin
+            @require MPI.Initialized()
+            @require !GG.grid_is_initialized()
+            init_global_grid(nx, ny, nz, quiet=true, init_MPI=false);
+            @test GG.default(:auto_task_sync) == false
+            finalize_global_grid(finalize_MPI=false);
+        end;
+        @testset "set to true" begin
+            @require MPI.Initialized()
+            @require !GG.grid_is_initialized()
+            init_global_grid(nx, ny, nz, auto_task_sync=true, quiet=true, init_MPI=false);
+            @test GG.default(:auto_task_sync) == true
+            finalize_global_grid(finalize_MPI=false);
+        end;
+        @testset "keyword only" begin
+            @require MPI.Initialized()
+            @require !GG.grid_is_initialized()
+            init_global_grid(auto_task_sync=true, init_MPI=false);
+            @test GG.default(:auto_task_sync) == true
+            finalize_global_grid(finalize_MPI=false);
+        end;
+        @testset "reset by finalize_global_grid" begin
+            @require MPI.Initialized()
+            @require !GG.grid_is_initialized()
+            init_global_grid(nx, ny, nz, auto_task_sync=true, quiet=true, init_MPI=false);
+            finalize_global_grid(finalize_MPI=false);
+            @test GG.default(:auto_task_sync) == false
+        end;
+    end;
 end;
 
 ## Test tear down

@@ -19,7 +19,7 @@ Construct and return a Cartesian grid of MPI processes, defining implicitly a gl
     - `disp::Integer=1`:  the displacement argument to `MPI.Cart_shift` in order to determine the neighbors.
     - `reorder::Integer=1`: the reorder argument to `MPI.Cart_create` in order to create the Cartesian process topology.
     - `comm::MPI.Comm=MPI.COMM_WORLD`: the input communicator argument to `MPI.Cart_create` in order to create the Cartesian process topology.
-    For more information, refer to the documentation of MPI.jl / MPI. `select_device` and `device_type` cannot be changed during grid creation; they must be set during initialization.
+    For more information, refer to the documentation of MPI.jl / MPI. `select_device`, `device_type` and `auto_task_sync` cannot be changed during grid creation; they must be set during initialization.
 
 # Return values
 - `gg`: the newly defined global grid
@@ -55,7 +55,8 @@ function create_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1;
     # These have been moved out of the argument list since they are not expected to change in different grids and the default is updated by the preceding call to init_global_grid if the user set the corresponding keywords.
     device_type     = default(:device_type)
     select_device   = default(:select_device)
-    nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet = normalize_input(nx,ny,nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, quiet)
+    auto_task_sync  = default(:auto_task_sync)
+    nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet = normalize_input(nx,ny,nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet)
     nxyz            = [nx, ny, nz]
     dims            = [dimx, dimy, dimz]
     periods         = [periodx, periody, periodz]
