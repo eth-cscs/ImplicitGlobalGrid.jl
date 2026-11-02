@@ -19,6 +19,7 @@ stages:
     SLURM_TIMELIMIT: '00:30:00'
     JULIA_UENV: 'julia/26.3:v1'
     JULIA_CUDA_USE_COMPAT: 'false'
+    JULIA_CUDA_MEMORY_POOL: 'none'     # The uenv's default ('cuda' enables the CUDA.jl memory pool); passed through `uenv run` below.
     IGG_TEST_BACKEND: 'CUDA'           # Fail instead of skipping the GPU tests if CUDA is not functional.
     IGG_TEST_MPIEXEC: 'srun'
     IGG_TEST_FILES: ''                 # Test files to run (default: all).
@@ -27,7 +28,7 @@ stages:
     - mkdir -p $CI_PROJECT_DIR/.tmp
     - |
       DEPOT=$SCRATCH/.julia-igg-ci; [ "$IGG_CI_PRIVATE_DEPOT" = 1 ] && DEPOT=$CI_PROJECT_DIR/.julia:$DEPOT
-      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$DEPOT TMPDIR=$CI_PROJECT_DIR/.tmp julia --project --startup-file=no -e '
+      uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$DEPOT TMPDIR=$CI_PROJECT_DIR/.tmp JULIA_CUDA_MEMORY_POOL=$JULIA_CUDA_MEMORY_POOL julia --project --startup-file=no -e '
         using Pkg
         Pkg.instantiate()
         Pkg.test(; coverage=true, test_args=String.(split(get(ENV, "IGG_TEST_FILES", ""))))'
@@ -65,6 +66,7 @@ gh200 - 2 nodes, 8 ranks:
     SLURM_NTASKS_PER_NODE: 4
     IGG_TEST_NPROCS: 8
     IGG_CUDAAWARE_MPI: '1'
+    JULIA_CUDA_MEMORY_POOL: 'cuda'     # CUDA-aware MPI with the memory pool enabled: the buffers IGG passes to MPI are allocated outside the pool.
     IGG_TEST_FILES: 'test_finalize_global_grid.jl test_gather.jl test_select_device.jl test_update_halo.jl test_update_halo_streams.jl'
 
 gh200 - 1 rank, Polyester:
