@@ -1,0 +1,68 @@
+include:
+  - remote: 'https://gitlab.com/cscs-ci/recipes/-/raw/master/templates/v2/.ci-ext.yml'
+
+stages:
+  - stack-check
+
+# Stack check (docs/src/stream_semantics.md): runs the probes of ci/probes with an old and the latest release of CUDA.jl (Daint GH200) and
+# AMDGPU.jl (Beverin MI250X), the latest release of ParallelStencil and this commit of ImplicitGlobalGrid, on 1 node with 4 processes, and
+# compares the results with ci/probes/expectations.toml.
+# This is the CSCS CI pipeline `stack`, whose only CI-enabled branch is `stack-check`: .github/workflows/StackCheck.yml pushes main to it
+# weekly and on demand. On a PR: comment `cscs-ci run stack` (variables can be added, e.g. `cscs-ci run stack;STACK_PS=<url>#<rev>`).
+# The environment is created at each run (ci/probes/setup_env.jl), so that new releases are used; the compiled caches go to a job-local
+# depot stacked on the CI depot (the jobs run concurrently with each other and possibly with other pipelines).
+.stack-gh200:
+  extends: .baremetal-runner-daint-gh200
+  stage: stack-check
+  variables:
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_TIMELIMIT: '00:45:00'
+    JULIA_UENV: 'julia/26.3:v1'
+    JULIA_CUDA_USE_COMPAT: 'false'
+    STACK_BACKEND: 'CUDA'
+    STACK_PS: ''                       # ParallelStencil: empty for the latest release, else <url>#<rev>.
+  script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - uenv run $JULIA_UENV --view=juliaup -- env JULIA_DEPOT_PATH=$CI_PROJECT_DIR/.julia:$SCRATCH/.julia-igg-ci TMPDIR=$CI_PROJECT_DIR/.tmp bash ci/probes/run_stack_check.sh
+
+stack gh200 - CUDA.jl lowest:
+  extends: .stack-gh200
+  variables:
+    STACK_BACKEND_VERSION: '5.8'       # The lowest version that runs on Daint (latest 5.8.x): CUDA.jl < 5.8.3 rejects its driver (CUDA 13); the compat of Project.toml admits 5.4.
+    STACK_JULIA: 'julia +lts'          # The lowest Julia version in the compat of Project.toml.
+
+stack gh200 - CUDA.jl latest:
+  extends: .stack-gh200
+  variables:
+    STACK_BACKEND_VERSION: ''
+    STACK_JULIA: 'julia'
+
+# MI250X only (a discrete GPU; on MI300A, the overlap probe would need a larger problem size). MPI.jl uses the cray-mpich of the uenv
+# through the preferences in ci/beverin_mpi_prefs; the settings for ROCm-aware MPI are set by run_stack_check.sh.
+.stack-mi250:
+  extends: .baremetal-runner-beverin-mi200
+  stage: stack-check
+  variables:
+    SLURM_JOB_NUM_NODES: 1
+    SLURM_NTASKS_PER_NODE: 4
+    SLURM_TIMELIMIT: '00:45:00'
+    UENV: '56ebb909a6164680'                  # prgenv-gnu/7.2.3 (ROCm 7.2.3, cray-mpich 9.1.0)
+    STACK_JULIA: '/users/lraess/julia_amd/julia_amd-1.13'
+    JULIA_AMDGPU_DISABLE_ARTIFACTS: '1'       # Use the ROCm of the uenv.
+    JULIA_AMDGPU_CORE_MUST_LOAD: '1'
+    JULIA_AMDGPU_HIP_MUST_LOAD: '1'
+    STACK_BACKEND: 'AMDGPU'
+    STACK_PS: ''
+  script:
+    - mkdir -p $CI_PROJECT_DIR/.tmp
+    - uenv run $UENV --view=default -- env JULIA_DEPOT_PATH=$CI_PROJECT_DIR/.julia:$SCRATCH/.julia-igg-ci-beverin TMPDIR=$CI_PROJECT_DIR/.tmp JULIA_LOAD_PATH=:$CI_PROJECT_DIR/ci/beverin_mpi_prefs bash ci/probes/run_stack_check.sh
+
+stack mi250 - AMDGPU.jl lowest:
+  extends: .stack-mi250
+  variables:
+    STACK_BACKEND_VERSION: '2.8'       # The lowest version measured (docs/src/stream_semantics.md); the compat of Project.toml admits 2.0.
+
+stack mi250 - AMDGPU.jl latest:
+  extends: .stack-mi250
+  variables:
+    STACK_BACKEND_VERSION: ''

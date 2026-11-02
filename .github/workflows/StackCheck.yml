@@ -1,0 +1,42 @@
+name: Stack check
+# The stack check (ci/cscs-stack.yml) is the CSCS CI pipeline `stack`, which runs on pushes to the branch `stack-check`. As the CSCS CI cannot
+# schedule pipelines, this workflow pushes the head of main with an empty commit to that branch, weekly and on demand. When the pipeline
+# fails (commit status `cscs/stack`), it opens an issue, or comments on it while it is open.
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays, 04:00 UTC.
+  workflow_dispatch:
+  status:              # A commit status was created or updated.
+jobs:
+  trigger:
+    if: github.event_name != 'status'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to push the branch stack-check.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Push the head of main with an empty commit to the branch stack-check
+        run: |
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit --allow-empty -m "Stack check of main at $(git rev-parse --short HEAD)"
+          git push --force origin HEAD:refs/heads/stack-check
+  report:
+    if: github.event_name == 'status' && github.event.context == 'cscs/stack' && (github.event.state == 'failure' || github.event.state == 'error') && contains(github.event.branches.*.name, 'stack-check')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # Needed to open or comment on the issue.
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_URL: ${{ github.event.target_url }}
+        run: |
+          title="Stack check failed"
+          body="The stack check failed: $TARGET_URL. The behaviour of a GPU package, ParallelStencil or ImplicitGlobalGrid may have changed (see docs/src/stream_semantics.md and ci/probes/expectations.toml)."
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ -n "$number" ]; then
+              gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
