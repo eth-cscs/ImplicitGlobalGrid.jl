@@ -88,7 +88,7 @@ function init_global_grid(nx::Integer, ny::Integer=1, nz::Integer=1; dimx::Integ
         set_initialized()
         nx, ny, nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet = normalize_input(nx,ny,nz, dimx, dimy, dimz, periodx, periody, periodz, origin, origin_on_vertex, centerx, centery, centerz, overlaps, halowidths, disp, reorder, comm, device_type, select_device, auto_task_sync, quiet)
         # Set the device type to be used for any possible grid, (!) keep in mind (!) bypasses the set default flag 
-    set_default_args(device_type=device_type, select_device=select_device, auto_task_sync=auto_task_sync)
+        set_default_args(device_type=device_type, select_device=select_device, auto_task_sync=auto_task_sync)
         if save_kwarg_defaults
             set_default_args(dimx=dimx, dimy=dimy, dimz=dimz, periodx=periodx, periody=periody, periodz=periodz, origin=origin, origin_on_vertex=origin_on_vertex, centerx=centerx, centery=centery, centerz=centerz, overlaps=overlaps, halowidths=halowidths, disp=disp, reorder=reorder, comm=comm, quiet=quiet)
         end
