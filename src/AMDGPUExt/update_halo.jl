@@ -48,16 +48,23 @@ let
         end
     end
 
-    # Allocate a zeroed device buffer of nelems elements of type T with plain hipMalloc, i.e. outside the AMDGPU.jl memory pool.
-    # NOTE: the device buffers used for ROCm-aware MPI must not come from the AMDGPU.jl memory pool (hipMallocFromPoolAsync, behind ROCArray{T}(undef,...), AMDGPU.zeros, ...): the GPU transport layer of Cray MPICH (libmpi_gtl_hsa) does not recognize pool memory as device memory (IPC path: abort `gtlt_hsa_get_mem_handle: Assertion seg_info != NULL`; non-IPC path: segmentation fault in a CPU memcpy on the device pointer; verified with cray-mpich 9.1.0 / ROCm 7.2.3 on MI300A and MI250X, from Julia and from C). AMDGPU.jl has no option to bypass the pool (unlike CUDA.jl's JULIA_CUDA_MEMORY_POOL=none); once it provides one, this can go back to AMDGPU.zeros for the AMDGPU.jl versions providing it (version check). The wrapping ROCArray does not own the memory (own=false); the buffer is freed explicitly with free_rocbuf!.
+    # Allocate a zeroed device buffer of nelems elements of type T: from the AMDGPU.jl memory pool if its memory is exportable (AMDGPU.jl ≥ 2.11 by default), else with plain hipMalloc, i.e. outside the pool.
+    # NOTE: the device buffers used for ROCm-aware MPI must be exportable: the GPU transport layer of Cray MPICH (libmpi_gtl_hsa) does not recognize memory from a pool without export handle type (AMDGPU.jl < 2.11, or the preference AMDGPU.memory_pool_handle_type!("none")) as device memory (IPC path: abort `gtlt_hsa_get_mem_handle: Assertion seg_info != NULL`; non-IPC path: segmentation fault in a CPU memcpy on the device pointer; verified with cray-mpich 9.1.0 / ROCm 7.2.3 on MI300A and MI250X, from Julia and from C). A hipMalloc buffer is wrapped in a ROCArray that does not own the memory (own=false) and is freed explicitly with free_rocbuf!.
     function alloc_rocbuf(T::DataType, nelems::Integer)
-        ptr = Ref{Ptr{Cvoid}}(C_NULL)
-        AMDGPU.HIP.hipMalloc(ptr, nelems*sizeof(T))
-        push!(hipmalloc_ptrs, ptr[])
-        buf = unsafe_wrap(ROCArray, Ptr{T}(ptr[]), (Int(nelems),); own=false)
-        fill!(buf, zero(T)); AMDGPU.synchronize()  # NOTE: synchronizes the task-local stream, on which fill! was enqueued.
+        if exportable_pool()
+            buf = AMDGPU.zeros(T, nelems)
+        else
+            ptr = Ref{Ptr{Cvoid}}(C_NULL)
+            AMDGPU.HIP.hipMalloc(ptr, nelems*sizeof(T))
+            push!(hipmalloc_ptrs, ptr[])
+            buf = unsafe_wrap(ROCArray, Ptr{T}(ptr[]), (Int(nelems),); own=false)
+            fill!(buf, zero(T))
+        end
+        AMDGPU.synchronize()  # NOTE: synchronizes the task-local stream, on which the zero initialization was enqueued.
         return buf
     end
+
+    exportable_pool() = isdefined(AMDGPU, :memory_pool_exportable) && AMDGPU.memory_pool_exportable(AMDGPU.device())
 
     # Free a device buffer allocated with alloc_rocbuf (hipFree, after synchronizing the task-local stream; a reinterpreted wrapper of such a buffer shares its pointer and is handled the same) or allocated by AMDGPU.jl (unsafe_free!).
     # NOTE: the callers (free_update_halo_rocbuffers, reallocate_rocbufs) run when no halo update is in progress, i.e. after all streams used by IGG have been synchronized, and the only reference to the buffer is the slot being freed or replaced (reinterpret_rocbufs rewrites the slot).
@@ -113,7 +120,7 @@ let
     end
 
     function reallocate_rocbufs(T::DataType, i::Integer, n::Integer, max_halo_elems::Integer)
-        free_rocbuf!(rocsendbufs_raw[i][n]); free_rocbuf!(rocrecvbufs_raw[i][n]);  # NOTE: buffers allocated with alloc_rocbuf are not freed by the GC.
+        free_rocbuf!(rocsendbufs_raw[i][n]); free_rocbuf!(rocrecvbufs_raw[i][n]);  # NOTE: buffers allocated with hipMalloc are not freed by the GC; pool buffers are freed right away too.
         rocsendbufs_raw[i][n] = alloc_rocbuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY); # Ensure that the amount of allocated memory is a multiple of 4*sizeof(T) (sizeof(Float64)/sizeof(Float16) = 4). So, we can always correctly reinterpret the raw buffers even if next time sizeof(T) is greater.
         rocrecvbufs_raw[i][n] = alloc_rocbuf(T, Int(ceil(max_halo_elems/GG_ALLOC_GRANULARITY))*GG_ALLOC_GRANULARITY);
     end
